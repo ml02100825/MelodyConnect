@@ -1,0 +1,35 @@
+﻿# === Java / Maven ===
+api/target/
+*.iml
+.project
+.classpath
+.settings/
+
+# === Flutter / Dart ===
+web/.dart_tool/
+web/.packages
+web/build/
+web/ios/
+web/android/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# === Node/その他（将来入れる場合に備え）===
+node_modules/
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+
+# === OS junk ===
+.DS_Store
+Thumbs.db
+
+# === Docker ===
+# コンテナ内のDBはボリュームで保持、リポジトリには不要
+*.log
+
+# === Env ===
+*.env
+.env*

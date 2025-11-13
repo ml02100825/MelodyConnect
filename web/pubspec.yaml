@@ -1,0 +1,12 @@
+﻿name: flutter_webapp
+description: Mobile-target Flutter app (dev calls backend).
+publish_to: "none"
+version: 0.1.0+1
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+flutter:
+  uses-material-design: true

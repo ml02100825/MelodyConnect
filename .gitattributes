@@ -1,0 +1,9 @@
+﻿* text=auto
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.java text eol=lf
+*.dart text eol=lf
+*.md text eol=lf
+*.properties text eol=lf
+Dockerfile text eol=lf
