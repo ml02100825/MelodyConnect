@@ -6,7 +6,7 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       DB_HOST: db
       DB_PORT: 3306
-      DB_NAME: appdb
+      DB_NAME: MelodyConnectdb
       DB_USER: appuser
       DB_PASSWORD: apppass
     ports:
@@ -16,10 +16,10 @@ services:
 
   db:
     image: mysql:8
-    container_name: app-db
+    container_name: MelodyConnect-db
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: appdb
+      MYSQL_DATABASE: MelodyConnectdb
       MYSQL_USER: appuser
       MYSQL_PASSWORD: apppass
     ports:
