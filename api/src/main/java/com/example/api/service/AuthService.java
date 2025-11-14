@@ -18,6 +18,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -62,6 +63,12 @@ public class AuthService {
         // メールアドレスの重複チェック
         if (userRepository.existsByMailaddress(request.getEmail())) {
             throw new IllegalArgumentException("このメールアドレスは既に登録されています");
+        }
+
+        // BCryptの72バイト制限チェック
+        byte[] passwordBytes = request.getPassword().getBytes(StandardCharsets.UTF_8);
+        if (passwordBytes.length > 72) {
+            throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
         }
 
         // パスワードをハッシュ化
@@ -116,6 +123,12 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse login(LoginRequest request, String userAgent, String ip) {
+        // BCryptの72バイト制限チェック
+        byte[] passwordBytes = request.getPassword().getBytes(StandardCharsets.UTF_8);
+        if (passwordBytes.length > 72) {
+            throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
+        }
+
         // ユーザーを検索
         Optional<User> userOpt = userRepository.findByMailaddress(request.getEmail());
         if (userOpt.isEmpty()) {
