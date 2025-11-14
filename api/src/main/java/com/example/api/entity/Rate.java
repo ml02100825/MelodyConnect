@@ -57,6 +57,18 @@ public class Rate {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    /* ====== コンストラクタ ====== */
+    /** デフォルトコンストラクタ（JPA用） */
+    public Rate() {
+    }
+
+    /** ユーザーとシーズンを指定するコンストラクタ */
+    public Rate(User user, Integer season) {
+        this.user = user;
+        this.season = season;
+        this.rate = 1500; // デフォルトレート
+    }
+
     /* ====== ライフサイクル ====== */
     @PrePersist
     protected void onCreate() {

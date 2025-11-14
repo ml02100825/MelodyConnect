@@ -51,6 +51,18 @@ public class WeeklyLessons {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /* ====== コンストラクタ ====== */
+    /** デフォルトコンストラクタ（JPA用） */
+    public WeeklyLessons() {
+    }
+
+    /** ユーザーを指定するコンストラクタ */
+    public WeeklyLessons(User user) {
+        this.user = user;
+        this.lessonsNum = 0; // デフォルト学習回数
+        this.weekFlag = true; // デフォルトで有効
+    }
+
     /* ====== ライフサイクル ====== */
     @PrePersist
     protected void onCreate() {
