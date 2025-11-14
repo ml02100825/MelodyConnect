@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -24,7 +24,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   bool _isLoading = false;
   bool _isUploading = false;
-  File? _selectedImageFile;
+  XFile? _selectedImageFile;
+  Uint8List? _imageBytes;
   String? _uploadedImageUrl;
 
   @override
@@ -61,8 +62,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       );
 
       if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
         setState(() {
-          _selectedImageFile = File(pickedFile.path);
+          _selectedImageFile = pickedFile;
+          _imageBytes = bytes;
         });
 
         // すぐにアップロード
@@ -81,7 +84,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   /// 画像をアップロード
   Future<void> _uploadImage() async {
-    if (_selectedImageFile == null) return;
+    if (_selectedImageFile == null || _imageBytes == null) return;
 
     setState(() {
       _isUploading = true;
@@ -93,10 +96,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         Uri.parse('http://localhost:8080/api/upload/image'),
       );
 
+      // Web環境ではバイト配列から直接アップロード
       request.files.add(
-        await http.MultipartFile.fromPath(
+        http.MultipartFile.fromBytes(
           'file',
-          _selectedImageFile!.path,
+          _imageBytes!,
+          filename: _selectedImageFile!.name,
         ),
       );
 
@@ -124,6 +129,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       setState(() {
         _isUploading = false;
         _selectedImageFile = null;
+        _imageBytes = null;
       });
 
       if (!mounted) return;
@@ -293,10 +299,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                             ? const Center(
                                 child: CircularProgressIndicator(),
                               )
-                            : _selectedImageFile != null
+                            : _imageBytes != null
                                 ? ClipOval(
-                                    child: Image.file(
-                                      _selectedImageFile!,
+                                    child: Image.memory(
+                                      _imageBytes!,
                                       fit: BoxFit.cover,
                                       width: 150,
                                       height: 150,
