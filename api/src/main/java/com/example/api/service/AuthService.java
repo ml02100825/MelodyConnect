@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -48,6 +50,28 @@ public class AuthService {
     private SeasonCalculator seasonCalculator;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    /**
+     * SHA-256でハッシュ化
+     * リフレッシュトークンのハッシュ化に使用（BCryptの72バイト制限を回避）
+     * @param input ハッシュ化する文字列
+     * @return SHA-256ハッシュ（16進数文字列）
+     */
+    private String hashWithSHA256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256アルゴリズムが見つかりません", e);
+        }
+    }
 
     /**
      * ユーザー登録（ステップ1: メールアドレスとパスワードのみ）
@@ -96,8 +120,8 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
-        // セッションを作成
-        String refreshHash = passwordEncoder.encode(refreshToken);
+        // セッションを作成（refreshTokenはSHA-256でハッシュ化）
+        String refreshHash = hashWithSHA256(refreshToken);
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(30);
         Session session = new Session(user, refreshHash, expiresAt, userAgent, ip);
         sessionRepository.save(session);
@@ -146,8 +170,8 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
-        // セッションを作成
-        String refreshHash = passwordEncoder.encode(refreshToken);
+        // セッションを作成（refreshTokenはSHA-256でハッシュ化）
+        String refreshHash = hashWithSHA256(refreshToken);
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(30);
         Session session = new Session(user, refreshHash, expiresAt, userAgent, ip);
         sessionRepository.save(session);
@@ -192,12 +216,11 @@ public class AuthService {
 
         User user = userOpt.get();
 
-        // セッションを検証（リフレッシュトークンのハッシュで検索）
-        // 注意: BCryptは同じ入力でも異なるハッシュを生成するため、
-        // 既存のセッションを全て取得して個別に検証する必要があります
+        // セッションを検証（リフレッシュトークンのSHA-256ハッシュで検索）
+        String refreshHash = hashWithSHA256(refreshToken);
         boolean sessionValid = sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())
                 .stream()
-                .anyMatch(session -> passwordEncoder.matches(refreshToken, session.getRefreshHash()));
+                .anyMatch(session -> refreshHash.equals(session.getRefreshHash()));
 
         if (!sessionValid) {
             throw new IllegalArgumentException("セッションが無効です");
@@ -209,7 +232,7 @@ public class AuthService {
         // セッションの有効期限を延長
         sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())
                 .stream()
-                .filter(session -> passwordEncoder.matches(refreshToken, session.getRefreshHash()))
+                .filter(session -> refreshHash.equals(session.getRefreshHash()))
                 .findFirst()
                 .ifPresent(session -> {
                     session.extendExpiration();
