@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
+import 'profile_setup_screen.dart';
 
 /// ユーザー登録画面
 class RegisterScreen extends StatefulWidget {
@@ -115,13 +116,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // 登録成功メッセージを表示
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('登録が完了しました'),
+          content: Text('登録が完了しました。プロフィールを設定してください。'),
           backgroundColor: Colors.green,
         ),
       );
 
-      // ログイン画面に戻る
-      Navigator.pop(context);
+      // プロフィール設定画面へ遷移（戻れないようにreplacement使用）
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ProfileSetupScreen()),
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -142,6 +146,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // レスポンシブ対応: 画面幅に応じて最大幅とパディングを調整
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxWidth = screenWidth > 600 ? 500.0 : double.infinity;
+    final padding = screenWidth > 600 ? 48.0 : 24.0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('ユーザー登録'),
@@ -149,9 +158,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(padding),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
+            constraints: BoxConstraints(maxWidth: maxWidth),
             child: Form(
               key: _formKey,
               child: Column(

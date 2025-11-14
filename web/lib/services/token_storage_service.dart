@@ -7,6 +7,7 @@ class TokenStorageService {
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userIdKey = 'user_id';
   static const String _emailKey = 'email';
+  static const String _usernameKey = 'username';
 
   /// アクセストークンを保存
   Future<void> saveAccessToken(String token) async {
@@ -32,17 +33,27 @@ class TokenStorageService {
     await prefs.setString(_emailKey, email);
   }
 
+  /// ユーザー名を保存
+  Future<void> saveUsername(String username) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_usernameKey, username);
+  }
+
   /// 全ての認証情報を保存
   Future<void> saveAuthData({
     required String accessToken,
     required String refreshToken,
     required int userId,
     required String email,
+    String? username,
   }) async {
     await saveAccessToken(accessToken);
     await saveRefreshToken(refreshToken);
     await saveUserId(userId);
     await saveEmail(email);
+    if (username != null) {
+      await saveUsername(username);
+    }
   }
 
   /// アクセストークンを取得
@@ -69,6 +80,12 @@ class TokenStorageService {
     return prefs.getString(_emailKey);
   }
 
+  /// ユーザー名を取得
+  Future<String?> getUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_usernameKey);
+  }
+
   /// 認証情報が保存されているかチェック
   Future<bool> hasAuthData() async {
     final accessToken = await getAccessToken();
@@ -83,5 +100,6 @@ class TokenStorageService {
     await prefs.remove(_refreshTokenKey);
     await prefs.remove(_userIdKey);
     await prefs.remove(_emailKey);
+    await prefs.remove(_usernameKey);
   }
 }

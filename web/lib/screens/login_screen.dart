@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'register_screen.dart';
+import 'home_screen.dart';
 
 /// ログイン画面
 class LoginScreen extends StatefulWidget {
@@ -66,12 +67,13 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
-      // トークンを保存
+      // トークンとユーザー情報を保存
       await _tokenStorage.saveAuthData(
         accessToken: response['accessToken'],
         refreshToken: response['refreshToken'],
         userId: response['userId'],
         email: response['email'],
+        username: response['username'],
       );
 
       if (!mounted) return;
@@ -84,9 +86,11 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      // ホーム画面へ遷移（ここでは単純にメッセージを表示）
-      // 実際のアプリでは、適切な画面に遷移してください
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomeScreen()));
+      // ホーム画面へ遷移
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -115,12 +119,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // レスポンシブ対応: 画面幅に応じて最大幅とパディングを調整
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxWidth = screenWidth > 600 ? 500.0 : double.infinity;
+    final padding = screenWidth > 600 ? 48.0 : 24.0;
+
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(padding),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
+            constraints: BoxConstraints(maxWidth: maxWidth),
             child: Form(
               key: _formKey,
               child: Column(
