@@ -1,105 +1,130 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
 
-/**
- * ユーザーエンティティクラス
- * データベースのusersテーブルにマッピングされます
- */
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+       indexes = {
+           @Index(name = "idx_users_username", columnList = "username"),
+           @Index(name = "idx_users_mailaddress", columnList = "mailaddress"),
+           @Index(name = "idx_users_user_uuid", columnList = "userUuid", unique = true)
+       })
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
-    private Long userId;
+    private Long id;
 
-    @Column(name = "email", nullable = false, unique = true, length = 255)
-    private String email;
+    @NotBlank
+    @Size(max = 20)
+    private String username;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
-    private String passwordHash;
+    @NotBlank
+    @Size(max = 30)
+    private String mailaddress;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @NotBlank
+    @Size(max = 50)
+    private String password;
 
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "total_play", nullable = false)
+    private int totalPlay = 0;
 
-    /**
-     * デフォルトコンストラクタ
-     */
-    public User() {
-    }
+    @Size(max = 200)
+    @Column(name = "image_url")
+    private String imageUrl;
 
-    /**
-     * コンストラクタ
-     * @param email ユーザーのメールアドレス
-     * @param passwordHash ハッシュ化されたパスワード
-     */
-    public User(String email, String passwordHash) {
-        this.email = email;
-        this.passwordHash = passwordHash;
-    }
+    @Min(0)
+    @Max(100)
+    private int volume = 50;
 
-    /**
-     * エンティティ保存前の処理
-     */
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
+    @Column(nullable = false)
+    private int language = 0;
 
-    /**
-     * エンティティ更新前の処理
-     */
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
+    @Column(nullable = false)
+    private int privacy = 0;
 
-    // Getters and Setters
+    @Column(name = "subscribe_flag", nullable = false)
+    private boolean subscribeFlag = false;
 
-    public Long getUserId() {
-        return userId;
-    }
+    private LocalDateTime acceptedAt;
 
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
+    private int life = 5;
 
-    public String getEmail() {
-        return email;
-    }
+    @Column(name = "delete_flag", nullable = false)
+    private boolean deleteFlag = false;
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    private LocalDateTime expiresAt;
+    private LocalDateTime canceledAt;
+    private LocalDateTime offlineAt;
 
-    public String getPasswordHash() {
-        return passwordHash;
-    }
+    @Column(name = "user_uuid", length = 36, nullable = false)
+    private String userUuid;
 
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
+    @Column(name = "ban_flag", nullable = false)
+    private boolean banFlag = false;
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
+    // ====== getters / setters ======
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
 
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
+    public String getMailaddress() { return mailaddress; }
+    public void setMailaddress(String mailaddress) { this.mailaddress = mailaddress; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+
+    public int getTotalPlay() { return totalPlay; }
+    public void setTotalPlay(int totalPlay) { this.totalPlay = totalPlay; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public int getVolume() { return volume; }
+    public void setVolume(int volume) { this.volume = volume; }
+
+    public int getLanguage() { return language; }
+    public void setLanguage(int language) { this.language = language; }
+
+    public int getPrivacy() { return privacy; }
+    public void setPrivacy(int privacy) { this.privacy = privacy; }
+
+    public boolean isSubscribeFlag() { return subscribeFlag; }
+    public void setSubscribeFlag(boolean subscribeFlag) { this.subscribeFlag = subscribeFlag; }
+
+    public LocalDateTime getAcceptedAt() { return acceptedAt; }
+    public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
+
+    public int getLife() { return life; }
+    public void setLife(int life) { this.life = life; }
+
+    public boolean isDeleteFlag() { return deleteFlag; }
+    public void setDeleteFlag(boolean deleteFlag) { this.deleteFlag = deleteFlag; }
+
+    public LocalDateTime getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+
+    public LocalDateTime getCanceledAt() { return canceledAt; }
+    public void setCanceledAt(LocalDateTime canceledAt) { this.canceledAt = canceledAt; }
+
+    public LocalDateTime getOfflineAt() { return offlineAt; }
+    public void setOfflineAt(LocalDateTime offlineAt) { this.offlineAt = offlineAt; }
+
+    public String getUserUuid() { return userUuid; }
+    public void setUserUuid(String userUuid) { this.userUuid = userUuid; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public boolean isBanFlag() { return banFlag; }
+    public void setBanFlag(boolean banFlag) { this.banFlag = banFlag; }
 }
