@@ -6,13 +6,10 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * ユーザー登録リクエストDTO
+ * ユーザー登録リクエストDTO（ステップ1: 認証情報のみ）
+ * ユーザー名とアイコンは後でプロフィール設定画面で設定
  */
 public class RegisterRequest {
-
-    @NotBlank(message = "ユーザー名は必須です")
-    @Size(min = 3, max = 20, message = "ユーザー名は3文字以上20文字以下である必要があります")
-    private String username;
 
     @NotBlank(message = "メールアドレスは必須です")
     @Email(message = "有効なメールアドレスを入力してください")
@@ -30,18 +27,9 @@ public class RegisterRequest {
     public RegisterRequest() {
     }
 
-    public RegisterRequest(String username, String email, String password) {
-        this.username = username;
+    public RegisterRequest(String email, String password) {
         this.email = email;
         this.password = password;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
     }
 
     public String getEmail() {
