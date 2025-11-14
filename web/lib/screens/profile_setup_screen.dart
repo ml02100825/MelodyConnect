@@ -1,4 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'home_screen.dart';
@@ -14,28 +18,18 @@ class ProfileSetupScreen extends StatefulWidget {
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
-  final _imageUrlController = TextEditingController();
   final _profileApiService = ProfileApiService();
   final _tokenStorage = TokenStorageService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   bool _isLoading = false;
-
-  // デフォルトアイコンのリスト
-  final List<String> _defaultIcons = [
-    'https://ui-avatars.com/api/?name=User&background=FF6B6B&color=fff',
-    'https://ui-avatars.com/api/?name=User&background=4ECDC4&color=fff',
-    'https://ui-avatars.com/api/?name=User&background=45B7D1&color=fff',
-    'https://ui-avatars.com/api/?name=User&background=96CEB4&color=fff',
-    'https://ui-avatars.com/api/?name=User&background=FFEAA7&color=333',
-    'https://ui-avatars.com/api/?name=User&background=DDA15E&color=fff',
-  ];
-
-  String? _selectedIcon;
+  bool _isUploading = false;
+  File? _selectedImageFile;
+  String? _uploadedImageUrl;
 
   @override
   void dispose() {
     _usernameController.dispose();
-    _imageUrlController.dispose();
     super.dispose();
   }
 
@@ -56,9 +50,105 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     return null;
   }
 
+  /// 画像を選択
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImageFile = File(pickedFile.path);
+        });
+
+        // すぐにアップロード
+        await _uploadImage();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('画像の選択に失敗しました: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 画像をアップロード
+  Future<void> _uploadImage() async {
+    if (_selectedImageFile == null) return;
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('http://localhost:8080/api/upload/image'),
+      );
+
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          _selectedImageFile!.path,
+        ),
+      );
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        setState(() {
+          _uploadedImageUrl = 'http://localhost:8080${data['imageUrl']}';
+          _isUploading = false;
+        });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('画像をアップロードしました'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception('アップロードに失敗しました');
+      }
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+        _selectedImageFile = null;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('画像のアップロードに失敗しました: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   /// プロフィール更新処理
   Future<void> _handleProfileUpdate() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_uploadedImageUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('アイコン画像を選択してください'),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return;
     }
 
@@ -79,7 +169,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       final response = await _profileApiService.updateProfile(
         userId: userId,
         username: _usernameController.text.trim(),
-        imageUrl: _selectedIcon ?? _imageUrlController.text.trim(),
+        imageUrl: _uploadedImageUrl!,
         accessToken: accessToken,
       );
 
@@ -168,84 +258,87 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       border: OutlineInputBorder(),
                     ),
                     validator: _validateUsername,
-                    enabled: !_isLoading,
+                    enabled: !_isLoading && !_isUploading,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
 
-                  // アイコン選択
+                  // アイコン画像選択
                   const Text(
-                    'アイコンを選択',
+                    'アイコン画像',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    alignment: WrapAlignment.center,
-                    children: _defaultIcons.map((iconUrl) {
-                      final isSelected = _selectedIcon == iconUrl;
-                      return GestureDetector(
-                        onTap: _isLoading
-                            ? null
-                            : () {
-                                setState(() {
-                                  _selectedIcon = iconUrl;
-                                  _imageUrlController.clear();
-                                });
-                              },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? Colors.blue : Colors.transparent,
-                              width: 3,
-                            ),
-                          ),
-                          child: CircleAvatar(
-                            radius: 30,
-                            backgroundImage: NetworkImage(iconUrl),
+
+                  // 画像プレビューまたは選択ボタン
+                  Center(
+                    child: GestureDetector(
+                      onTap: _isLoading || _isUploading ? null : _pickImage,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _uploadedImageUrl != null
+                                ? Colors.blue
+                                : Colors.grey,
+                            width: 3,
                           ),
                         ),
-                      );
-                    }).toList(),
+                        child: _isUploading
+                            ? const Center(
+                                child: CircularProgressIndicator(),
+                              )
+                            : _selectedImageFile != null
+                                ? ClipOval(
+                                    child: Image.file(
+                                      _selectedImageFile!,
+                                      fit: BoxFit.cover,
+                                      width: 150,
+                                      height: 150,
+                                    ),
+                                  )
+                                : const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_a_photo,
+                                        size: 48,
+                                        color: Colors.grey,
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        '画像を選択',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 24),
-
-                  // カスタム画像URL入力（オプション）
+                  const SizedBox(height: 8),
                   const Text(
-                    'またはカスタム画像URLを入力',
+                    'タップして画像を選択（最大5MB）',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       color: Colors.grey,
                     ),
                     textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _imageUrlController,
-                    decoration: const InputDecoration(
-                      labelText: '画像URL（オプション）',
-                      hintText: 'https://example.com/avatar.png',
-                      prefixIcon: Icon(Icons.image),
-                      border: OutlineInputBorder(),
-                    ),
-                    enabled: !_isLoading,
-                    onChanged: (value) {
-                      if (value.isNotEmpty) {
-                        setState(() {
-                          _selectedIcon = null;
-                        });
-                      }
-                    },
                   ),
                   const SizedBox(height: 32),
 
                   // 設定完了ボタン
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _handleProfileUpdate,
+                    onPressed: (_isLoading || _isUploading)
+                        ? null
+                        : _handleProfileUpdate,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
