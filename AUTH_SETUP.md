@@ -177,10 +177,18 @@ Authorization: Bearer {accessToken}
 
 ### 1. データベース初期化
 
-データベースにテーブルを作成するSQLスクリプトは以下に配置されています:
-- `/db/init/02_auth_schema.sql`
+データベーステーブルは **JPA/Hibernateの自動スキーマ生成** によって作成されます。
 
-Docker Composeを使用している場合、自動的に実行されます。
+`application.properties` の設定:
+```properties
+spring.jpa.hibernate.ddl-auto=update
+```
+
+この設定により、アプリケーション起動時にUserエンティティとSessionエンティティから
+自動的に `users` テーブルと `sessions` テーブルが作成されます。
+
+**注意**: 本番環境では `ddl-auto=validate` または `ddl-auto=none` を使用し、
+マイグレーションツール（Flyway、Liquibaseなど）の使用を推奨します。
 
 ### 2. バックエンド設定
 
