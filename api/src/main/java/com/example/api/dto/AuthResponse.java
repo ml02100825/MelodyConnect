@@ -7,6 +7,7 @@ package com.example.api.dto;
 public class AuthResponse {
 
     private Long userId;
+    private String username;
     private String email;
     private String accessToken;
     private String refreshToken;
@@ -15,8 +16,9 @@ public class AuthResponse {
     public AuthResponse() {
     }
 
-    public AuthResponse(Long userId, String email, String accessToken, String refreshToken, Long expiresIn) {
+    public AuthResponse(Long userId, String username, String email, String accessToken, String refreshToken, Long expiresIn) {
         this.userId = userId;
+        this.username = username;
         this.email = email;
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
@@ -29,6 +31,14 @@ public class AuthResponse {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getEmail() {

@@ -13,16 +13,37 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
 
     /**
-     * メールアドレスでユーザーを検索
-     * @param email メールアドレス
+     * ユーザー名でユーザーを検索
+     * @param username ユーザー名
      * @return ユーザー（存在する場合）
      */
-    Optional<User> findByEmail(String email);
+    Optional<User> findByUsername(String username);
+
+    /**
+     * メールアドレスでユーザーを検索
+     * @param mailaddress メールアドレス
+     * @return ユーザー（存在する場合）
+     */
+    Optional<User> findByMailaddress(String mailaddress);
+
+    /**
+     * ユーザーUUIDでユーザーを検索
+     * @param userUuid ユーザーUUID
+     * @return ユーザー（存在する場合）
+     */
+    Optional<User> findByUserUuid(String userUuid);
 
     /**
      * メールアドレスの存在確認
-     * @param email メールアドレス
+     * @param mailaddress メールアドレス
      * @return 存在する場合true
      */
-    boolean existsByEmail(String email);
+    boolean existsByMailaddress(String mailaddress);
+
+    /**
+     * ユーザー名の存在確認
+     * @param username ユーザー名
+     * @return 存在する場合true
+     */
+    boolean existsByUsername(String username);
 }

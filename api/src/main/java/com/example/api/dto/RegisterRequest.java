@@ -10,8 +10,13 @@ import jakarta.validation.constraints.Size;
  */
 public class RegisterRequest {
 
+    @NotBlank(message = "ユーザー名は必須です")
+    @Size(min = 3, max = 20, message = "ユーザー名は3文字以上20文字以下である必要があります")
+    private String username;
+
     @NotBlank(message = "メールアドレスは必須です")
     @Email(message = "有効なメールアドレスを入力してください")
+    @Size(max = 30, message = "メールアドレスは30文字以下である必要があります")
     private String email;
 
     @NotBlank(message = "パスワードは必須です")
@@ -25,9 +30,18 @@ public class RegisterRequest {
     public RegisterRequest() {
     }
 
-    public RegisterRequest(String email, String password) {
+    public RegisterRequest(String username, String email, String password) {
+        this.username = username;
         this.email = email;
         this.password = password;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getEmail() {

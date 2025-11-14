@@ -3,7 +3,12 @@ package com.example.api.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
+/**
+ * ユーザーエンティティクラス
+ * データベースのusersテーブルにマッピングされます
+ */
 @Entity
 @Table(name = "users",
        indexes = {
@@ -20,55 +25,79 @@ public class User {
 
     @NotBlank
     @Size(max = 20)
+    @Column(name = "username", nullable = false, length = 20)
     private String username;
 
     @NotBlank
     @Size(max = 30)
+    @Column(name = "mailaddress", nullable = false, length = 30)
     private String mailaddress;
 
     @NotBlank
-    @Size(max = 50)
+    @Size(max = 255)
+    @Column(name = "password", nullable = false, length = 255)
     private String password;
 
     @Column(name = "total_play", nullable = false)
     private int totalPlay = 0;
 
     @Size(max = 200)
-    @Column(name = "image_url")
+    @Column(name = "image_url", length = 200)
     private String imageUrl;
 
     @Min(0)
     @Max(100)
+    @Column(name = "volume", nullable = false)
     private int volume = 50;
 
-    @Column(nullable = false)
+    @Column(name = "language", nullable = false)
     private int language = 0;
 
-    @Column(nullable = false)
+    @Column(name = "privacy", nullable = false)
     private int privacy = 0;
 
     @Column(name = "subscribe_flag", nullable = false)
     private boolean subscribeFlag = false;
 
+    @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
 
+    @Column(name = "life", nullable = false)
     private int life = 5;
 
     @Column(name = "delete_flag", nullable = false)
     private boolean deleteFlag = false;
 
+    @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+
+    @Column(name = "canceled_at")
     private LocalDateTime canceledAt;
+
+    @Column(name = "offline_at")
     private LocalDateTime offlineAt;
 
-    @Column(name = "user_uuid", length = 36, nullable = false)
+    @Column(name = "user_uuid", length = 36, nullable = false, unique = true)
     private String userUuid;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt;
 
     @Column(name = "ban_flag", nullable = false)
     private boolean banFlag = false;
+
+    /**
+     * エンティティ保存前の処理
+     */
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (userUuid == null) {
+            userUuid = UUID.randomUUID().toString();
+        }
+    }
 
     // ====== getters / setters ======
     public Long getId() { return id; }

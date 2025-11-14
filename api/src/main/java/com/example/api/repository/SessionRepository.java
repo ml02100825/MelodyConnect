@@ -1,6 +1,7 @@
 package com.example.api.repository;
 
 import com.example.api.entity.Session;
+import com.example.api.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -18,27 +19,46 @@ import java.util.Optional;
 public interface SessionRepository extends JpaRepository<Session, Long> {
 
     /**
-     * ユーザーIDで有効なセッションを検索
-     * @param userId ユーザーID
+     * ユーザーで有効なセッションを検索
+     * @param user ユーザーエンティティ
+     * @param now 現在時刻
      * @return 有効なセッションのリスト
      */
-    @Query("SELECT s FROM Session s WHERE s.userId = :userId AND s.revokedFlag = false AND s.expiresAt > :now")
+    @Query("SELECT s FROM Session s WHERE s.user = :user AND s.revokedFlag = false AND s.expiresAt > :now")
+    List<Session> findValidSessionsByUser(@Param("user") User user, @Param("now") LocalDateTime now);
+
+    /**
+     * ユーザーIDで有効なセッションを検索（後方互換性のため）
+     * @param userId ユーザーID
+     * @param now 現在時刻
+     * @return 有効なセッションのリスト
+     */
+    @Query("SELECT s FROM Session s WHERE s.user.id = :userId AND s.revokedFlag = false AND s.expiresAt > :now")
     List<Session> findValidSessionsByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
     /**
      * リフレッシュトークンハッシュで有効なセッションを検索
      * @param refreshHash リフレッシュトークンハッシュ
+     * @param now 現在時刻
      * @return セッション（存在する場合）
      */
     @Query("SELECT s FROM Session s WHERE s.refreshHash = :refreshHash AND s.revokedFlag = false AND s.expiresAt > :now")
     Optional<Session> findValidSessionByRefreshHash(@Param("refreshHash") String refreshHash, @Param("now") LocalDateTime now);
 
     /**
-     * ユーザーIDで全てのセッションを取得
+     * ユーザーで全てのセッションを取得
+     * @param user ユーザーエンティティ
+     * @return セッションのリスト
+     */
+    List<Session> findByUser(User user);
+
+    /**
+     * ユーザーIDで全てのセッションを取得（後方互換性のため）
      * @param userId ユーザーID
      * @return セッションのリスト
      */
-    List<Session> findByUserId(Long userId);
+    @Query("SELECT s FROM Session s WHERE s.user.id = :userId")
+    List<Session> findByUserId(@Param("userId") Long userId);
 
     /**
      * 期限切れのセッションを削除
@@ -50,9 +70,17 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     /**
      * ユーザーの全セッションを無効化
+     * @param user ユーザーエンティティ
+     */
+    @Modifying
+    @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user = :user")
+    void revokeAllUserSessions(@Param("user") User user);
+
+    /**
+     * ユーザーIDで全セッションを無効化（後方互換性のため）
      * @param userId ユーザーID
      */
     @Modifying
-    @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.userId = :userId")
-    void revokeAllUserSessions(@Param("userId") Long userId);
+    @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user.id = :userId")
+    void revokeAllUserSessionsById(@Param("userId") Long userId);
 }
