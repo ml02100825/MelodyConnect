@@ -1,0 +1,4 @@
+# アップロードされた画像ファイルを無視（.gitkeepは除く）
+*
+!.gitignore
+!.gitkeep

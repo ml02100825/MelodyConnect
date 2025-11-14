@@ -1,19 +1,14 @@
 package com.example.api.controller;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.example.api.service.ImageUploadService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * 画像アップロードコントローラー
@@ -21,12 +16,10 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/api/upload")
-@CrossOrigin(origins = "*")
 public class ImageUploadController {
 
-    // 画像保存先ディレクトリ（環境変数で設定可能、デフォルトは./uploads）
-    @Value("${upload.directory:./uploads}")
-    private String uploadDirectory;
+    @Autowired
+    private ImageUploadService imageUploadService;
 
     // 画像の最大サイズ（5MB）
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -61,22 +54,8 @@ public class ImageUploadController {
                         .body(createErrorResponse("許可されていないファイル形式です（jpg, jpeg, png, gif, webpのみ）"));
             }
 
-            // アップロードディレクトリを作成（存在しない場合）
-            Path uploadPath = Paths.get(uploadDirectory);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            // ユニークなファイル名を生成
-            String fileExtension = getFileExtension(originalFilename);
-            String uniqueFilename = UUID.randomUUID().toString() + "." + fileExtension;
-
-            // ファイルを保存
-            Path filePath = uploadPath.resolve(uniqueFilename);
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-            // 画像URLを生成（実際の環境ではドメイン名を使用）
-            String imageUrl = "/uploads/" + uniqueFilename;
+            // 画像をアップロード（環境に応じてローカルまたはS3に保存）
+            String imageUrl = imageUploadService.uploadImage(file);
 
             // レスポンスを返す
             Map<String, String> response = new HashMap<>();
@@ -85,7 +64,7 @@ public class ImageUploadController {
 
             return ResponseEntity.ok(response);
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("画像のアップロードに失敗しました: " + e.getMessage()));
         }

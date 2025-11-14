@@ -13,7 +13,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${upload.directory:./uploads}")
+    @Value("${upload.storage.type:local}")
+    private String storageType;
+
+    @Value("${upload.local.directory:src/main/resources/static/uploads}")
     private String uploadDirectory;
 
     /**
@@ -22,19 +25,25 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("*")
+                .allowedOriginPatterns("*") // allowedOrigins("*")は動作しないため変更
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*");
+                .allowedHeaders("*")
+                .allowCredentials(true);
     }
 
     /**
      * 静的リソース設定
-     * アップロードされた画像を提供できるようにします
+     * アップロードされた画像を提供できるようにします（ローカルストレージの場合のみ）
      */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // アップロードディレクトリを静的リソースとして公開
-        registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:" + uploadDirectory + "/");
+        if ("local".equalsIgnoreCase(storageType)) {
+            // クラスパスとファイルシステムの両方をサポート
+            registry.addResourceHandler("/uploads/**")
+                    .addResourceLocations(
+                            "classpath:/static/uploads/",
+                            "file:" + uploadDirectory + "/"
+                    );
+        }
     }
 }

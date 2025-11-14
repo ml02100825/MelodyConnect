@@ -110,8 +110,16 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
+        String imageUrl = data['imageUrl'];
+
+        // S3のURLか相対パスかを判定
+        if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+          // 相対パスの場合、絶対URLに変換
+          imageUrl = 'http://localhost:8080$imageUrl';
+        }
+
         setState(() {
-          _uploadedImageUrl = 'http://localhost:8080${data['imageUrl']}';
+          _uploadedImageUrl = imageUrl;
           _isUploading = false;
         });
 
@@ -123,7 +131,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           ),
         );
       } else {
-        throw Exception('アップロードに失敗しました');
+        final Map<String, dynamic> errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ?? 'アップロードに失敗しました');
       }
     } catch (e) {
       setState(() {
