@@ -55,6 +55,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return 'パスワードは8文字以上である必要があります';
     }
 
+    if (value.length > 50) {
+      return 'パスワードは50文字以下である必要があります';
+    }
+
     if (!RegExp(r'[A-Z]').hasMatch(value)) {
       return 'パスワードには大文字が必要です';
     }
@@ -207,7 +211,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _passwordController,
                     decoration: InputDecoration(
                       labelText: 'パスワード',
-                      hintText: '8文字以上、大小英字・数字・記号を含む',
+                      hintText: '8-50文字、大小英字・数字・記号を含む',
                       prefixIcon: const Icon(Icons.lock),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(

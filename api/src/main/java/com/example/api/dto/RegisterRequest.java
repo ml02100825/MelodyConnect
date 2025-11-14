@@ -17,7 +17,7 @@ public class RegisterRequest {
     private String email;
 
     @NotBlank(message = "パスワードは必須です")
-    @Size(min = 8, max = 100, message = "パスワードは8文字以上100文字以下である必要があります")
+    @Size(min = 8, max = 50, message = "パスワードは8文字以上50文字以下である必要があります")
     @Pattern(
         regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&#])[A-Za-z\\d@$!%*?&#]+$",
         message = "パスワードは大文字、小文字、数字、特殊文字を含む必要があります"
