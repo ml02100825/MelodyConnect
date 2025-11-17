@@ -51,7 +51,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
       // STOMP WebSocket接続
       _stompClient = StompClient(
         config: StompConfig(
-          url: 'http://localhost:8080/ws',
+          url: 'ws://localhost:8080/ws',
           onConnect: (StompFrame frame) {
             if (!mounted) return;
 
@@ -102,9 +102,6 @@ class _MatchingScreenState extends State<MatchingScreen> {
               _statusMessage = 'STOMPエラー: ${frame.body}';
             });
           },
-          // SockJSを使用する場合の設定
-          stompConnectHeaders: {},
-          webSocketConnectHeaders: {},
         ),
       );
 
