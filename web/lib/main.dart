@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'screens/battle_mode_selection_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -15,6 +16,9 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const LoginScreen(),
+      routes: {
+        '/battle-mode': (context) => const BattleModeSelectionScreen(),
+      },
       debugShowCheckedModeBanner: false,
     );
   }
