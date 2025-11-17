@@ -1,6 +1,5 @@
-package com.example.demo.entity;
+package com.example.api.entity;
 
-import com.example.demo.enums.QuestionFormat;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,7 +16,7 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Question {
+public class question {
 
     /**
      * 問題ID（主キー）
@@ -28,16 +27,16 @@ public class Question {
     private Integer questionId;
 
     /**
-     * 楽曲名ID（外部キー）
+     * 楽曲ID（外部キー）
      */
     @Column(name = "song_id", nullable = false)
-    private Song songId;
+    private Long songId;
 
     /**
      * アーティストID（外部キー）
      */
     @Column(name = "artist_id", nullable = false)
-    private Artist artistnameId;
+    private Integer artistId;
 
     /**
      * 問題文
@@ -59,21 +58,14 @@ public class Question {
 
     /**
      * 問題形式
-     * listening等の形式を指定
+     * listening, fill_in_blank等の形式を指定
      */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "question_format", nullable = false)
-    private QuestionFormat questionFormat;
-
-    /**
-     * 楽曲ID（外部キー）
-     */
-    @Column(name = "song_id", nullable = false)
-    private Integer songId;
+    @Column(name = "question_format", nullable = false, length = 30)
+    private String questionFormat;
 
     /**
      * 難易度レベル
-     * wordnIkAPIから取得される値
+     * 1-5の範囲
      */
     @Column(name = "difficulty_level")
     private Integer difficultyLevel;

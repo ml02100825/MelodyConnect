@@ -1,4 +1,4 @@
-package com.example.demo.entity;
+package com.example.api.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -36,7 +36,7 @@ public class Artist {
      * ジャンルID（外部キー）
      */
     @Column(name = "genre_id", nullable = false)
-    private Genre  genreId;
+    private Integer genreId;
 
     /**
      * 画像URL
@@ -55,7 +55,7 @@ public class Artist {
      * AppleMusicで使用されるID
      */
     @Column(name = "artist_api_id", length = 50)
-    private Integer artistApiId;
+    private String artistApiId;
 
     /**
      * エンティティ保存前に自動的に追加日時を設定
