@@ -36,11 +36,6 @@ public class ProfileService {
 
         User user = userOpt.get();
 
-        // ユーザー名の重複チェック（自分以外のユーザーで同じユーザー名が存在するか）
-        Optional<User> existingUser = userRepository.findByUsername(request.getUsername());
-        if (existingUser.isPresent() && !existingUser.get().getId().equals(userId)) {
-            throw new IllegalArgumentException("このユーザー名は既に使用されています");
-        }
 
         // プロフィールを更新
         user.setUsername(request.getUsername());
