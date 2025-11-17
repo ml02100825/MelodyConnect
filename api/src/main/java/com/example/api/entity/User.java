@@ -77,7 +77,7 @@ public class User {
     @Column(name = "offline_at")
     private LocalDateTime offlineAt;
 
-    @Column(name = "user_uuid", length = 36, nullable = false, unique = true)
+    @Column(name = "user_uuid", length = 36, nullable = true, unique = true)
     private String userUuid;
 
     @Column(name = "created_at", nullable = false)
@@ -94,9 +94,7 @@ public class User {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
-        if (userUuid == null) {
-            userUuid = UUID.randomUUID().toString();
-        }
+        // userUuidは手動で設定する（フレンド申請用のユーザーID）
     }
 
     // ====== getters / setters ======
