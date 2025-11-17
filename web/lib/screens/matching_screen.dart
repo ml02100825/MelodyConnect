@@ -197,42 +197,16 @@ class _MatchingScreenState extends State<MatchingScreen> {
       ),
     );
 
-    // TODO: バトル画面に遷移
-    // 現在はプレースホルダーとして、マッチ情報をダイアログで表示
+    // 少し待ってからバトル画面に遷移
     await Future.delayed(const Duration(seconds: 1));
 
     if (!mounted) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('マッチング成立'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Match ID: ${data['matchId']}'),
-            Text('Your ID: ${data['userId']}'),
-            Text('Opponent ID: ${data['opponentId']}'),
-            Text('Language: ${data['language']}'),
-            const SizedBox(height: 16),
-            const Text(
-              'バトル画面は現在準備中です。\nこの機能は後ほど実装されます。',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // ダイアログを閉じる
-              Navigator.popUntil(context, (route) => route.isFirst); // ホーム画面に戻る
-            },
-            child: const Text('閉じる'),
-          ),
-        ],
-      ),
+    // バトル画面に遷移
+    final matchId = data['matchId'];
+    Navigator.pushReplacementNamed(
+      context,
+      '/battle?matchId=$matchId',
     );
   }
 

@@ -3,6 +3,7 @@ import 'screens/login_screen.dart';
 import 'screens/battle_mode_selection_screen.dart';
 import 'screens/language_selection_screen.dart';
 import 'screens/matching_screen.dart';
+import 'screens/battle_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -32,6 +33,19 @@ class MyApp extends StatelessWidget {
             settings: settings,
           );
         }
+
+        // /battle?matchId=xxx のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/battle') == true) {
+          final uri = Uri.parse(settings.name!);
+          final matchId = uri.queryParameters['matchId'];
+          if (matchId != null) {
+            return MaterialPageRoute(
+              builder: (context) => BattleScreen(matchId: matchId),
+              settings: settings,
+            );
+          }
+        }
+
         return null;
       },
       debugShowCheckedModeBanner: false,
