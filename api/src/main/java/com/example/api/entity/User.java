@@ -77,7 +77,7 @@ public class User {
     @Column(name = "offline_at")
     private LocalDateTime offlineAt;
 
-    @Column(name = "user_uuid", length = 20, nullable = false, unique = true)
+    @Column(name = "user_uuid", length = 20, nullable = true, unique = true)
     private String userUuid;
 
     @Column(name = "created_at", nullable = false)
