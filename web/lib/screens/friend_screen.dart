@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../bottom_nav.dart';
+
 
 class FriendScreen extends StatelessWidget {
   const FriendScreen({Key? key}) : super(key: key);
@@ -52,79 +54,45 @@ class FriendScreen extends StatelessWidget {
                 color: Colors.black87,
                 size: 20,
               ),
-              onPressed: () {
-                // フレンド追加処理
-              },
+              onPressed: () {},
             ),
           ),
         ],
       ),
+
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center, // ★ 画面中央揃え
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _buildMenuButton(
               context,
               icon: Icons.search,
               label: 'ユーザー検索',
-              onTap: () {
-                // ユーザー検索画面へ遷移
-              },
+              onTap: () {},
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.people,
               label: 'フレンド一覧',
-              onTap: () {
-                // フレンド一覧画面へ遷移
-              },
+              onTap: () {},
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.schedule,
               label: 'フレンド申請一覧',
-              onTap: () {
-                // フレンド申請一覧画面へ遷移
-              },
+              onTap: () {},
             ),
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey[400],
+
+      bottomNavigationBar: BottomNavBar(
         currentIndex: 3,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'ホーム',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.music_note),
-            label: 'ミュージック',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.mail_outline),
-            label: 'メール',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'フレンド',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu),
-            label: 'メニュー',
-          ),
-        ],
         onTap: (index) {
-          // ナビゲーション処理
+          // TODO: 画面遷移処理を書く
         },
       ),
     );
@@ -164,11 +132,7 @@ class FriendScreen extends StatelessWidget {
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                icon,
-                color: Colors.black87,
-                size: 20,
-              ),
+              child: Icon(icon, color: Colors.black87, size: 20),
             ),
             const SizedBox(width: 12),
             Text(
