@@ -17,8 +17,9 @@ public class song {
     private Long song_id;
 
     // ※定義書の物理名が「aritst_id」になっているため、そのまま採用
-    @Column(name = "aritst_id", nullable = false)
-    private Long aritst_id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "aritst_id", nullable = false)
+    private Artist artist;
 
     @Column(name = "songname", nullable = false, length = 1000)
     private String songname;
@@ -54,12 +55,12 @@ public class song {
         this.song_id = song_id;
     }
 
-    public Long getAritst_id() {
-        return aritst_id;
+    public Artist getArtist() {
+        return artist;
     }
 
-    public void setAritst_id(Long aritst_id) {
-        this.aritst_id = aritst_id;
+    public void setArtist(Artist artist) {
+        this.artist = artist;
     }
 
     public String getSongname() {

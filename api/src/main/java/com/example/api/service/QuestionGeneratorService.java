@@ -154,8 +154,9 @@ public class QuestionGeneratorService {
         LikeArtist randomLikeArtist = likeArtistRepository.findRandomByUserId(userId)
             .orElseThrow(() -> new IllegalStateException("お気に入りアーティストが見つかりません"));
 
-        return songRepository.findRandomByArtist(randomLikeArtist.getArtistId().longValue())
-            .orElseGet(() -> appleMusicApiClient.getRandomSongByArtist(randomLikeArtist.getArtistId()));
+        Integer artistId = randomLikeArtist.getArtist().getArtistId();
+        return songRepository.findRandomByArtist(artistId.longValue())
+            .orElseGet(() -> appleMusicApiClient.getRandomSongByArtist(artistId));
     }
 
     /**
@@ -204,8 +205,8 @@ public class QuestionGeneratorService {
      */
     private question saveQuestion(song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
         question newQuestion = new question();
-        newQuestion.setSongId(song.getSong_id());
-        newQuestion.setArtistId(song.getAritst_id().intValue());
+        newQuestion.setSong(song);
+        newQuestion.setArtist(song.getArtist());
         newQuestion.setText(claudeQuestion.getSentence());
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
         newQuestion.setQuestionFormat(questionFormat);
@@ -264,10 +265,12 @@ public class QuestionGeneratorService {
      * 楽曲情報を構築
      */
     private QuestionGenerationResponse.SongInfo buildSongInfo(song song) {
+        String artistName = song.getArtist() != null ? song.getArtist().getArtistName() : "Unknown";
+
         return QuestionGenerationResponse.SongInfo.builder()
             .songId(song.getSong_id())
             .songName(song.getSongname())
-            .artistName("Unknown") // TODO: アーティスト情報を取得
+            .artistName(artistName)
             .genre(song.getGenre())
             .language(song.getLanguage())
             .build();

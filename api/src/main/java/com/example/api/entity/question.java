@@ -27,16 +27,18 @@ public class question {
     private Integer questionId;
 
     /**
-     * 楽曲ID（外部キー）
+     * 楽曲（外部キー）
      */
-    @Column(name = "song_id", nullable = false)
-    private Long songId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "song_id", nullable = false)
+    private song song;
 
     /**
-     * アーティストID（外部キー）
+     * アーティスト（外部キー）
      */
-    @Column(name = "artist_id", nullable = false)
-    private Integer artistId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "artist_id", nullable = false)
+    private Artist artist;
 
     /**
      * 問題文

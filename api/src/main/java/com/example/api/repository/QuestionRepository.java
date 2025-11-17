@@ -1,6 +1,8 @@
 package com.example.api.repository;
 
+import com.example.api.entity.Artist;
 import com.example.api.entity.question;
+import com.example.api.entity.song;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -13,14 +15,14 @@ import java.util.List;
 public interface QuestionRepository extends JpaRepository<question, Integer> {
 
     /**
-     * 楽曲IDで問題を検索
+     * 楽曲で問題を検索
      */
-    List<question> findBySongId(Long songId);
+    List<question> findBySong(song song);
 
     /**
-     * アーティストIDで問題を検索
+     * アーティストで問題を検索
      */
-    List<question> findByArtistId(Integer artistId);
+    List<question> findByArtist(Artist artist);
 
     /**
      * 問題形式で検索
@@ -28,7 +30,7 @@ public interface QuestionRepository extends JpaRepository<question, Integer> {
     List<question> findByQuestionFormat(String questionFormat);
 
     /**
-     * 楽曲IDと問題形式で検索
+     * 楽曲と問題形式で検索
      */
-    List<question> findBySongIdAndQuestionFormat(Long songId, String questionFormat);
+    List<question> findBySongAndQuestionFormat(song song, String questionFormat);
 }
