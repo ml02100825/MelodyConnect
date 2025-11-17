@@ -8,6 +8,11 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
 
 /**
  * Spring Security設定クラス
@@ -21,6 +26,24 @@ public class SecurityConfig {
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     /**
+     * CORS設定
+     * Spring Security用のCORS設定を行います
+     * @return CorsConfigurationSource
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    /**
      * セキュリティフィルターチェーンの設定
      * @param http HttpSecurityオブジェクト
      * @return SecurityFilterChain
@@ -32,6 +55,9 @@ public class SecurityConfig {
                 // CSRF保護を無効化（JWTを使用するため）
                 .csrf(csrf -> csrf.disable())
 
+                // CORS設定を有効化
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 // セッションを使用しない（ステートレス認証）
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -42,6 +68,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/refresh").permitAll()
+                        .requestMatchers("/api/upload/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/hello").permitAll()
                         .requestMatchers("/samples/**").permitAll()
