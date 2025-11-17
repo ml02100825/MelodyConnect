@@ -94,9 +94,7 @@ public class User {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
-        if (userUuid == null) {
-            userUuid = UUID.randomUUID().toString();
-        }
+        // userUuidは手動で設定する（フレンド申請用のユーザーID）
     }
 
     // ====== getters / setters ======
