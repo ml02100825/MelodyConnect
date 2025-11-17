@@ -24,7 +24,7 @@ public class ProfileService {
      * @param userId ユーザーID
      * @param request プロフィール更新リクエスト
      * @return 更新されたユーザー
-     * @throws IllegalArgumentException ユーザーが見つからない、またはユーザー名が重複している場合
+     * @throws IllegalArgumentException ユーザーが見つからない場合
      */
     @Transactional
     public User updateProfile(Long userId, ProfileUpdateRequest request) {
@@ -36,8 +36,7 @@ public class ProfileService {
 
         User user = userOpt.get();
 
-
-        // プロフィールを更新
+        // プロフィールを更新（ユーザー名は重複可能）
         user.setUsername(request.getUsername());
         if (request.getImageUrl() != null && !request.getImageUrl().isEmpty()) {
             user.setImageUrl(request.getImageUrl());
