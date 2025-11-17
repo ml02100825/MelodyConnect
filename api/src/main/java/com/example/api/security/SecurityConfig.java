@@ -70,6 +70,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/refresh").permitAll()
                         .requestMatchers("/api/upload/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/ws/**").permitAll() // WebSocketエンドポイント
+                        .requestMatchers("/app/**").permitAll() // STOMP送信先
+                        .requestMatchers("/topic/**").permitAll() // STOMPブロードキャスト
+                        .requestMatchers("/queue/**").permitAll() // STOMPキュー
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/hello").permitAll()
                         .requestMatchers("/samples/**").permitAll()
