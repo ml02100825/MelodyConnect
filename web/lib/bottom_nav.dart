@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'screens/home_screen.dart';
+import 'screens/battle_screen.dart';
+import 'screens/learning_screen.dart';
+import 'screens/friend_screen.dart';
+import 'screens/other_screen.dart';
 
 
 class BottomNavBar extends StatelessWidget {
@@ -31,8 +36,8 @@ class BottomNavBar extends StatelessWidget {
           label: 'ミュージック',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.mail_outline),
-          label: 'メール',
+          icon: Icon(Icons.school),
+          label: '学習',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.people),
@@ -43,7 +48,39 @@ class BottomNavBar extends StatelessWidget {
           label: 'メニュー',
         ),
       ],
-      onTap: onTap,
+      onTap: (index) {
+        onTap(index);
+        _navigateToScreen(context, index);
+      },
+    );
+  }
+
+  void _navigateToScreen(BuildContext context, int index) {
+    late Widget screen;
+    switch (index) {
+      case 0:
+        screen = const HomeScreen();
+        break;
+      case 1:
+        screen = const BattleScreen();
+        break;
+      case 2:
+        screen = const LearningScreen();
+        break;
+      case 3:
+        screen = const FriendScreen();
+        break;
+      case 4:
+        screen = const OtherScreen();
+        break;
+      default:
+        return;
+    }
+    
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+      (route) => false,
     );
   }
 }
