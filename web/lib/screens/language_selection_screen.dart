@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'matching_screen.dart';
 
 /// 言語選択画面
 /// バトルで使用する問題の言語を選択します
@@ -89,11 +88,9 @@ class LanguageSelectionScreen extends StatelessWidget {
       child: InkWell(
         onTap: () {
           // マッチング画面に遷移
-          Navigator.push(
+          Navigator.pushNamed(
             context,
-            MaterialPageRoute(
-              builder: (_) => MatchingScreen(language: languageCode),
-            ),
+            '/matching?language=$languageCode',
           );
         },
         borderRadius: BorderRadius.circular(12),

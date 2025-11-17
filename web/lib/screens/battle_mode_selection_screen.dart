@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'language_selection_screen.dart';
 
 /// バトルモード選択画面
 /// Ranked MatchとRoom Matchを選択します
@@ -56,12 +55,7 @@ class BattleModeSelectionScreen extends StatelessWidget {
                   color: Colors.amber,
                   isAvailable: true,
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const LanguageSelectionScreen(),
-                      ),
-                    );
+                    Navigator.pushNamed(context, '/language-selection');
                   },
                 ),
                 const SizedBox(height: 24),
