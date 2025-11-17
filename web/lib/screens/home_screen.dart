@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
+import '../bottom_nav.dart';
 
 /// ホーム画面（プレースホルダー）
 class HomeScreen extends StatefulWidget {
@@ -193,6 +194,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 0,
+        onTap: (index) {
+          // TODO: 画面遷移処理を書く
+        },
+      ),
     );
   }
 
