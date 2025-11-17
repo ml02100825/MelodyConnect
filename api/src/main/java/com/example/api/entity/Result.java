@@ -28,10 +28,10 @@ public class Result {
     private Long id;
 
     @Column(name = "player_id", nullable = false)
-    private Long playerId;
+    private User playerId;
 
     @Column(name = "enemy_id", nullable = false)
-    private Long enemyId;
+    private User enemyId;
 
     /** true=勝ち / false=負け */
     @Column(name = "result", nullable = false)
