@@ -53,7 +53,7 @@ public class Result {
     @Column(name = "result_detail", columnDefinition = "json")
     private Map<String, Object> resultDetail;
 
-    /** BO3 の出題方式(JSON) */
+    /** BO5 の出題方式(JSON) */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "result_format", columnDefinition = "json")
     private Map<String, Object> resultFormat;
