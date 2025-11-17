@@ -7,10 +7,11 @@ class ProfileApiService {
   // 開発環境のAPIベースURL（本番環境では適切なURLに変更してください）
   static const String baseUrl = 'http://localhost:8080/api/profile';
 
-  /// プロフィール更新（ステップ2: ユーザー名とアイコン設定）
+  /// プロフィール更新（ステップ2: ユーザー名、ユーザーID、アイコン設定）
   ///
   /// [userId] - ユーザーID
   /// [username] - ユーザー名
+  /// [userUuid] - ユーザーID（フレンド申請用）
   /// [imageUrl] - アイコン画像のURL（オプション）
   /// [accessToken] - アクセストークン
   ///
@@ -19,6 +20,7 @@ class ProfileApiService {
   Future<Map<String, dynamic>> updateProfile({
     required int userId,
     required String username,
+    required String userUuid,
     String? imageUrl,
     required String accessToken,
   }) async {
@@ -31,6 +33,7 @@ class ProfileApiService {
         },
         body: jsonEncode({
           'username': username,
+          'userUuid': userUuid,
           if (imageUrl != null && imageUrl.isNotEmpty) 'imageUrl': imageUrl,
         }),
       );

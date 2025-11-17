@@ -46,4 +46,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return 存在する場合true
      */
     boolean existsByUsername(String username);
+
+    /**
+     * ユーザーUUIDの存在確認
+     * @param userUuid ユーザーUUID
+     * @return 存在する場合true
+     */
+    boolean existsByUserUuid(String userUuid);
 }
