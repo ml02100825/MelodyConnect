@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
+import 'user-search_screen.dart';
+import 'friend_list.dart';
+import 'friend_requests_screen.dart';
 import '../bottom_nav.dart';
 
 
-class FriendScreen extends StatelessWidget {
+class FriendScreen extends StatefulWidget {
   const FriendScreen({Key? key}) : super(key: key);
+
+	@override
+	State<FriendScreen> createState() => _FriendScreenState();
+}
+
+class _FriendScreenState extends State<FriendScreen> {
 
   @override
   Widget build(BuildContext context) {
@@ -69,21 +78,36 @@ class FriendScreen extends StatelessWidget {
               context,
               icon: Icons.search,
               label: 'ユーザー検索',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const UserSearchScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
-              icon: Icons.people,
+              icon: Icons.group,
               label: 'フレンド一覧',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FriendListScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
-              icon: Icons.schedule,
+              icon: Icons.person_add,
               label: 'フレンド申請一覧',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FriendRequestsScreen()),
+                );
+              },
             ),
           ],
         ),
