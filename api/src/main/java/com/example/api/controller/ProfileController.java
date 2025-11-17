@@ -14,10 +14,10 @@ import java.util.Map;
 /**
  * プロフィールコントローラー
  * ユーザープロフィール設定のエンドポイントを提供します
+ * CORS設定はWebConfigで一括管理
  */
 @RestController
 @RequestMapping("/api/profile")
-@CrossOrigin(origins = "*") // 本番環境では適切なオリジンを指定してください
 public class ProfileController {
 
     @Autowired

@@ -15,10 +15,10 @@ import java.util.Map;
 /**
  * 認証コントローラー
  * ユーザー登録、ログイン、トークンリフレッシュのエンドポイントを提供します
+ * CORS設定はWebConfigで一括管理
  */
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*") // 本番環境では適切なオリジンを指定してください
 public class AuthController {
 
     @Autowired
