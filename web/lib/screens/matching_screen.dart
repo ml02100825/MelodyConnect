@@ -52,6 +52,9 @@ class _MatchingScreenState extends State<MatchingScreen> {
       _stompClient = StompClient(
         config: StompConfig(
           url: 'ws://localhost:8080/ws',
+          webSocketConnectHeaders: {
+            'Sec-WebSocket-Protocol': 'v12.stomp',
+          },
           onConnect: (StompFrame frame) {
             if (!mounted) return;
 
