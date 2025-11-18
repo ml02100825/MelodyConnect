@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
+import 'quiz_selection_screen.dart';
 
 /// ホーム画面（プレースホルダー）
 class HomeScreen extends StatefulWidget {
@@ -155,6 +156,45 @@ class _HomeScreenState extends State<HomeScreen> {
                               SizedBox(width: 16),
                               Text(
                                 'Battle',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // 学習ボタン
+                      SizedBox(
+                        width: double.infinity,
+                        height: 80,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const QuizSelectionScreen(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.school, size: 36),
+                              SizedBox(width: 16),
+                              Text(
+                                '学習',
                                 style: TextStyle(
                                   fontSize: 28,
                                   fontWeight: FontWeight.bold,
