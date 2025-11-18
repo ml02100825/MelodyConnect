@@ -166,6 +166,15 @@ public class AuthService {
             throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
         }
 
+        // 現在のシーズンを取得
+        Integer currentSeason = seasonCalculator.getCurrentSeason();
+
+        // 現在のシーズンのRateレコードが存在しない場合、初期レート1500で作成
+        if (!rateRepository.existsByUserAndSeason(user, currentSeason)) {
+            Rate rate = new Rate(user, currentSeason);
+            rateRepository.save(rate);
+        }
+
         // トークンを生成
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());

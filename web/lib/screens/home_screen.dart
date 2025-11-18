@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
-import '../bottom_nav.dart';
 
 /// ホーム画面（プレースホルダー）
 class HomeScreen extends StatefulWidget {
@@ -133,35 +132,33 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       const SizedBox(height: 48),
 
-                      // プレースホルダーカード
-                      Card(
-                        elevation: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            children: [
-                              const Icon(
-                                Icons.construction,
-                                size: 64,
-                                color: Colors.orange,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'ホーム画面は準備中です',
+                      // Battleボタン
+                      SizedBox(
+                        width: double.infinity,
+                        height: 80,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/battle-mode');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.sports_martial_arts, size: 36),
+                              SizedBox(width: 16),
+                              Text(
+                                'Battle',
                                 style: TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 28,
                                   fontWeight: FontWeight.bold,
                                 ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'この画面は今後実装される予定です。\n現在はログインとプロフィール設定が完了しています。',
-                                style: TextStyle(
-                                  fontSize: isWideScreen ? 16 : 14,
-                                  color: Colors.grey[600],
-                                ),
-                                textAlign: TextAlign.center,
                               ),
                             ],
                           ),
@@ -194,12 +191,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: 0,
-        onTap: (index) {
-          // TODO: 画面遷移処理を書く
-        },
-      ),
     );
   }
 

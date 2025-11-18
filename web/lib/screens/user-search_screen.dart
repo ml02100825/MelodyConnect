@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import '../bottom_nav.dart';
 
-/// ユーザ検索・フレンド申請管理画面（統合版）
+/// ユーザ検索画面（モック準拠のシンプル実装）
 class UserSearchScreen extends StatefulWidget {
 	const UserSearchScreen({Key? key}) : super(key: key);
 
@@ -12,18 +11,6 @@ class UserSearchScreen extends StatefulWidget {
 class _UserSearchScreenState extends State<UserSearchScreen> {
 	final TextEditingController _controller = TextEditingController();
 	String _query = '';
-	bool _showSubmittedBanner = false;
-	final Set<String> _pendingRequests = {'100001'}; // 申請済み ID セット
-
-	@override
-	void initState() {
-		super.initState();
-		_controller.addListener(() {
-			setState(() {
-				_query = _controller.text.trim();
-			});
-		});
-	}
 
 	@override
 	void dispose() {
@@ -31,29 +18,16 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 		super.dispose();
 	}
 
-	void _sendFriendRequest(String userId, String name) {
+	void _onSearchChanged() {
 		setState(() {
-			_pendingRequests.add(userId);
-			_showSubmittedBanner = true;
-		});
-
-		Future.delayed(const Duration(seconds: 2), () {
-			if (mounted) {
-				setState(() {
-					_showSubmittedBanner = false;
-				});
-			}
+			_query = _controller.text.trim();
 		});
 	}
 
-	void _cancelFriendRequest(String userId, String name) {
-		setState(() {
-			_pendingRequests.remove(userId);
-		});
-
-		ScaffoldMessenger.of(context).showSnackBar(
-			SnackBar(content: Text('「$name」の申請を取り消しました')),
-		);
+	@override
+	void initState() {
+		super.initState();
+		_controller.addListener(_onSearchChanged);
 	}
 
 	@override
@@ -65,94 +39,64 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 				title: const Text('ユーザ検索'),
 				centerTitle: true,
 			),
-			body: Stack(
-				children: [
-					SingleChildScrollView(
-						padding: EdgeInsets.all(isWide ? 24 : 16),
-						child: ConstrainedBox(
-							constraints: BoxConstraints(maxWidth: isWide ? 800 : double.infinity),
-							child: Column(
-								crossAxisAlignment: CrossAxisAlignment.start,
-								children: [
-									const SizedBox(height: 8),
+			body: SingleChildScrollView(
+				padding: EdgeInsets.all(isWide ? 24 : 16),
+				child: ConstrainedBox(
+					constraints: BoxConstraints(maxWidth: isWide ? 800 : double.infinity),
+					child: Column(
+						crossAxisAlignment: CrossAxisAlignment.start,
+						children: [
+							const SizedBox(height: 8),
 
-									// 検索入力
-									Container(
-										decoration: BoxDecoration(
-											borderRadius: BorderRadius.circular(24),
-											border: Border.all(color: Colors.grey.shade400),
-										),
-										padding: const EdgeInsets.symmetric(horizontal: 12),
-										child: Row(
-											children: [
-												const Icon(Icons.search, color: Colors.grey),
-												const SizedBox(width: 8),
-												Expanded(
-													child: TextField(
-														controller: _controller,
-														decoration: const InputDecoration(
-															hintText: 'IDを入力',
-															border: InputBorder.none,
-														),
-														textInputAction: TextInputAction.search,
-													),
+							// 検索入力
+							Container(
+								decoration: BoxDecoration(
+									borderRadius: BorderRadius.circular(24),
+									border: Border.all(color: Colors.grey.shade400),
+								),
+								padding: const EdgeInsets.symmetric(horizontal: 12),
+								child: Row(
+									children: [
+										const Icon(Icons.search, color: Colors.grey),
+										const SizedBox(width: 8),
+										Expanded(
+											child: TextField(
+												controller: _controller,
+												decoration: const InputDecoration(
+													hintText: 'IDを入力',
+													border: InputBorder.none,
 												),
-											],
+												textInputAction: TextInputAction.search,
+												onSubmitted: (_) {},
+											),
 										),
-									),
-
-									const SizedBox(height: 20),
-
-									// 検索結果
-									if (_query.isEmpty)
-										const SizedBox()
-									else
-										_buildResults(),
-								],
-							),
-						),
-					),
-
-					// 申請しましたバナー
-					if (_showSubmittedBanner)
-						Positioned(
-							top: 12,
-							left: 0,
-							right: 0,
-							child: Center(
-								child: Container(
-									padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-									decoration: BoxDecoration(
-										borderRadius: BorderRadius.circular(6),
-										border: Border.all(color: Colors.grey.shade600),
-										color: Colors.white,
-									),
-									child: const Text('申請しました'),
+									],
 								),
 							),
-						),
-				],
-			),
-			bottomNavigationBar: BottomNavBar(
-				currentIndex: 3,
-				onTap: (index) {
-					// TODO: 画面遷移処理
-				},
+
+							const SizedBox(height: 20),
+
+							// 検索結果
+							if (_query.isEmpty)
+								const SizedBox()
+							else
+								_buildResults(),
+						],
+					),
+				),
 			),
 		);
 	}
 
 	Widget _buildResults() {
-		// スタブ: 100001 でダミーユーザを返す
+		// 簡易的なスタブ検索: ID が `100001` の場合のみダミーユーザを返す
 		if (_query == '100001') {
-			final isPending = _pendingRequests.contains('100001');
 			return Column(
 				children: [
 					_userCard(
-						userId: '100001',
+						avatarUrl: null,
 						name: 'アフガニスタン斎藤',
-						lastLogin: '最終ログイン  2時間前',
-						isPending: isPending,
+						lastLogin: '最終ログイン 2時間前',
 					),
 				],
 			);
@@ -170,12 +114,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 		);
 	}
 
-	Widget _userCard({
-		required String userId,
-		required String name,
-		required String lastLogin,
-		required bool isPending,
-	}) {
+	Widget _userCard({String? avatarUrl, required String name, required String lastLogin}) {
 		return Container(
 			margin: const EdgeInsets.symmetric(vertical: 8),
 			padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -186,12 +125,15 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 			),
 			child: Row(
 				children: [
+					// アイコン
 					CircleAvatar(
 						radius: 24,
 						backgroundColor: Colors.blue.shade50,
 						child: const Icon(Icons.person, color: Colors.purple),
 					),
 					const SizedBox(width: 12),
+
+					// ユーザ情報
 					Expanded(
 						child: Column(
 							crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,6 +150,8 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 							],
 						),
 					),
+
+					// 追加ボタン
 					SizedBox(
 						width: 40,
 						height: 40,
@@ -218,13 +162,12 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 								side: BorderSide(color: Colors.grey.shade400),
 							),
 							onPressed: () {
-								if (isPending) {
-									_cancelFriendRequest(userId, name);
-								} else {
-									_sendFriendRequest(userId, name);
-								}
+								// TODO: フレンド追加の API を呼ぶ
+								ScaffoldMessenger.of(context).showSnackBar(
+									SnackBar(content: Text('「$name」をフレンドに追加しました（スタブ）')),
+								);
 							},
-							child: Icon(isPending ? Icons.close : Icons.add),
+							child: const Icon(Icons.add),
 						),
 					),
 				],

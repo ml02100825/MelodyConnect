@@ -1,136 +1,316 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../bottom_nav.dart';
+import 'package:http/http.dart' as http;
+import '../services/token_storage_service.dart';
 
-
+/// バトル画面
+/// ランクマッチのバトルを行います
 class BattleScreen extends StatefulWidget {
-  const BattleScreen({Key? key}) : super(key: key);
+  final String matchId;
 
-	@override
-	State<BattleScreen> createState() => _BattleScreenState();
+  const BattleScreen({Key? key, required this.matchId}) : super(key: key);
+
+  @override
+  State<BattleScreen> createState() => _BattleScreenState();
 }
 
 class _BattleScreenState extends State<BattleScreen> {
+  final _tokenStorage = TokenStorageService();
+  bool _isLoading = true;
+  String? _errorMessage;
+  Map<String, dynamic>? _battleInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBattleInfo();
+  }
+
+  /// バトル情報を取得
+  Future<void> _loadBattleInfo() async {
+    try {
+      final token = await _tokenStorage.getAccessToken();
+      if (token == null) {
+        throw Exception('認証トークンが見つかりません');
+      }
+
+      final response = await http.get(
+        Uri.parse('http://localhost:8080/api/battle/start/${widget.matchId}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (!mounted) return;
+
+        setState(() {
+          _battleInfo = data;
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('バトル情報の取得に失敗しました: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(20),
+    return WillPopScope(
+      onWillPop: () async {
+        // バトル中は戻るボタンを無効化
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('バトルを終了'),
+            content: const Text('バトルを終了してもよろしいですか？\n（この機能は準備中です）'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('いいえ'),
               ),
-              child: const Icon(
-                Icons.music_note,
-                color: Colors.white,
-                size: 24,
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('はい'),
               ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              '対戦',
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.person_add,
-                color: Colors.black87,
-                size: 20,
-              ),
-              onPressed: () {},
-            ),
+            ],
           ),
-        ],
-      ),
+        );
 
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [],
+        if (shouldExit == true) {
+          if (mounted) {
+            Navigator.popUntil(context, (route) => route.isFirst);
+          }
+        }
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Battle'),
+          centerTitle: true,
+          automaticallyImplyLeading: false,
         ),
-      ),
-
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: 1,
-        onTap: (index) {
-          // TODO: 画面遷移処理を書く
-        },
+        body: _buildBody(),
       ),
     );
   }
 
-  Widget _buildMenuButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(strokeWidth: 6),
+            SizedBox(height: 24),
+            Text(
+              'バトル情報を読み込み中...',
+              style: TextStyle(fontSize: 18),
             ),
           ],
         ),
-        child: Row(
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 64,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'エラーが発生しました',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red[700],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.popUntil(context, (route) => route.isFirst);
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                ),
+                child: const Text(
+                  'ホームに戻る',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_battleInfo == null) {
+      return const Center(
+        child: Text('バトル情報が見つかりません'),
+      );
+    }
+
+    return _buildBattleContent();
+  }
+
+  Widget _buildBattleContent() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // バトル準備中メッセージ
             Container(
-              width: 32,
-              height: 32,
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: Colors.blue[50],
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blue[200]!, width: 2),
               ),
-              child: Icon(icon, color: Colors.black87, size: 20),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.construction,
+                    size: 64,
+                    color: Colors.blue[700],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'バトル画面は準備中です',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[900],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'この機能は後ほど実装されます',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.black87,
+
+            const SizedBox(height: 48),
+
+            // マッチ情報
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    spreadRadius: 2,
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'マッチ情報',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  _buildInfoRow('Match ID', _battleInfo!['matchId'].toString()),
+                  const SizedBox(height: 12),
+                  _buildInfoRow('Your ID', _battleInfo!['user1Id'].toString()),
+                  const SizedBox(height: 12),
+                  _buildInfoRow('Opponent ID', _battleInfo!['user2Id'].toString()),
+                  const SizedBox(height: 12),
+                  _buildInfoRow('Language', _battleInfo!['language'].toString()),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 48),
+
+            // ホームに戻るボタン
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.popUntil(context, (route) => route.isFirst);
+              },
+              icon: const Icon(Icons.home),
+              label: const Text('ホームに戻る'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                textStyle: const TextStyle(fontSize: 16),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

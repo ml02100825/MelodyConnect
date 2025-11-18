@@ -18,6 +18,7 @@ class ProfileSetupScreen extends StatefulWidget {
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
+  final _userUuidController = TextEditingController();
   final _profileApiService = ProfileApiService();
   final _tokenStorage = TokenStorageService();
   final ImagePicker _imagePicker = ImagePicker();
@@ -31,6 +32,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   @override
   void dispose() {
     _usernameController.dispose();
+    _userUuidController.dispose();
     super.dispose();
   }
 
@@ -46,6 +48,28 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     if (value.length > 20) {
       return 'ユーザー名は20文字以下である必要があります';
+    }
+
+    return null;
+  }
+
+  /// ユーザーIDのバリデーション
+  String? _validateUserUuid(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'ユーザーIDを入力してください';
+    }
+
+    if (value.length < 4) {
+      return 'ユーザーIDは4文字以上である必要があります';
+    }
+
+    if (value.length > 36) {
+      return 'ユーザーIDは36文字以下である必要があります';
+    }
+
+    // 英数字とアンダースコア、ハイフンのみ許可
+    if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(value)) {
+      return 'ユーザーIDは英数字、_、-のみ使用できます';
     }
 
     return null;
@@ -184,6 +208,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       final response = await _profileApiService.updateProfile(
         userId: userId,
         username: _usernameController.text.trim(),
+        userUuid: _userUuidController.text.trim(),
         imageUrl: _uploadedImageUrl!,
         accessToken: accessToken,
       );
@@ -254,7 +279,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'ユーザー名とアイコンを設定してください',
+                    'ユーザー名、ユーザーID、アイコンを設定してください',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey,
@@ -273,6 +298,20 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       border: OutlineInputBorder(),
                     ),
                     validator: _validateUsername,
+                    enabled: !_isLoading && !_isUploading,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ユーザーID入力
+                  TextFormField(
+                    controller: _userUuidController,
+                    decoration: const InputDecoration(
+                      labelText: 'ユーザーID（フレンド申請用）',
+                      hintText: '4〜36文字で入力（英数字、_、-）',
+                      prefixIcon: Icon(Icons.badge),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: _validateUserUuid,
                     enabled: !_isLoading && !_isUploading,
                   ),
                   const SizedBox(height: 32),

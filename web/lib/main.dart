@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'screens/battle_mode_selection_screen.dart';
+import 'screens/language_selection_screen.dart';
+import 'screens/matching_screen.dart';
+import 'screens/battle_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -15,6 +19,35 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const LoginScreen(),
+      routes: {
+        '/battle-mode': (context) => const BattleModeSelectionScreen(),
+        '/language-selection': (context) => const LanguageSelectionScreen(),
+      },
+      onGenerateRoute: (settings) {
+        // /matching?language=english のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/matching') == true) {
+          final uri = Uri.parse(settings.name!);
+          final language = uri.queryParameters['language'] ?? 'english';
+          return MaterialPageRoute(
+            builder: (context) => MatchingScreen(language: language),
+            settings: settings,
+          );
+        }
+
+        // /battle?matchId=xxx のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/battle') == true) {
+          final uri = Uri.parse(settings.name!);
+          final matchId = uri.queryParameters['matchId'];
+          if (matchId != null) {
+            return MaterialPageRoute(
+              builder: (context) => BattleScreen(matchId: matchId),
+              settings: settings,
+            );
+          }
+        }
+
+        return null;
+      },
       debugShowCheckedModeBanner: false,
     );
   }
