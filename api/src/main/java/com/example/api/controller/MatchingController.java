@@ -92,9 +92,8 @@ public class MatchingController {
             }
 
             // 個別のユーザーに送信
-            messagingTemplate.convertAndSendToUser(
-                    request.getUserId().toString(),
-                    "/queue/matching",
+            messagingTemplate.convertAndSend(
+                    "/topic/matching/" + request.getUserId(),
                     response
             );
         } catch (Exception e) {
@@ -103,9 +102,8 @@ public class MatchingController {
             error.put("status", "error");
             error.put("message", e.getMessage());
 
-            messagingTemplate.convertAndSendToUser(
-                    request.getUserId().toString(),
-                    "/queue/matching",
+            messagingTemplate.convertAndSend(
+                    "/topic/matching/" + request.getUserId(),
                     error
             );
         }
@@ -128,9 +126,8 @@ public class MatchingController {
             response.put("message", "キューに参加していません");
         }
 
-        messagingTemplate.convertAndSendToUser(
-                request.getUserId().toString(),
-                "/queue/matching",
+        messagingTemplate.convertAndSend(
+                "/topic/matching/" + request.getUserId(),
                 response
         );
     }
@@ -179,9 +176,8 @@ public class MatchingController {
             Map<String, Object> player1Data = new HashMap<>(matchData);
             player1Data.put("userId", match.getUser1Id());
             player1Data.put("opponentId", match.getUser2Id());
-            messagingTemplate.convertAndSendToUser(
-                    match.getUser1Id().toString(),
-                    "/queue/matching",
+            messagingTemplate.convertAndSend(
+                    "/topic/matching/" + match.getUser1Id(),
                     player1Data
             );
             logger.info("マッチング通知送信完了: user1={}", match.getUser1Id());
@@ -190,9 +186,8 @@ public class MatchingController {
             Map<String, Object> player2Data = new HashMap<>(matchData);
             player2Data.put("userId", match.getUser2Id());
             player2Data.put("opponentId", match.getUser1Id());
-            messagingTemplate.convertAndSendToUser(
-                    match.getUser2Id().toString(),
-                    "/queue/matching",
+            messagingTemplate.convertAndSend(
+                    "/topic/matching/" + match.getUser2Id(),
                     player2Data
             );
             logger.info("マッチング通知送信完了: user2={}", match.getUser2Id());
@@ -213,9 +208,8 @@ public class MatchingController {
             timeoutMessage.put("status", "timeout");
             timeoutMessage.put("message", "マッチングがタイムアウトしました（15分経過）");
 
-            messagingTemplate.convertAndSendToUser(
-                    userId.toString(),
-                    "/queue/matching",
+            messagingTemplate.convertAndSend(
+                    "/topic/matching/" + userId,
                     timeoutMessage
             );
         }

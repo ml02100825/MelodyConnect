@@ -62,9 +62,9 @@ class _MatchingScreenState extends State<MatchingScreen> {
               _statusMessage = 'マッチング相手を探しています...';
             });
 
-            // ユーザー専用キューを購読
+            // ユーザー専用トピックを購読
             _stompClient!.subscribe(
-              destination: '/user/queue/matching',
+              destination: '/topic/matching/$userId',
               callback: (StompFrame frame) {
                 if (frame.body == null) return;
 
