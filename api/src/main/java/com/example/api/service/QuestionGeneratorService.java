@@ -1,0 +1,278 @@
+package com.example.api.service;
+
+import com.example.api.client.AppleMusicApiClient;
+import com.example.api.client.ClaudeApiClient;
+import com.example.api.client.GeniusApiClient;
+import com.example.api.client.WordnikApiClient;
+import com.example.api.dto.*;
+import com.example.api.entity.*;
+import com.example.api.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 問題生成サービス
+ * 歌詞から問題を自動生成し、データベースに保存します
+ */
+@Service
+public class QuestionGeneratorService {
+
+    private static final Logger logger = LoggerFactory.getLogger(QuestionGeneratorService.class);
+
+    @Autowired
+    private ClaudeApiClient claudeApiClient;
+
+    @Autowired
+    private WordnikApiClient wordnikApiClient;
+
+    @Autowired
+    private GeniusApiClient geniusApiClient;
+
+    @Autowired
+    private AppleMusicApiClient appleMusicApiClient;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private SongRepository songRepository;
+
+    @Autowired
+    private ArtistRepository artistRepository;
+
+    @Autowired
+    private LikeArtistRepository likeArtistRepository;
+
+    @Autowired
+    private VocabularyRepository vocabularyRepository;
+
+    /**
+     * 問題を生成
+     *
+     * @param request 問題生成リクエスト
+     * @return 問題生成レスポンス
+     */
+    @Transactional
+    public QuestionGenerationResponse generateQuestions(QuestionGenerationRequest request) {
+        logger.info("問題生成開始: mode={}, userId={}", request.getMode(), request.getUserId());
+
+        try {
+            // 1. 楽曲を選択
+            song selectedSong = selectSong(request);
+            if (selectedSong == null) {
+                throw new IllegalStateException("楽曲の選択に失敗しました");
+            }
+
+            logger.info("選択された楽曲: songId={}, songName={}", selectedSong.getSong_id(), selectedSong.getSongname());
+
+            // 2. 歌詞を取得
+            String lyrics = fetchLyrics(selectedSong);
+            if (lyrics == null || lyrics.isEmpty()) {
+                throw new IllegalStateException("歌詞の取得に失敗しました");
+            }
+
+            logger.info("歌詞取得完了: length={}", lyrics.length());
+
+            // 3. Claude APIで問題を生成
+            ClaudeQuestionResponse claudeResponse = claudeApiClient.generateQuestions(
+                lyrics,
+                request.getFillInBlankCount(),
+                request.getListeningCount()
+            );
+
+            logger.info("Claude APIから問題生成完了: fillInBlank={}, listening={}",
+                claudeResponse.getFillInBlank().size(),
+                claudeResponse.getListening().size());
+
+            // 4. 問題を保存し、単語情報を取得
+            List<QuestionGenerationResponse.GeneratedQuestionDto> generatedQuestions = new ArrayList<>();
+
+            // 虫食い問題を保存
+            for (ClaudeQuestionResponse.Question q : claudeResponse.getFillInBlank()) {
+                question savedQuestion = saveQuestion(selectedSong, q, "fill_in_blank");
+                generatedQuestions.add(convertToDto(savedQuestion));
+
+                // 虫食い問題の場合は、全ての空欄単語の情報を保存
+                saveVocabulary(q.getBlankWord());
+            }
+
+            // リスニング問題を保存
+            for (ClaudeQuestionResponse.Question q : claudeResponse.getListening()) {
+                question savedQuestion = saveQuestion(selectedSong, q, "listening");
+                generatedQuestions.add(convertToDto(savedQuestion));
+                // リスニング問題の単語情報は、ユーザーが間違えた時に保存（ここでは保存しない）
+            }
+
+            logger.info("問題保存完了: total={}", generatedQuestions.size());
+
+            // 5. レスポンスを構築
+            return QuestionGenerationResponse.builder()
+                .questions(generatedQuestions)
+                .songInfo(buildSongInfo(selectedSong))
+                .totalCount(generatedQuestions.size())
+                .fillInBlankCount(claudeResponse.getFillInBlank().size())
+                .listeningCount(claudeResponse.getListening().size())
+                .message("問題生成が成功しました")
+                .build();
+
+        } catch (Exception e) {
+            logger.error("問題生成中にエラーが発生しました", e);
+            throw new RuntimeException("問題生成に失敗しました: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 生成モードに応じて楽曲を選択
+     */
+    private song selectSong(QuestionGenerationRequest request) {
+        switch (request.getMode()) {
+            case FAVORITE_ARTIST:
+                return selectSongFromFavoriteArtist(request.getUserId());
+            case GENRE_RANDOM:
+                return selectSongByGenre(request.getGenreName());
+            case COMPLETE_RANDOM:
+                return selectRandomSong();
+            case URL_INPUT:
+                return selectSongByUrl(request.getSongUrl());
+            default:
+                throw new IllegalArgumentException("未知の生成モード: " + request.getMode());
+        }
+    }
+
+    /**
+     * お気に入りアーティストからランダムに楽曲を選択
+     */
+    private song selectSongFromFavoriteArtist(Long userId) {
+        logger.debug("お気に入りアーティストから楽曲を選択: userId={}", userId);
+
+        LikeArtist randomLikeArtist = likeArtistRepository.findRandomByUserId(userId)
+            .orElseThrow(() -> new IllegalStateException("お気に入りアーティストが見つかりません"));
+
+        Integer artistId = randomLikeArtist.getArtist().getArtistId();
+        return songRepository.findRandomByArtist(artistId.longValue())
+            .orElseGet(() -> appleMusicApiClient.getRandomSongByArtist(artistId));
+    }
+
+    /**
+     * ジャンルから楽曲を選択
+     */
+    private song selectSongByGenre(String genreName) {
+        logger.debug("ジャンルから楽曲を選択: genre={}", genreName);
+
+        return songRepository.findRandomByGenre(genreName)
+            .orElseGet(() -> appleMusicApiClient.getRandomSongByGenre(genreName));
+    }
+
+    /**
+     * 完全ランダムで楽曲を選択
+     */
+    private song selectRandomSong() {
+        logger.debug("ランダムに楽曲を選択");
+
+        return songRepository.findRandom()
+            .orElseGet(() -> appleMusicApiClient.getRandomSong());
+    }
+
+    /**
+     * URLから楽曲を選択
+     */
+    private song selectSongByUrl(String songUrl) {
+        logger.debug("URLから楽曲を選択: url={}", songUrl);
+
+        // TODO: URLをパースして楽曲を特定する処理を実装
+        // 仮実装としてランダムな楽曲を返す
+        return selectRandomSong();
+    }
+
+    /**
+     * 歌詞を取得
+     */
+    private String fetchLyrics(song song) {
+        if (song.getGenius_song_id() != null) {
+            return geniusApiClient.getLyrics(song.getGenius_song_id());
+        }
+        throw new IllegalStateException("Genius Song IDが設定されていません");
+    }
+
+    /**
+     * 問題を保存
+     */
+    private question saveQuestion(song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
+        question newQuestion = new question();
+        newQuestion.setSong(song);
+        newQuestion.setArtist(song.getArtist());
+        newQuestion.setText(claudeQuestion.getSentence());
+        newQuestion.setAnswer(claudeQuestion.getBlankWord());
+        newQuestion.setQuestionFormat(questionFormat);
+        newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
+        newQuestion.setLanguage(song.getLanguage());
+
+        return questionRepository.save(newQuestion);
+    }
+
+    /**
+     * 単語情報を保存
+     */
+    private void saveVocabulary(String word) {
+        // すでに存在する場合はスキップ
+        if (vocabularyRepository.existsByWord(word)) {
+            logger.debug("単語は既に存在します: word={}", word);
+            return;
+        }
+
+        try {
+            WordnikWordInfo wordInfo = wordnikApiClient.getWordInfo(word);
+
+            vocabulary vocab = vocabulary.builder()
+                .word(word)
+                .meaning_ja(wordInfo.getMeaningJa())
+                .pronunciation(wordInfo.getPronunciation())
+                .part_of_speech(wordInfo.getPartOfSpeech())
+                .example_sentence(wordInfo.getExampleSentence())
+                .example_translate(wordInfo.getExampleTranslate())
+                .audio_url(wordInfo.getAudioUrl())
+                .build();
+
+            vocabularyRepository.save(vocab);
+            logger.debug("単語情報を保存しました: word={}", word);
+
+        } catch (Exception e) {
+            logger.warn("単語情報の保存に失敗しました: word={}, error={}", word, e.getMessage());
+        }
+    }
+
+    /**
+     * QuestionエンティティをDTOに変換
+     */
+    private QuestionGenerationResponse.GeneratedQuestionDto convertToDto(question question) {
+        return QuestionGenerationResponse.GeneratedQuestionDto.builder()
+            .questionId(question.getQuestionId())
+            .text(question.getText())
+            .answer(question.getAnswer())
+            .questionFormat(question.getQuestionFormat())
+            .difficultyLevel(question.getDifficultyLevel())
+            .language(question.getLanguage())
+            .build();
+    }
+
+    /**
+     * 楽曲情報を構築
+     */
+    private QuestionGenerationResponse.SongInfo buildSongInfo(song song) {
+        String artistName = song.getArtist() != null ? song.getArtist().getArtistName() : "Unknown";
+
+        return QuestionGenerationResponse.SongInfo.builder()
+            .songId(song.getSong_id())
+            .songName(song.getSongname())
+            .artistName(artistName)
+            .genre(song.getGenre())
+            .language(song.getLanguage())
+            .build();
+    }
+}
