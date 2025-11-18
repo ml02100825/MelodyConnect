@@ -2,6 +2,7 @@ package com.example.api.repository;
 
 import com.example.api.entity.Result;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public interface ResultRepository extends JpaRepository<Result, Long> {
      * @param playerId プレイヤーID
      * @return 結果のリスト
      */
+    @Query("SELECT r FROM Result r WHERE r.player.id = ?1")
     List<Result> findByPlayerId(Long playerId);
 
     /**
@@ -26,6 +28,7 @@ public interface ResultRepository extends JpaRepository<Result, Long> {
      * @param enemyId 対戦相手ID
      * @return 結果のリスト
      */
+    @Query("SELECT r FROM Result r WHERE r.enemy.id = ?1")
     List<Result> findByEnemyId(Long enemyId);
 
     /**

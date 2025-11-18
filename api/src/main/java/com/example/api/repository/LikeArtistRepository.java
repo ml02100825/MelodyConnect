@@ -17,11 +17,13 @@ public interface LikeArtistRepository extends JpaRepository<LikeArtist, Long> {
     /**
      * ユーザーIDでお気に入りアーティストのリストを取得
      */
+    @Query("SELECT l FROM LikeArtist l WHERE l.user.id = ?1")
     List<LikeArtist> findByUserId(Long userId);
 
     /**
      * ユーザーIDとアーティストIDで検索
      */
+    @Query("SELECT l FROM LikeArtist l WHERE l.user.id = ?1 AND l.artist.artistId = ?2")
     Optional<LikeArtist> findByUserIdAndArtistId(Long userId, Integer artistId);
 
     /**
