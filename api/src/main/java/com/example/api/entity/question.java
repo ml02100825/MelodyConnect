@@ -1,5 +1,6 @@
-package com.example.api.entity;
+package com.example.demo.entity;
 
+import com.example.demo.enums.QuestionFormat;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -16,7 +17,7 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class question {
+public class Question {
 
     /**
      * 問題ID（主キー）
@@ -27,18 +28,16 @@ public class question {
     private Integer questionId;
 
     /**
-     * 楽曲（外部キー）
+     * 楽曲名ID（外部キー）
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "song_id", nullable = false)
-    private song song;
+    @Column(name = "song_id", nullable = false)
+    private Song songId;
 
     /**
-     * アーティスト（外部キー）
+     * アーティストID（外部キー）
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "artist_id", nullable = false)
-    private Artist artist;
+    @Column(name = "artist_id", nullable = false)
+    private Artist artistnameId;
 
     /**
      * 問題文
@@ -60,14 +59,21 @@ public class question {
 
     /**
      * 問題形式
-     * listening, fill_in_blank等の形式を指定
+     * listening等の形式を指定
      */
-    @Column(name = "question_format", nullable = false, length = 30)
-    private String questionFormat;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "question_format", nullable = false)
+    private QuestionFormat questionFormat;
+
+    /**
+     * 楽曲ID（外部キー）
+     */
+    @Column(name = "song_id", nullable = false)
+    private Integer songId;
 
     /**
      * 難易度レベル
-     * 1-5の範囲
+     * wordnIkAPIから取得される値
      */
     @Column(name = "difficulty_level")
     private Integer difficultyLevel;
