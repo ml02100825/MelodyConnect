@@ -9,7 +9,7 @@ import jakarta.persistence.*;
         @Index(name = "idx_contact_user_id", columnList = "user_id")
     }
 )
-public class contact {
+public class Contact {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

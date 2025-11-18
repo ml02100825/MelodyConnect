@@ -25,6 +25,6 @@ public enum QuestionFormat {
                 return format;
             }
         }
-        throw new IllegalArgumentException("Unknown question format: " + value);
+        throw new IllegalArgumentException("Unknown Question format: " + value);
     }
 }

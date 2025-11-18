@@ -19,7 +19,7 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "room")
-public class room {
+public class Room {
 
     public enum Status {
         WAITING, READY, PLAYING, FINISHED, CANCELED

@@ -1,9 +1,9 @@
 package com.example.api.service;
 
 import com.example.api.dto.*;
-import com.example.api.entity.l_history;
-import com.example.api.entity.question;
-import com.example.api.entity.song;
+import com.example.api.entity.LHistory;
+import com.example.api.entity.Question;
+import com.example.api.entity.Song;
 import com.example.api.repository.LHistoryRepository;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.SongRepository;
@@ -60,9 +60,9 @@ public class QuizService {
 
         try {
             // 1. 問題生成モードに基づいて曲を選択
-            song selectedSong = selectSong(request);
+            Song selectedSong = selectSong(request);
 
-            List<question> questions;
+            List<Question> questions;
 
             if (selectedSong != null) {
                 // 2. 曲が選択された場合、50問チェック
@@ -90,7 +90,7 @@ public class QuizService {
             questions = questions.subList(0, requestedCount);
 
             // 4. l_historyに保存
-            l_history history = saveQuizSession(request, questions, selectedSong);
+            LHistory history = saveQuizSession(request, questions, selectedSong);
 
             // 5. レスポンスを構築
             List<QuizStartResponse.QuizQuestion> quizQuestions = questions.stream()
@@ -131,7 +131,7 @@ public class QuizService {
 
         try {
             // 1. セッションを取得
-            l_history history = lHistoryRepository.findById(request.getSessionId())
+            LHistory history = lHistoryRepository.findById(request.getSessionId())
                 .orElseThrow(() -> new IllegalArgumentException("セッションが見つかりません: " + request.getSessionId()));
 
             // 2. 結果を計算
@@ -139,7 +139,7 @@ public class QuizService {
             List<QuizCompleteResponse.QuestionResult> questionResults = new ArrayList<>();
 
             for (QuizCompleteRequest.AnswerResult answer : request.getAnswers()) {
-                question q = questionRepository.findById(answer.getQuestionId())
+                Question q = questionRepository.findById(answer.getQuestionId())
                     .orElse(null);
 
                 if (q != null) {
@@ -188,7 +188,7 @@ public class QuizService {
     /**
      * 問題生成モードに基づいて曲を選択
      */
-    private song selectSong(QuizStartRequest request) {
+    private Song selectSong(QuizStartRequest request) {
         String mode = request.getGenerationMode();
 
         if ("COMPLETE_RANDOM".equals(mode)) {
@@ -213,7 +213,7 @@ public class QuizService {
     /**
      * DBから問題を取得
      */
-    private List<question> getQuestionsFromDatabase(Long songId, QuizStartRequest request) {
+    private List<Question> getQuestionsFromDatabase(Long songId, QuizStartRequest request) {
         String format = request.getQuestionFormat();
 
         if ("LISTENING_ONLY".equals(format)) {
@@ -229,7 +229,7 @@ public class QuizService {
     /**
      * 言語で問題を取得（COMPLETE_RANDOMモード用）
      */
-    private List<question> getQuestionsByLanguage(QuizStartRequest request) {
+    private List<Question> getQuestionsByLanguage(QuizStartRequest request) {
         String language = request.getLanguage();
         String format = request.getQuestionFormat();
 
@@ -245,7 +245,7 @@ public class QuizService {
     /**
      * 新規問題を生成
      */
-    private List<question> generateNewQuestions(song selectedSong, QuizStartRequest request) {
+    private List<Question> generateNewQuestions(Song selectedSong, QuizStartRequest request) {
         // 問題生成リクエストを作成
         int fillInBlankCount = 10;
         int listeningCount = 10;
@@ -278,9 +278,9 @@ public class QuizService {
     /**
      * クイズセッションを保存
      */
-    private l_history saveQuizSession(QuizStartRequest request, List<question> questions, song selectedSong) {
+    private LHistory saveQuizSession(QuizStartRequest request, List<Question> questions, Song selectedSong) {
         try {
-            l_history history = new l_history();
+            LHistory history = new l_history();
             history.setUser_id(request.getUserId());
             history.setLearning_at(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
             history.setLearning_lang(request.getLanguage());
@@ -312,7 +312,7 @@ public class QuizService {
     /**
      * クイズ結果を更新
      */
-    private void updateQuizResult(l_history history, List<QuizCompleteRequest.AnswerResult> answers, int correctCount) {
+    private void updateQuizResult(LHistory history, List<QuizCompleteRequest.AnswerResult> answers, int correctCount) {
         try {
             Map<String, Object> result = new HashMap<>();
             result.put("correctCount", correctCount);
@@ -342,7 +342,7 @@ public class QuizService {
     /**
      * questionエンティティをQuizQuestionDTOに変換
      */
-    private QuizStartResponse.QuizQuestion convertToQuizQuestion(question q) {
+    private QuizStartResponse.QuizQuestion convertToQuizQuestion(Question q) {
         return QuizStartResponse.QuizQuestion.builder()
             .questionId(q.getQuestionId())
             .text(q.getText())

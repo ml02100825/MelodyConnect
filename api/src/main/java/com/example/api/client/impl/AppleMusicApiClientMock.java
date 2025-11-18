@@ -1,7 +1,7 @@
 package com.example.api.client.impl;
 
 import com.example.api.client.AppleMusicApiClient;
-import com.example.api.entity.song;
+import com.example.api.entity.Song;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -14,22 +14,22 @@ import java.time.LocalDateTime;
 public class AppleMusicApiClientMock implements AppleMusicApiClient {
 
     @Override
-    public song getRandomSongByArtist(Integer artistId) {
+    public Song getRandomSongByArtist(Integer artistId) {
         return createMockSong();
     }
 
     @Override
-    public song getRandomSongByGenre(String genreName) {
+    public Song getRandomSongByGenre(String genreName) {
         return createMockSong();
     }
 
     @Override
-    public song getRandomSong() {
+    public Song getRandomSong() {
         return createMockSong();
     }
 
-    private song createMockSong() {
-        song mockSong = new song();
+    private Song createMockSong() {
+        Song mockSong = new song();
         mockSong.setSong_id(1L);
         mockSong.setAritst_id(1L);
         mockSong.setSongname("Mock Song Title");

@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
         @UniqueConstraint(name = "uk_getedbadge_user_badge", columnNames = {"user_id", "badge_id"})
     }
 )
-public class getedbadge {
+public class GotBadge {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

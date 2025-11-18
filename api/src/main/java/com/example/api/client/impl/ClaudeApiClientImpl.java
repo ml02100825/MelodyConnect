@@ -80,7 +80,7 @@ public class ClaudeApiClientImpl implements ClaudeApiClient {
      */
     private String buildPrompt(String lyrics, int fillInBlankCount, int listeningCount) {
         return String.format("""
-            You are an expert language learning content creator. Generate high-quality English learning questions from the following song lyrics.
+            You are an expert language learning content creator. Generate high-quality English learning questions from the following Song lyrics.
 
             **LYRICS:**
             %s
@@ -130,7 +130,7 @@ public class ClaudeApiClientImpl implements ClaudeApiClient {
             **IMPORTANT:**
             - Return ONLY valid JSON, no additional text
             - Ensure all questions are directly from the provided lyrics
-            - Each question should be unique and test different language aspects
+            - Each Question should be unique and test different language aspects
             - Provide clear, pedagogically sound explanations
             """, lyrics, fillInBlankCount, listeningCount);
     }

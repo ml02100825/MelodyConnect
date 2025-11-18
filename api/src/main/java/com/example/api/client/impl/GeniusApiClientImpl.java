@@ -94,7 +94,7 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             JsonNode hits = rootNode.path("response").path("hits");
 
             if (hits.isArray() && hits.size() > 0) {
-                // 最初の結果からsong IDを取得
+                // 最初の結果からSong IDを取得
                 Long songId = hits.get(0).path("result").path("id").asLong();
                 logger.info("曲が見つかりました: geniusSongId={}", songId);
                 return songId;

@@ -4,7 +4,7 @@ import com.example.api.dto.AnswerValidationRequest;
 import com.example.api.dto.AnswerValidationResponse;
 import com.example.api.dto.QuestionGenerationRequest;
 import com.example.api.dto.QuestionGenerationResponse;
-import com.example.api.entity.question;
+import com.example.api.entity.Question;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.service.QuestionGeneratorService;
 import com.example.api.service.VocabularyService;
@@ -85,7 +85,7 @@ public class QuestionGeneratorController {
 
         try {
             // 問題を取得
-            question q = questionRepository.findById(request.getQuestionId())
+            Question q = questionRepository.findById(request.getQuestionId())
                 .orElseThrow(() -> new IllegalArgumentException("問題が見つかりません: " + request.getQuestionId()));
 
             String correctAnswer = q.getAnswer();

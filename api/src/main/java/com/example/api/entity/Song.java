@@ -5,11 +5,11 @@ import java.time.LocalDateTime;
 import jakarta.persistence.*;
 
 /**
- * song テーブル Entity（ファイル名・クラス名とも物理名に合わせています）
+ * Song テーブル Entity（ファイル名・クラス名とも物理名に合わせています）
  */
 @Entity
 @Table(name = "song")
-public class song {
+public class Song {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

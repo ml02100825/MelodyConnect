@@ -2,7 +2,7 @@ package com.example.api.service;
 
 import com.example.api.client.WordnikApiClient;
 import com.example.api.dto.WordnikWordInfo;
-import com.example.api.entity.vocabulary;
+import com.example.api.entity.Vocabulary;
 import com.example.api.repository.VocabularyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,7 +82,7 @@ public class VocabularyService {
             WordnikWordInfo wordInfo = wordnikApiClient.getWordInfo(normalizedWord);
 
             // エンティティを作成して保存
-            vocabulary vocab = vocabulary.builder()
+            Vocabulary vocab = vocabulary.builder()
                 .word(normalizedWord)
                 .meaning_ja(wordInfo.getMeaningJa())
                 .pronunciation(wordInfo.getPronunciation())
@@ -103,7 +103,7 @@ public class VocabularyService {
     /**
      * 単語情報を取得
      */
-    public Optional<vocabulary> getVocabulary(String word) {
+    public Optional<Vocabulary> getVocabulary(String word) {
         return vocabularyRepository.findByWord(word.toLowerCase().trim());
     }
 

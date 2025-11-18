@@ -2,7 +2,7 @@ package com.example.api.client.impl;
 
 import com.example.api.client.AppleMusicApiClient;
 import com.example.api.entity.Artist;
-import com.example.api.entity.song;
+import com.example.api.entity.Song;
 import com.example.api.repository.ArtistRepository;
 import com.example.api.repository.SongRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -51,7 +51,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
     }
 
     @Override
-    public song getRandomSongByArtist(Integer artistId) {
+    public Song getRandomSongByArtist(Integer artistId) {
         if (apiKey == null || apiKey.isEmpty()) {
             logger.warn("Apple Music APIキーが設定されていません。モックデータを返します。");
             return createMockSong(artistId);
@@ -87,7 +87,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
     }
 
     @Override
-    public song getRandomSongByGenre(String genreName) {
+    public Song getRandomSongByGenre(String genreName) {
         if (apiKey == null || apiKey.isEmpty()) {
             logger.warn("Apple Music APIキーが設定されていません。モックデータを返します。");
             return createMockSongForGenre(genreName);
@@ -118,7 +118,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
     }
 
     @Override
-    public song getRandomSong() {
+    public Song getRandomSong() {
         if (apiKey == null || apiKey.isEmpty()) {
             logger.warn("Apple Music APIキーが設定されていません。モックデータを返します。");
             return createMockSongForGenre("pop");
@@ -154,7 +154,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
     /**
      * APIレスポンスから曲をパース
      */
-    private song parseSongFromResponse(String response, Artist artist) {
+    private Song parseSongFromResponse(String response, Artist artist) {
         try {
             JsonNode rootNode = objectMapper.readTree(response);
             JsonNode data = rootNode.path("data");
@@ -165,7 +165,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
                 JsonNode songNode = data.get(randomIndex);
                 JsonNode attributes = songNode.path("attributes");
 
-                song newSong = new song();
+                Song newSong = new song();
                 newSong.setArtist(artist);
                 newSong.setSongname(attributes.path("name").asText("Unknown"));
                 newSong.setGenre(attributes.path("genreNames").get(0).asText("Unknown"));
@@ -187,7 +187,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
     /**
      * 検索レスポンスから曲をパース
      */
-    private song parseSongFromSearchResponse(String response, String genre) {
+    private Song parseSongFromSearchResponse(String response, String genre) {
         try {
             JsonNode rootNode = objectMapper.readTree(response);
             JsonNode songs = rootNode.path("results").path("songs").path("data");
@@ -202,7 +202,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
                 String artistName = attributes.path("artistName").asText("Unknown Artist");
                 Artist artist = findOrCreateArtist(artistName);
 
-                song newSong = new song();
+                Song newSong = new song();
                 newSong.setArtist(artist);
                 newSong.setSongname(attributes.path("name").asText("Unknown"));
                 newSong.setGenre(genre);
@@ -237,7 +237,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
     /**
      * モックの曲データを作成
      */
-    private song createMockSong(Integer artistId) {
+    private Song createMockSong(Integer artistId) {
         Artist artist = artistRepository.findById(artistId)
             .orElseGet(() -> {
                 Artist newArtist = new Artist();
@@ -246,7 +246,7 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
                 return artistRepository.save(newArtist);
             });
 
-        song mockSong = new song();
+        Song mockSong = new song();
         mockSong.setArtist(artist);
         mockSong.setSongname("Mock Song Title");
         mockSong.setGenre("pop");
@@ -260,10 +260,10 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
     /**
      * ジャンル用のモック曲データを作成
      */
-    private song createMockSongForGenre(String genre) {
+    private Song createMockSongForGenre(String genre) {
         Artist artist = findOrCreateArtist("Mock Artist");
 
-        song mockSong = new song();
+        Song mockSong = new song();
         mockSong.setArtist(artist);
         mockSong.setSongname("Mock " + genre + " Song");
         mockSong.setGenre(genre);

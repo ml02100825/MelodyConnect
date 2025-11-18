@@ -11,7 +11,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class vocabulary {
+public class Vocabulary {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
