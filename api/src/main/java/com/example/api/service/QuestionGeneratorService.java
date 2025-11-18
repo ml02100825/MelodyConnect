@@ -222,6 +222,7 @@ public class QuestionGeneratorService {
 
     /**
      * 単語情報を保存
+     * Wordnik APIキーが設定されていない場合はスキップ
      */
     private void saveVocabulary(String word) {
         // すでに存在する場合はスキップ
@@ -232,6 +233,12 @@ public class QuestionGeneratorService {
 
         try {
             WordnikWordInfo wordInfo = wordnikApiClient.getWordInfo(word);
+
+            // モックデータ（APIキーなし）の場合はスキップ
+            if (wordInfo == null || wordInfo.getMeaningJa() == null) {
+                logger.debug("Wordnik APIが利用できないため単語保存をスキップ: word={}", word);
+                return;
+            }
 
             Vocabulary vocab = Vocabulary.builder()
                 .word(word)

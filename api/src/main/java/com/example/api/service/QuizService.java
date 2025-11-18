@@ -5,8 +5,11 @@ import com.example.api.entity.LHistory;
 import com.example.api.entity.Question;
 import com.example.api.entity.Song;
 import com.example.api.repository.LHistoryRepository;
+import com.example.api.repository.LikeArtistRepository;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.SongRepository;
+import com.example.api.client.SpotifyApiClient;
+import com.example.api.entity.LikeArtist;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -38,6 +41,12 @@ public class QuizService {
 
     @Autowired
     private LHistoryRepository lHistoryRepository;
+
+    @Autowired
+    private LikeArtistRepository likeArtistRepository;
+
+    @Autowired
+    private SpotifyApiClient spotifyApiClient;
 
     @Autowired
     private QuestionGeneratorService questionGeneratorService;
@@ -190,23 +199,50 @@ public class QuizService {
     private Song selectSong(QuizStartRequest request) {
         String mode = request.getGenerationMode();
 
-        if ("COMPLETE_RANDOM".equals(mode)) {
-            // 完全ランダムの場合は曲を選ばずに言語で検索
-            return null;
+        switch (mode) {
+            case "COMPLETE_RANDOM":
+                // 完全ランダムの場合は曲を選ばずに言語で検索
+                return null;
+
+            case "FAVORITE_ARTIST":
+                // お気に入りアーティストから選択
+                return selectSongFromFavoriteArtist(request.getUserId());
+
+            case "GENRE_RANDOM":
+                // ジャンルから選択
+                return selectSongByGenre(request.getGenreName());
+
+            case "URL_INPUT":
+                // URLから選択（TODO: 実装）
+                return songRepository.findRandom().orElse(null);
+
+            default:
+                return songRepository.findRandom().orElse(null);
         }
+    }
 
-        // QuestionGenerationRequestに変換して既存のロジックを再利用
-        QuestionGenerationRequest genRequest = QuestionGenerationRequest.builder()
-            .mode(QuestionGenerationRequest.GenerationMode.valueOf(mode))
-            .userId(request.getUserId())
-            .genreName(request.getGenreName())
-            .songUrl(request.getSongUrl())
-            .build();
+    /**
+     * お気に入りアーティストからランダムに楽曲を選択
+     */
+    private Song selectSongFromFavoriteArtist(Long userId) {
+        logger.debug("お気に入りアーティストから楽曲を選択: userId={}", userId);
 
-        // QuestionGeneratorServiceの内部メソッドを呼び出すか、
-        // ここで直接実装する必要がある
-        // 今回は簡略化のためランダムな曲を返す
-        return songRepository.findRandom().orElse(null);
+        LikeArtist randomLikeArtist = likeArtistRepository.findRandomByUserId(userId)
+            .orElseThrow(() -> new IllegalStateException("お気に入りアーティストが見つかりません"));
+
+        Integer artistId = randomLikeArtist.getArtist().getArtistId();
+        return songRepository.findRandomByArtist(artistId.longValue())
+            .orElseGet(() -> spotifyApiClient.getRandomSongByArtist(artistId));
+    }
+
+    /**
+     * ジャンルから楽曲を選択
+     */
+    private Song selectSongByGenre(String genreName) {
+        logger.debug("ジャンルから楽曲を選択: genre={}", genreName);
+
+        return songRepository.findRandomByGenre(genreName)
+            .orElseGet(() -> spotifyApiClient.getRandomSongByGenre(genreName));
     }
 
     /**
