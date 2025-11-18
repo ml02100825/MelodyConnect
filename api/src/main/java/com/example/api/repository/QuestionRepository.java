@@ -33,4 +33,29 @@ public interface QuestionRepository extends JpaRepository<question, Integer> {
      * 楽曲と問題形式で検索
      */
     List<question> findBySongAndQuestionFormat(song song, String questionFormat);
+
+    /**
+     * 楽曲IDで問題数をカウント
+     */
+    long countBySong_Song_id(Long songId);
+
+    /**
+     * 楽曲IDで問題を検索
+     */
+    List<question> findBySong_Song_id(Long songId);
+
+    /**
+     * 楽曲IDと問題形式で検索
+     */
+    List<question> findBySong_Song_idAndQuestionFormat(Long songId, String questionFormat);
+
+    /**
+     * 言語で問題を検索
+     */
+    List<question> findByLanguage(String language);
+
+    /**
+     * 言語と問題形式で検索
+     */
+    List<question> findByLanguageAndQuestionFormat(String language, String questionFormat);
 }
