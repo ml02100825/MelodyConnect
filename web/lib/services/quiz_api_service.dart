@@ -9,10 +9,13 @@ const baseUrl = String.fromEnvironment(
 
 class QuizApiService {
   /// クイズを開始
-  Future<QuizStartResponse> startQuiz(QuizStartRequest request) async {
+  Future<QuizStartResponse> startQuiz(QuizStartRequest request, String accessToken) async {
     final response = await http.post(
       Uri.parse("$baseUrl/api/quiz/start"),
-      headers: {"Content-Type": "application/json"},
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $accessToken",
+      },
       body: json.encode(request.toJson()),
     );
 
@@ -24,10 +27,13 @@ class QuizApiService {
   }
 
   /// クイズを完了
-  Future<QuizCompleteResponse> completeQuiz(QuizCompleteRequest request) async {
+  Future<QuizCompleteResponse> completeQuiz(QuizCompleteRequest request, String accessToken) async {
     final response = await http.post(
       Uri.parse("$baseUrl/api/quiz/complete"),
-      headers: {"Content-Type": "application/json"},
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $accessToken",
+      },
       body: json.encode(request.toJson()),
     );
 

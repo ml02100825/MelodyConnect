@@ -15,8 +15,9 @@ class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
   final QuizApiService _apiService = QuizApiService();
   final TokenStorageService _tokenStorage = TokenStorageService();
 
-  // ユーザーID
+  // ユーザーID・トークン
   int? _userId;
+  String? _accessToken;
 
   // 選択状態
   String _selectedLanguage = 'en';
@@ -33,13 +34,15 @@ class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserId();
+    _loadUserData();
   }
 
-  Future<void> _loadUserId() async {
+  Future<void> _loadUserData() async {
     final userId = await _tokenStorage.getUserId();
+    final accessToken = await _tokenStorage.getAccessToken();
     setState(() {
       _userId = userId;
+      _accessToken = accessToken;
     });
   }
 
@@ -345,7 +348,7 @@ class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
   }
 
   Future<void> _startQuiz() async {
-    if (_userId == null) {
+    if (_userId == null || _accessToken == null) {
       _showError('ユーザー情報が取得できませんでした');
       return;
     }
@@ -363,7 +366,7 @@ class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
         songUrl: _songUrl,
       );
 
-      final response = await _apiService.startQuiz(request);
+      final response = await _apiService.startQuiz(request, _accessToken!);
 
       if (response.questions.isEmpty) {
         _showError('問題が見つかりませんでした');
