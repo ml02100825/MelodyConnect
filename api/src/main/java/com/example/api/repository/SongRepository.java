@@ -16,12 +16,14 @@ public interface SongRepository extends JpaRepository<Song, Long> {
     /**
      * Genius Song IDで検索
      */
-    Optional<Song> findByGenius_song_id(Long geniusSongId);
+    @Query("SELECT s FROM Song s WHERE s.genius_song_id = ?1")
+    Optional<Song> findByGeniusSongId(Long geniusSongId);
 
     /**
      * Spotify Track IDで検索
      */
-    Optional<Song> findBySpotify_track_id(String spotifyTrackId);
+    @Query("SELECT s FROM Song s WHERE s.spotify_track_id = ?1")
+    Optional<Song> findBySpotifyTrackId(String spotifyTrackId);
 
     /**
      * アーティストIDでランダムな楽曲を取得
