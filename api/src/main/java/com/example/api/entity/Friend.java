@@ -39,10 +39,10 @@ public class Friend {
     private Long id;
 
     @Column(name = "user_id_low", nullable = false)
-    private User userIdLow;
+    private Long userIdLow;
 
     @Column(name = "user_id_high", nullable = false)
-    private User userIdHigh;
+    private Long userIdHigh;
 
     @Column(name = "friend_flag", nullable = false)
     private Boolean friendFlag;
@@ -51,7 +51,7 @@ public class Friend {
     private Boolean inviteFlag;
 
     @Column(name = "requester_id", nullable = false)
-    private User requesterId;
+    private Long requesterId;
 
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;

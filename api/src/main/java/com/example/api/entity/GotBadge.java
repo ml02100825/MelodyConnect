@@ -23,10 +23,10 @@ public class GotBadge {
     private Long getedbadge_id;
 
     @Column(name = "user_id", nullable = false)
-    private User user_id;
+    private Long user_id;
 
     @Column(name = "badge_id", nullable = false)
-    private Badge badge_id;
+    private Long badge_id;
 
     @Column(name = "acquired_at", nullable = false)
     private LocalDateTime acquired_at;

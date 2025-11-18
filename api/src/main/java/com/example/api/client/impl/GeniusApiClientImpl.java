@@ -69,6 +69,15 @@ public class GeniusApiClientImpl implements GeniusApiClient {
     }
 
     @Override
+    public String getLyricsByUrl(String songUrl) {
+        // URLから歌詞を取得（現在はモックを返す）
+        logger.info("URLから歌詞を取得中: url={}", songUrl);
+        return getMockLyrics();
+    }
+
+    /**
+     * 曲を検索してGenius Song IDを取得
+     */
     public Long searchSong(String songTitle, String artistName) {
         if (apiKey == null || apiKey.isEmpty()) {
             logger.warn("Genius APIキーが設定されていません。");

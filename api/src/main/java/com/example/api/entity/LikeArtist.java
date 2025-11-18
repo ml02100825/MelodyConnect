@@ -35,10 +35,10 @@ public class LikeArtist {
     private Long id;
 
     @Column(name = "user_id", nullable = false)
-    private User userId;
+    private Long userId;
 
     @Column(name = "artist_id", nullable = false)
-    private Artist artistId;
+    private Long artistId;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

@@ -23,7 +23,7 @@ public class Contact {
     private String image_url;
 
     @Column(name = "user_id", nullable = false) // int(10), NOT NULL
-    private User user_id;
+    private Integer user_id;
 
     @Column(name = "title", nullable = false, length = 50) // varchar(50), NOT NULL
     private String title;
