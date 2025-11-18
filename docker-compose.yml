@@ -12,7 +12,9 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: on-failure
 
   db:
     image: mysql:8
@@ -27,6 +29,12 @@ services:
     volumes:
       - dbdata:/var/lib/mysql
       - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   dbdata: {}
