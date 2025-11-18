@@ -1,6 +1,7 @@
 package com.example.api.client.impl;
 
 import com.example.api.client.SpotifyApiClient;
+import com.example.api.dto.SpotifyArtistDto;
 import com.example.api.entity.Song;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,7 +15,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -176,6 +179,97 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
             logger.error("楽曲検索に失敗しました: {} - {}", songName, artistName, e);
             return createMockSong("pop");
         }
+    }
+
+    @Override
+    public List<SpotifyArtistDto> searchArtists(String query, int limit) {
+        String token = getAccessToken();
+        if (token == null) {
+            logger.warn("トークンが取得できないためモックデータを返します");
+            return createMockArtists(query);
+        }
+
+        try {
+            String response = apiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/search")
+                    .queryParam("q", query)
+                    .queryParam("type", "artist")
+                    .queryParam("limit", limit)
+                    .build())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode artists = jsonNode.path("artists").path("items");
+
+            List<SpotifyArtistDto> result = new ArrayList<>();
+            if (artists.isArray()) {
+                for (JsonNode artistNode : artists) {
+                    SpotifyArtistDto dto = parseArtistNode(artistNode);
+                    if (dto != null) {
+                        result.add(dto);
+                    }
+                }
+            }
+
+            logger.info("Spotifyアーティスト検索完了: query={}, 結果数={}", query, result.size());
+            return result;
+
+        } catch (Exception e) {
+            logger.error("アーティスト検索に失敗しました: query={}", query, e);
+            return createMockArtists(query);
+        }
+    }
+
+    /**
+     * SpotifyのアーティストJSONをDTOに変換
+     */
+    private SpotifyArtistDto parseArtistNode(JsonNode artistNode) {
+        try {
+            String imageUrl = null;
+            JsonNode images = artistNode.path("images");
+            if (images.isArray() && images.size() > 0) {
+                // 最初の画像（通常は最大サイズ）を使用
+                imageUrl = images.get(0).path("url").asText();
+            }
+
+            List<String> genres = new ArrayList<>();
+            JsonNode genresNode = artistNode.path("genres");
+            if (genresNode.isArray()) {
+                for (JsonNode genre : genresNode) {
+                    genres.add(genre.asText());
+                }
+            }
+
+            return SpotifyArtistDto.builder()
+                .spotifyId(artistNode.path("id").asText())
+                .name(artistNode.path("name").asText())
+                .imageUrl(imageUrl)
+                .genres(genres)
+                .popularity(artistNode.path("popularity").asInt())
+                .build();
+        } catch (Exception e) {
+            logger.warn("アーティストノードのパースに失敗しました", e);
+            return null;
+        }
+    }
+
+    /**
+     * モックアーティストデータを作成
+     */
+    private List<SpotifyArtistDto> createMockArtists(String query) {
+        List<SpotifyArtistDto> mockList = new ArrayList<>();
+        mockList.add(SpotifyArtistDto.builder()
+            .spotifyId("mock_artist_1")
+            .name("Mock Artist 1 - " + query)
+            .imageUrl(null)
+            .genres(List.of("pop"))
+            .popularity(50)
+            .build());
+        return mockList;
     }
 
     /**

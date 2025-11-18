@@ -86,6 +86,9 @@ public class User {
     @Column(name = "ban_flag", nullable = false)
     private boolean banFlag = false;
 
+    @Column(name = "initial_setup_completed", nullable = false)
+    private boolean initialSetupCompleted = false;
+
 
     /**
      * エンティティ保存前の処理
@@ -155,4 +158,7 @@ public class User {
 
     public boolean isBanFlag() { return banFlag; }
     public void setBanFlag(boolean banFlag) { this.banFlag = banFlag; }
+
+    public boolean isInitialSetupCompleted() { return initialSetupCompleted; }
+    public void setInitialSetupCompleted(boolean initialSetupCompleted) { this.initialSetupCompleted = initialSetupCompleted; }
 }

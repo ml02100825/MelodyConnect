@@ -1,12 +1,24 @@
 package com.example.api.client;
 
+import com.example.api.dto.SpotifyArtistDto;
 import com.example.api.entity.Song;
+
+import java.util.List;
 
 /**
  * Spotify API Client Interface
  * 楽曲検索機能を提供
  */
 public interface SpotifyApiClient {
+
+    /**
+     * アーティスト名で検索
+     *
+     * @param query 検索クエリ
+     * @param limit 取得件数
+     * @return アーティストリスト
+     */
+    List<SpotifyArtistDto> searchArtists(String query, int limit);
 
     /**
      * アーティストIDからランダムな楽曲を取得

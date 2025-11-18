@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
+import '../services/artist_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../widgets/artist_selection_dialog.dart';
 import 'login_screen.dart';
 
 /// ホーム画面（プレースホルダー）
@@ -13,11 +15,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _authApiService = AuthApiService();
+  final _artistApiService = ArtistApiService();
   final _tokenStorage = TokenStorageService();
 
   String? _username;
   String? _email;
   bool _isLoading = true;
+  bool _showedArtistDialog = false;
 
   @override
   void initState() {
@@ -36,10 +40,52 @@ class _HomeScreenState extends State<HomeScreen> {
         _email = email;
         _isLoading = false;
       });
+
+      // 初期設定完了状態をチェックし、未完了ならダイアログを表示
+      _checkInitialSetup();
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  /// 初期設定完了状態を確認
+  Future<void> _checkInitialSetup() async {
+    if (_showedArtistDialog) return;
+
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken == null) return;
+
+      final isCompleted =
+          await _artistApiService.isInitialSetupCompleted(accessToken);
+
+      if (!isCompleted && mounted) {
+        _showedArtistDialog = true;
+        _showArtistSelectionDialog();
+      }
+    } catch (e) {
+      // エラーが発生してもダイアログは表示しない
+      debugPrint('初期設定状態の確認に失敗: $e');
+    }
+  }
+
+  /// アーティスト選択ダイアログを表示
+  Future<void> _showArtistSelectionDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const ArtistSelectionDialog(),
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('お気に入りアーティストを登録しました'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 
