@@ -9,7 +9,9 @@ import com.example.api.repository.LikeArtistRepository;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.SongRepository;
 import com.example.api.client.SpotifyApiClient;
+import com.example.api.client.TtsApiClient;
 import com.example.api.entity.LikeArtist;
+import com.example.api.enums.QuestionFormat;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -56,6 +58,9 @@ public class QuizService {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private TtsApiClient ttsApiClient;
 
     /**
      * クイズを開始
@@ -378,13 +383,58 @@ public class QuizService {
      * questionエンティティをQuizQuestionDTOに変換
      */
     private QuizStartResponse.QuizQuestion convertToQuizQuestion(Question q) {
+        String audioUrl = null;
+
+        // リスニング問題の場合は音声を生成
+        if (QuestionFormat.LISTENING.equals(q.getQuestionFormat())) {
+            audioUrl = generateAudioForQuestion(q);
+        }
+
         return QuizStartResponse.QuizQuestion.builder()
             .questionId(q.getQuestionId())
             .text(q.getText())
             .questionFormat(q.getQuestionFormat().getValue())
             .difficultyLevel(q.getDifficultyLevel())
-            .audioUrl(null) // TODO: TTS実装後に音声URLを設定
+            .audioUrl(audioUrl)
             .language(q.getLanguage())
             .build();
+    }
+
+    /**
+     * 問題用の音声を生成
+     */
+    private String generateAudioForQuestion(Question question) {
+        try {
+            String ttsLanguageCode = mapLanguageToTtsCode(question.getLanguage());
+            // リスニング問題では答えを読み上げる（聞き取って書く形式）
+            String textToSpeak = question.getAnswer();
+
+            logger.debug("TTS音声生成: questionId={}, language={}, text={}",
+                question.getQuestionId(), ttsLanguageCode, textToSpeak);
+
+            return ttsApiClient.generateAudio(textToSpeak, ttsLanguageCode);
+        } catch (Exception e) {
+            logger.error("音声生成に失敗しました: questionId={}", question.getQuestionId(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 言語名をTTS言語コードに変換
+     */
+    private String mapLanguageToTtsCode(String language) {
+        if (language == null) {
+            return "en-US";
+        }
+        switch (language.toUpperCase()) {
+            case "ENGLISH":
+                return "en-US";
+            case "KOREAN":
+                return "ko-KR";
+            case "JAPANESE":
+                return "ja-JP";
+            default:
+                return "en-US";
+        }
     }
 }

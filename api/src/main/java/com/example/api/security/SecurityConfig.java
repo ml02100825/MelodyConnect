@@ -72,6 +72,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/refresh").permitAll()
                         .requestMatchers("/api/upload/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/audio/**").permitAll() // TTS音声ファイル
                         .requestMatchers("/ws/**").permitAll() // WebSocketエンドポイント
                         .requestMatchers("/app/**").permitAll() // STOMP送信先
                         .requestMatchers("/topic/**").permitAll() // STOMPブロードキャスト

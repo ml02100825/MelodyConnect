@@ -132,11 +132,13 @@ public class GoogleTtsApiClientImpl implements TtsApiClient {
      * 言語と性別に応じた音声名を選択
      */
     private String selectVoiceName(String language, String voiceGender) {
-        // WaveNet音声を優先（より自然な音声）
+        // WaveNet/Neural2音声を優先（より自然な音声）
         if (language.startsWith("en")) {
             return voiceGender.equals("MALE") ? "en-US-Neural2-D" : "en-US-Neural2-F";
         } else if (language.startsWith("ja")) {
             return voiceGender.equals("MALE") ? "ja-JP-Neural2-C" : "ja-JP-Neural2-B";
+        } else if (language.startsWith("ko")) {
+            return voiceGender.equals("MALE") ? "ko-KR-Neural2-C" : "ko-KR-Neural2-A";
         }
         // デフォルト
         return language + "-Standard-A";

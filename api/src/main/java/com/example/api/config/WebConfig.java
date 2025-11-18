@@ -19,6 +19,9 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${upload.local.directory:src/main/resources/static/uploads}")
     private String uploadDirectory;
 
+    @Value("${tts.audio.output.directory:./audio}")
+    private String audioOutputDirectory;
+
     /**
      * CORS設定
      */
@@ -45,5 +48,9 @@ public class WebConfig implements WebMvcConfigurer {
                             "file:" + uploadDirectory + "/"
                     );
         }
+
+        // TTS音声ファイル用のリソースハンドラー
+        registry.addResourceHandler("/audio/**")
+                .addResourceLocations("file:" + audioOutputDirectory + "/");
     }
 }
