@@ -6,18 +6,6 @@ import java.time.temporal.ChronoUnit;
 
 /**
  * friend テーブルのエンティティ
- *
- * 物理名: friend
- * - friend_id     PK, AUTO_INCREMENT
- * - user_id_low   int  NOT NULL  … 小さい方のユーザーID
- * - user_id_high  int  NOT NULL  … 大きい方のユーザーID
- * - friend_flag   boolean NOT NULL  … 相互承認済みか
- * - invite_flag   boolean NOT NULL  … 招待送信済みか
- * - requester_id  int NOT NULL      … 申請者ユーザーID
- * - accepted_at   datetime          … 承認日時
- * - requested_at  datetime NOT NULL … 申請日時
- *
- * (user_id_low, user_id_high) の組でユニーク。
  */
 @Entity
 @Table(
@@ -38,11 +26,13 @@ public class Friend {
     @Column(name = "friend_id", nullable = false)
     private Long id;
 
-    @Column(name = "user_id_low", nullable = false)
-    private Long userIdLow;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id_low", nullable = false)
+    private User userLow;
 
-    @Column(name = "user_id_high", nullable = false)
-    private Long userIdHigh;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id_high", nullable = false)
+    private User userHigh;
 
     @Column(name = "friend_flag", nullable = false)
     private Boolean friendFlag;
@@ -50,8 +40,9 @@ public class Friend {
     @Column(name = "invite_flag", nullable = false)
     private Boolean inviteFlag;
 
-    @Column(name = "requester_id", nullable = false)
-    private Long requesterId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requester_id", nullable = false)
+    private User requester;
 
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
@@ -73,11 +64,11 @@ public class Friend {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public Long getUserIdLow() { return userIdLow; }
-    public void setUserIdLow(Long userIdLow) { this.userIdLow = userIdLow; }
+    public User getUserLow() { return userLow; }
+    public void setUserLow(User userLow) { this.userLow = userLow; }
 
-    public Long getUserIdHigh() { return userIdHigh; }
-    public void setUserIdHigh(Long userIdHigh) { this.userIdHigh = userIdHigh; }
+    public User getUserHigh() { return userHigh; }
+    public void setUserHigh(User userHigh) { this.userHigh = userHigh; }
 
     public Boolean getFriendFlag() { return friendFlag; }
     public void setFriendFlag(Boolean friendFlag) { this.friendFlag = friendFlag; }
@@ -85,8 +76,8 @@ public class Friend {
     public Boolean getInviteFlag() { return inviteFlag; }
     public void setInviteFlag(Boolean inviteFlag) { this.inviteFlag = inviteFlag; }
 
-    public Long getRequesterId() { return requesterId; }
-    public void setRequesterId(Long requesterId) { this.requesterId = requesterId; }
+    public User getRequester() { return requester; }
+    public void setRequester(User requester) { this.requester = requester; }
 
     public LocalDateTime getAcceptedAt() { return acceptedAt; }
     public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }

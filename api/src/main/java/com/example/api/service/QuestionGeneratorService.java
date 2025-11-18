@@ -154,9 +154,9 @@ public class QuestionGeneratorService {
         LikeArtist randomLikeArtist = likeArtistRepository.findRandomByUserId(userId)
             .orElseThrow(() -> new IllegalStateException("お気に入りアーティストが見つかりません"));
 
-        Long artistIdLong = randomLikeArtist.getArtistId();
-        return songRepository.findRandomByArtist(artistIdLong)
-            .orElseGet(() -> appleMusicApiClient.getRandomSongByArtist(artistIdLong.intValue()));
+        Integer artistId = randomLikeArtist.getArtist().getArtistId();
+        return songRepository.findRandomByArtist(artistId.longValue())
+            .orElseGet(() -> appleMusicApiClient.getRandomSongByArtist(artistId));
     }
 
     /**

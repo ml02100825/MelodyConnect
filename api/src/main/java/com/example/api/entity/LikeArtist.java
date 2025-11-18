@@ -6,15 +6,6 @@ import java.time.temporal.ChronoUnit;
 
 /**
  * like_artist テーブルのエンティティ
- *
- * 物理名: like_artist
- * - like_artist   PK, AUTO_INCREMENT
- * - user_id       int NOT NULL
- * - artist_id     int NOT NULL
- * - created_at    datetime NOT NULL
- *
- * 同一ユーザーが同一アーティストを重複登録しないように
- * (user_id, artist_id) のユニーク制約を付与。
  */
 @Entity
 @Table(
@@ -34,11 +25,13 @@ public class LikeArtist {
     @Column(name = "like_artist", nullable = false)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(name = "artist_id", nullable = false)
-    private Long artistId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "artist_id", nullable = false)
+    private Artist artist;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -55,11 +48,11 @@ public class LikeArtist {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 
-    public Long getArtistId() { return artistId; }
-    public void setArtistId(Long artistId) { this.artistId = artistId; }
+    public Artist getArtist() { return artist; }
+    public void setArtist(Artist artist) { this.artist = artist; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

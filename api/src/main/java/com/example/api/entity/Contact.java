@@ -14,18 +14,19 @@ public class Contact {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "contact_id")
-    private Long contact_id; // int(12) -> Long
+    private Long contact_id;
 
-    @Column(name = "contact_detail", length = 500) // NULL許可
+    @Column(name = "contact_detail", length = 500)
     private String contact_detail;
 
-    @Column(name = "image_url", length = 200) // NULL許可
+    @Column(name = "image_url", length = 200)
     private String image_url;
 
-    @Column(name = "user_id", nullable = false) // int(10), NOT NULL
-    private Integer user_id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(name = "title", nullable = false, length = 50) // varchar(50), NOT NULL
+    @Column(name = "title", nullable = false, length = 50)
     private String title;
 
     // ====== getters / setters ======
@@ -50,11 +51,11 @@ public class Contact {
         this.image_url = image_url;
     }
 
-    public Integer getUser_id() {
-        return user_id;
+    public User getUser() {
+        return user;
     }
-    public void setUser_id(Integer user_id) {
-        this.user_id = user_id;
+    public void setUser(User user) {
+        this.user = user;
     }
 
     public String getTitle() {

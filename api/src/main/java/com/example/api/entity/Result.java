@@ -27,11 +27,13 @@ public class Result {
     @Column(name = "result_id", nullable = false)
     private Long id;
 
-    @Column(name = "player_id", nullable = false)
-    private Long playerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "player_id", nullable = false)
+    private User player;
 
-    @Column(name = "enemy_id", nullable = false)
-    private Long enemyId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "enemy_id", nullable = false)
+    private User enemy;
 
     /** true=勝ち / false=負け */
     @Column(name = "result", nullable = false)
@@ -86,11 +88,11 @@ public class Result {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public Long getPlayerId() { return playerId; }
-    public void setPlayerId(Long playerId) { this.playerId = playerId; }
+    public User getPlayer() { return player; }
+    public void setPlayer(User player) { this.player = player; }
 
-    public Long getEnemyId() { return enemyId; }
-    public void setEnemyId(Long enemyId) { this.enemyId = enemyId; }
+    public User getEnemy() { return enemy; }
+    public void setEnemy(User enemy) { this.enemy = enemy; }
 
     public Boolean getResult() { return result; }
     public void setResult(Boolean result) { this.result = result; }
