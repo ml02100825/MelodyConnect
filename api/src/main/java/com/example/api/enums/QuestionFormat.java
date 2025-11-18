@@ -1,9 +1,14 @@
+package com.example.api.enums;
+
+/**
+ * 問題形式の列挙型
+ */
 public enum QuestionFormat {
     /**
      * リスニング問題
      */
     LISTENING("listening"),
-    
+
     /**
      * 虫食い問題（穴埋め問題）
      */

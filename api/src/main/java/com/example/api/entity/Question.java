@@ -28,16 +28,18 @@ public class Question {
     private Integer questionId;
 
     /**
-     * 楽曲名ID（外部キー）
+     * 楽曲（外部キー）
      */
-    @Column(name = "song_id", nullable = false)
-    private Song songId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "song_id", nullable = false)
+    private Song song;
 
     /**
-     * アーティストID（外部キー）
+     * アーティスト（外部キー）
      */
-    @Column(name = "artist_id", nullable = false)
-    private Artist artistnameId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "artist_id", nullable = false)
+    private Artist artist;
 
     /**
      * 問題文
@@ -66,14 +68,8 @@ public class Question {
     private QuestionFormat questionFormat;
 
     /**
-     * 楽曲ID（外部キー）
-     */
-    @Column(name = "song_id", nullable = false)
-    private Integer songId;
-
-    /**
      * 難易度レベル
-     * wordnIkAPIから取得される値
+     * wordnikAPIから取得される値
      */
     @Column(name = "difficulty_level")
     private Integer difficultyLevel;

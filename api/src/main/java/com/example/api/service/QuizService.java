@@ -66,7 +66,7 @@ public class QuizService {
 
             if (selectedSong != null) {
                 // 2. 曲が選択された場合、50問チェック
-                long questionCount = questionRepository.countBySong_Song_id(selectedSong.getSong_id());
+                long questionCount = questionRepository.countBySongSong_id(selectedSong.getSong_id());
                 logger.info("既存の問題数: songId={}, count={}", selectedSong.getSong_id(), questionCount);
 
                 if (questionCount >= QUESTION_THRESHOLD) {
@@ -102,8 +102,7 @@ public class QuizService {
                 songInfo = QuizStartResponse.SongInfo.builder()
                     .songId(selectedSong.getSong_id())
                     .songName(selectedSong.getSongname())
-                    .artistName(selectedSong.getArtist() != null ?
-                        selectedSong.getArtist().getArtistName() : "Unknown")
+                    .artistName("Unknown") // TODO: アーティスト名を取得するロジックを実装
                     .genre(selectedSong.getGenre())
                     .build();
             }
@@ -147,14 +146,14 @@ public class QuizService {
                     if (isCorrect) correctCount++;
 
                     // リスニング問題で間違えた場合、単語を保存
-                    if ("listening".equals(q.getQuestionFormat()) && !isCorrect) {
+                    if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat()) && !isCorrect) {
                         vocabularyService.saveIncorrectWords(answer.getUserAnswer(), q.getAnswer());
                     }
 
                     questionResults.add(QuizCompleteResponse.QuestionResult.builder()
                         .questionId(q.getQuestionId())
                         .questionText(q.getText())
-                        .questionFormat(q.getQuestionFormat())
+                        .questionFormat(q.getQuestionFormat().getValue())
                         .correctAnswer(q.getAnswer())
                         .userAnswer(answer.getUserAnswer())
                         .isCorrect(isCorrect)
@@ -217,12 +216,12 @@ public class QuizService {
         String format = request.getQuestionFormat();
 
         if ("LISTENING_ONLY".equals(format)) {
-            return questionRepository.findBySong_Song_idAndQuestionFormat(songId, "listening");
+            return questionRepository.findBySongSong_idAndQuestionFormat(songId, com.example.api.enums.QuestionFormat.LISTENING);
         } else if ("FILL_IN_BLANK_ONLY".equals(format)) {
-            return questionRepository.findBySong_Song_idAndQuestionFormat(songId, "fill_in_blank");
+            return questionRepository.findBySongSong_idAndQuestionFormat(songId, com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK);
         } else {
             // ALL_RANDOM
-            return questionRepository.findBySong_Song_id(songId);
+            return questionRepository.findBySongSong_id(songId);
         }
     }
 
@@ -234,9 +233,9 @@ public class QuizService {
         String format = request.getQuestionFormat();
 
         if ("LISTENING_ONLY".equals(format)) {
-            return questionRepository.findByLanguageAndQuestionFormat(language, "listening");
+            return questionRepository.findByLanguageAndQuestionFormat(language, com.example.api.enums.QuestionFormat.LISTENING);
         } else if ("FILL_IN_BLANK_ONLY".equals(format)) {
-            return questionRepository.findByLanguageAndQuestionFormat(language, "fill_in_blank");
+            return questionRepository.findByLanguageAndQuestionFormat(language, com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK);
         } else {
             return questionRepository.findByLanguage(language);
         }
@@ -272,7 +271,7 @@ public class QuizService {
         QuestionGenerationResponse response = questionGeneratorService.generateQuestions(genRequest);
 
         // 生成された問題を取得
-        return questionRepository.findBySong_Song_id(selectedSong.getSong_id());
+        return questionRepository.findBySongSong_id(selectedSong.getSong_id());
     }
 
     /**
@@ -280,14 +279,14 @@ public class QuizService {
      */
     private LHistory saveQuizSession(QuizStartRequest request, List<Question> questions, Song selectedSong) {
         try {
-            LHistory history = new l_history();
+            LHistory history = new LHistory();
             history.setUser_id(request.getUserId());
             history.setLearning_at(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
             history.setLearning_lang(request.getLanguage());
 
             // 問題IDリストをJSON化
             List<Integer> questionIds = questions.stream()
-                .map(question::getQuestionId)
+                .map(Question::getQuestionId)
                 .collect(Collectors.toList());
             history.setQuestions(objectMapper.writeValueAsString(questionIds));
 
@@ -346,7 +345,7 @@ public class QuizService {
         return QuizStartResponse.QuizQuestion.builder()
             .questionId(q.getQuestionId())
             .text(q.getText())
-            .questionFormat(q.getQuestionFormat())
+            .questionFormat(q.getQuestionFormat().getValue())
             .difficultyLevel(q.getDifficultyLevel())
             .audioUrl(null) // TODO: TTS実装後に音声URLを設定
             .language(q.getLanguage())

@@ -165,8 +165,8 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
                 JsonNode songNode = data.get(randomIndex);
                 JsonNode attributes = songNode.path("attributes");
 
-                Song newSong = new song();
-                newSong.setArtist(artist);
+                Song newSong = new Song();
+                newSong.setAritst_id(artist.getArtistId().longValue());
                 newSong.setSongname(attributes.path("name").asText("Unknown"));
                 newSong.setGenre(attributes.path("genreNames").get(0).asText("Unknown"));
                 newSong.setLanguage("en");
@@ -202,8 +202,8 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
                 String artistName = attributes.path("artistName").asText("Unknown Artist");
                 Artist artist = findOrCreateArtist(artistName);
 
-                Song newSong = new song();
-                newSong.setArtist(artist);
+                Song newSong = new Song();
+                newSong.setAritst_id(artist.getArtistId().longValue());
                 newSong.setSongname(attributes.path("name").asText("Unknown"));
                 newSong.setGenre(genre);
                 newSong.setLanguage("en");
@@ -246,8 +246,8 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
                 return artistRepository.save(newArtist);
             });
 
-        Song mockSong = new song();
-        mockSong.setArtist(artist);
+        Song mockSong = new Song();
+        mockSong.setAritst_id(artist.getArtistId().longValue());
         mockSong.setSongname("Mock Song Title");
         mockSong.setGenre("pop");
         mockSong.setLanguage("en");
@@ -263,8 +263,8 @@ public class AppleMusicApiClientImpl implements AppleMusicApiClient {
     private Song createMockSongForGenre(String genre) {
         Artist artist = findOrCreateArtist("Mock Artist");
 
-        Song mockSong = new song();
-        mockSong.setArtist(artist);
+        Song mockSong = new Song();
+        mockSong.setAritst_id(artist.getArtistId().longValue());
         mockSong.setSongname("Mock " + genre + " Song");
         mockSong.setGenre(genre);
         mockSong.setLanguage("en");

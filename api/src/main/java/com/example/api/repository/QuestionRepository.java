@@ -27,27 +27,27 @@ public interface QuestionRepository extends JpaRepository<Question, Integer> {
     /**
      * 問題形式で検索
      */
-    List<Question> findByQuestionFormat(String questionFormat);
+    List<Question> findByQuestionFormat(com.example.api.enums.QuestionFormat questionFormat);
 
     /**
      * 楽曲と問題形式で検索
      */
-    List<Question> findBySongAndQuestionFormat(Song song, String questionFormat);
+    List<Question> findBySongAndQuestionFormat(Song song, com.example.api.enums.QuestionFormat questionFormat);
 
     /**
      * 楽曲IDで問題数をカウント
      */
-    long countBySong_Song_id(Long songId);
+    long countBySongSong_id(Long songId);
 
     /**
      * 楽曲IDで問題を検索
      */
-    List<Question> findBySong_Song_id(Long songId);
+    List<Question> findBySongSong_id(Long songId);
 
     /**
      * 楽曲IDと問題形式で検索
      */
-    List<Question> findBySong_Song_idAndQuestionFormat(Long songId, String questionFormat);
+    List<Question> findBySongSong_idAndQuestionFormat(Long songId, com.example.api.enums.QuestionFormat questionFormat);
 
     /**
      * 言語で問題を検索
@@ -57,5 +57,5 @@ public interface QuestionRepository extends JpaRepository<Question, Integer> {
     /**
      * 言語と問題形式で検索
      */
-    List<Question> findByLanguageAndQuestionFormat(String language, String questionFormat);
+    List<Question> findByLanguageAndQuestionFormat(String language, com.example.api.enums.QuestionFormat questionFormat);
 }

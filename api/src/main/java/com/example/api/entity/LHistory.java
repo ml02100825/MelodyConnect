@@ -17,7 +17,7 @@ public class LHistory {
     private Long l_history_id;
 
     @Column(name = "user_id", nullable = false)
-    private User user_id;
+    private Long user_id;
 
     // 仕様上は varchar(30)。日時文字列で保持する想定。
     @Column(name = "learning_at", length = 30, nullable = false)

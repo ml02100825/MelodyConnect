@@ -204,12 +204,14 @@ public class QuestionGeneratorService {
      * 問題を保存
      */
     private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
-        Question newQuestion = new question();
+        Question newQuestion = new Question();
         newQuestion.setSong(song);
-        newQuestion.setArtist(song.getArtist());
+        // Artist is set via the song's artist_id - fetch from repository if needed
+        Artist artist = artistRepository.findById(song.getAritst_id().intValue()).orElse(null);
+        newQuestion.setArtist(artist);
         newQuestion.setText(claudeQuestion.getSentence());
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
-        newQuestion.setQuestionFormat(questionFormat);
+        newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
         newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
         newQuestion.setLanguage(song.getLanguage());
 
@@ -229,7 +231,7 @@ public class QuestionGeneratorService {
         try {
             WordnikWordInfo wordInfo = wordnikApiClient.getWordInfo(word);
 
-            Vocabulary vocab = vocabulary.builder()
+            Vocabulary vocab = Vocabulary.builder()
                 .word(word)
                 .meaning_ja(wordInfo.getMeaningJa())
                 .pronunciation(wordInfo.getPronunciation())
@@ -255,7 +257,7 @@ public class QuestionGeneratorService {
             .questionId(question.getQuestionId())
             .text(question.getText())
             .answer(question.getAnswer())
-            .questionFormat(question.getQuestionFormat())
+            .questionFormat(question.getQuestionFormat().getValue())
             .difficultyLevel(question.getDifficultyLevel())
             .language(question.getLanguage())
             .build();
@@ -265,7 +267,13 @@ public class QuestionGeneratorService {
      * 楽曲情報を構築
      */
     private QuestionGenerationResponse.SongInfo buildSongInfo(Song song) {
-        String artistName = song.getArtist() != null ? song.getArtist().getArtistName() : "Unknown";
+        String artistName = "Unknown";
+        if (song.getAritst_id() != null) {
+            Artist artist = artistRepository.findById(song.getAritst_id().intValue()).orElse(null);
+            if (artist != null) {
+                artistName = artist.getArtistName();
+            }
+        }
 
         return QuestionGenerationResponse.SongInfo.builder()
             .songId(song.getSong_id())

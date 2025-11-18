@@ -29,7 +29,7 @@ public class AppleMusicApiClientMock implements AppleMusicApiClient {
     }
 
     private Song createMockSong() {
-        Song mockSong = new song();
+        Song mockSong = new Song();
         mockSong.setSong_id(1L);
         mockSong.setAritst_id(1L);
         mockSong.setSongname("Mock Song Title");

@@ -18,7 +18,7 @@ public class Song {
 
     // ※定義書の物理名が「aritst_id」になっているため、そのまま採用
     @Column(name = "aritst_id", nullable = false)
-    private Artist aritst_id;
+    private Long aritst_id;
 
     @Column(name = "songname", nullable = false, length = 1000)
     private String songname;

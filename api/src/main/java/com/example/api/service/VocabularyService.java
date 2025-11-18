@@ -82,15 +82,14 @@ public class VocabularyService {
             WordnikWordInfo wordInfo = wordnikApiClient.getWordInfo(normalizedWord);
 
             // エンティティを作成して保存
-            Vocabulary vocab = vocabulary.builder()
-                .word(normalizedWord)
-                .meaning_ja(wordInfo.getMeaningJa())
-                .pronunciation(wordInfo.getPronunciation())
-                .part_of_speech(wordInfo.getPartOfSpeech())
-                .example_sentence(wordInfo.getExampleSentence())
-                .example_translate(wordInfo.getExampleTranslate())
-                .audio_url(wordInfo.getAudioUrl())
-                .build();
+            Vocabulary vocab = new Vocabulary();
+            vocab.setWord(normalizedWord);
+            vocab.setMeaning_ja(wordInfo.getMeaningJa());
+            vocab.setPronunciation(wordInfo.getPronunciation());
+            vocab.setPart_of_speech(wordInfo.getPartOfSpeech());
+            vocab.setExample_sentence(wordInfo.getExampleSentence());
+            vocab.setExample_translate(wordInfo.getExampleTranslate());
+            vocab.setAudio_url(wordInfo.getAudioUrl());
 
             vocabularyRepository.save(vocab);
             logger.info("単語を保存しました: word={}", normalizedWord);
