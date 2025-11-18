@@ -1,8 +1,8 @@
 package com.example.api.service;
 
-import com.example.api.client.AppleMusicApiClient;
-import com.example.api.client.ClaudeApiClient;
+import com.example.api.client.GeminiApiClient;
 import com.example.api.client.GeniusApiClient;
+import com.example.api.client.SpotifyApiClient;
 import com.example.api.client.WordnikApiClient;
 import com.example.api.dto.*;
 import com.example.api.entity.*;
@@ -26,7 +26,7 @@ public class QuestionGeneratorService {
     private static final Logger logger = LoggerFactory.getLogger(QuestionGeneratorService.class);
 
     @Autowired
-    private ClaudeApiClient claudeApiClient;
+    private GeminiApiClient geminiApiClient;
 
     @Autowired
     private WordnikApiClient wordnikApiClient;
@@ -35,7 +35,7 @@ public class QuestionGeneratorService {
     private GeniusApiClient geniusApiClient;
 
     @Autowired
-    private AppleMusicApiClient appleMusicApiClient;
+    private SpotifyApiClient spotifyApiClient;
 
     @Autowired
     private QuestionRepository questionRepository;
@@ -79,14 +79,16 @@ public class QuestionGeneratorService {
 
             logger.info("歌詞取得完了: length={}", lyrics.length());
 
-            // 3. Claude APIで問題を生成
-            ClaudeQuestionResponse claudeResponse = claudeApiClient.generateQuestions(
+            // 3. Gemini APIで問題を生成
+            String language = selectedSong.getLanguage() != null ? selectedSong.getLanguage() : "en";
+            ClaudeQuestionResponse claudeResponse = geminiApiClient.generateQuestions(
                 lyrics,
+                language,
                 request.getFillInBlankCount(),
                 request.getListeningCount()
             );
 
-            logger.info("Claude APIから問題生成完了: fillInBlank={}, listening={}",
+            logger.info("Gemini APIから問題生成完了: fillInBlank={}, listening={}",
                 claudeResponse.getFillInBlank().size(),
                 claudeResponse.getListening().size());
 
@@ -156,7 +158,7 @@ public class QuestionGeneratorService {
 
         Integer artistId = randomLikeArtist.getArtist().getArtistId();
         return songRepository.findRandomByArtist(artistId.longValue())
-            .orElseGet(() -> appleMusicApiClient.getRandomSongByArtist(artistId));
+            .orElseGet(() -> spotifyApiClient.getRandomSongByArtist(artistId));
     }
 
     /**
@@ -166,7 +168,7 @@ public class QuestionGeneratorService {
         logger.debug("ジャンルから楽曲を選択: genre={}", genreName);
 
         return songRepository.findRandomByGenre(genreName)
-            .orElseGet(() -> appleMusicApiClient.getRandomSongByGenre(genreName));
+            .orElseGet(() -> spotifyApiClient.getRandomSongByGenre(genreName));
     }
 
     /**
@@ -176,7 +178,7 @@ public class QuestionGeneratorService {
         logger.debug("ランダムに楽曲を選択");
 
         return songRepository.findRandom()
-            .orElseGet(() -> appleMusicApiClient.getRandomSong());
+            .orElseGet(() -> spotifyApiClient.getRandomSong());
     }
 
     /**

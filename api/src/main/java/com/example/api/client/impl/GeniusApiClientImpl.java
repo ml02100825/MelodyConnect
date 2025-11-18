@@ -3,6 +3,10 @@ package com.example.api.client.impl;
 import com.example.api.client.GeniusApiClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,7 +16,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 /**
  * Genius API Client の実装
- * 歌詞を取得するためのGenius API統合
+ * 歌詞を取得するためのGenius API統合とWebスクレイピング
  */
 @Component
 @Primary
@@ -52,15 +56,8 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                 return getMockLyrics();
             }
 
-            // 2. Genius APIは歌詞を直接返さないため、
-            // 実際の実装ではWebスクレイピングが必要
-            // TODO: 本番環境では歌詞取得の別の方法を検討
-            // (例: lrclib.net API, Musixmatch API など)
-            logger.warn("Genius APIは歌詞を直接提供しません。スクレイピングが必要です。");
-            logger.info("曲URL: {}", songUrl);
-
-            // 現在はモックデータを返す
-            return getMockLyrics();
+            // 2. WebスクレイピングでURLから歌詞を取得
+            return scrapeLyrics(songUrl);
 
         } catch (Exception e) {
             logger.error("歌詞の取得中にエラーが発生しました: songId={}", geniusSongId, e);
@@ -70,9 +67,77 @@ public class GeniusApiClientImpl implements GeniusApiClient {
 
     @Override
     public String getLyricsByUrl(String songUrl) {
-        // URLから歌詞を取得（現在はモックを返す）
         logger.info("URLから歌詞を取得中: url={}", songUrl);
-        return getMockLyrics();
+        try {
+            return scrapeLyrics(songUrl);
+        } catch (Exception e) {
+            logger.error("URLからの歌詞取得に失敗しました: url={}", songUrl, e);
+            return getMockLyrics();
+        }
+    }
+
+    /**
+     * GeniusのページからWebスクレイピングで歌詞を取得
+     */
+    private String scrapeLyrics(String songUrl) {
+        try {
+            logger.info("歌詞をスクレイピング中: {}", songUrl);
+
+            // Jsoupで直接ページを取得
+            Document doc = Jsoup.connect(songUrl)
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                .timeout(10000)
+                .get();
+
+            // Geniusの歌詞コンテナを探す
+            // 複数のセレクタを試す（Geniusのページ構造が変わることがあるため）
+            StringBuilder lyrics = new StringBuilder();
+
+            // 方法1: data-lyrics-container属性を持つ要素
+            Elements lyricsContainers = doc.select("[data-lyrics-container='true']");
+            if (!lyricsContainers.isEmpty()) {
+                for (Element container : lyricsContainers) {
+                    // HTMLをテキストに変換（<br>を改行に）
+                    String text = container.html()
+                        .replaceAll("<br\\s*/?>", "\n")
+                        .replaceAll("<[^>]+>", "");
+                    lyrics.append(Jsoup.parse(text).text()).append("\n");
+                }
+            }
+
+            // 方法2: Lyrics__Container クラス
+            if (lyrics.length() == 0) {
+                Elements altContainers = doc.select("div[class*='Lyrics__Container']");
+                for (Element container : altContainers) {
+                    String text = container.html()
+                        .replaceAll("<br\\s*/?>", "\n")
+                        .replaceAll("<[^>]+>", "");
+                    lyrics.append(Jsoup.parse(text).text()).append("\n");
+                }
+            }
+
+            // 方法3: 古い形式のlyrics divクラス
+            if (lyrics.length() == 0) {
+                Element oldLyrics = doc.selectFirst("div.lyrics");
+                if (oldLyrics != null) {
+                    lyrics.append(oldLyrics.text());
+                }
+            }
+
+            String result = lyrics.toString().trim();
+
+            if (result.isEmpty()) {
+                logger.warn("歌詞が見つかりませんでした: {}", songUrl);
+                return getMockLyrics();
+            }
+
+            logger.info("歌詞を取得しました: {} 文字", result.length());
+            return result;
+
+        } catch (Exception e) {
+            logger.error("スクレイピングに失敗しました: {}", songUrl, e);
+            return getMockLyrics();
+        }
     }
 
     /**
