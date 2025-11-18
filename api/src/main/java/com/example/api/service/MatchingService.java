@@ -189,11 +189,17 @@ public class MatchingService {
     public void createInitialResult(String matchId, Long user1Id, Long user2Id, String language) {
         Integer currentSeason = seasonCalculator.getCurrentSeason();
 
+        // ユーザーエンティティを取得
+        User user1 = userRepository.findById(user1Id)
+            .orElseThrow(() -> new IllegalArgumentException("User not found: " + user1Id));
+        User user2 = userRepository.findById(user2Id)
+            .orElseThrow(() -> new IllegalArgumentException("User not found: " + user2Id));
+
         // プレイヤー1用のResultレコード
         Result result1 = new Result();
         result1.setMatchUuid(matchId);
-        result1.setPlayerId(user1Id);
-        result1.setEnemyId(user2Id);
+        result1.setPlayer(user1);
+        result1.setEnemy(user2);
         result1.setUseLanguage(language);
         result1.setMatchType(Result.MatchType.rank);
         resultRepository.save(result1);
@@ -201,8 +207,8 @@ public class MatchingService {
         // プレイヤー2用のResultレコード
         Result result2 = new Result();
         result2.setMatchUuid(matchId);
-        result2.setPlayerId(user2Id);
-        result2.setEnemyId(user1Id);
+        result2.setPlayer(user2);
+        result2.setEnemy(user1);
         result2.setUseLanguage(language);
         result2.setMatchType(Result.MatchType.rank);
         resultRepository.save(result2);

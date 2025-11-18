@@ -50,8 +50,8 @@ public class BattleController {
             // バトル情報を返す
             Map<String, Object> battleInfo = new HashMap<>();
             battleInfo.put("matchId", matchId);
-            battleInfo.put("user1Id", result1.getPlayerId());
-            battleInfo.put("user2Id", result1.getEnemyId());
+            battleInfo.put("user1Id", result1.getPlayer().getId());
+            battleInfo.put("user2Id", result1.getEnemy().getId());
             battleInfo.put("language", result1.getUseLanguage());
             battleInfo.put("status", "ready");
             battleInfo.put("message", "バトルを開始できます");
@@ -85,8 +85,8 @@ public class BattleController {
 
             Map<String, Object> matchInfo = new HashMap<>();
             matchInfo.put("matchId", matchId);
-            matchInfo.put("user1Id", result.getPlayerId());
-            matchInfo.put("user2Id", result.getEnemyId());
+            matchInfo.put("user1Id", result.getPlayer().getId());
+            matchInfo.put("user2Id", result.getEnemy().getId());
             matchInfo.put("language", result.getUseLanguage());
             matchInfo.put("matchType", result.getMatchType());
 
