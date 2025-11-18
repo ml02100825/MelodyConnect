@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:stomp_dart_client/stomp.dart';
-import 'package:stomp_dart_client/stomp_config.dart';
-import 'package:stomp_dart_client/stomp_frame.dart';
+import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../services/token_storage_service.dart';
 import 'package:http/http.dart' as http;
 
