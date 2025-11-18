@@ -66,7 +66,7 @@ public class QuizService {
 
             if (selectedSong != null) {
                 // 2. 曲が選択された場合、50問チェック
-                long questionCount = questionRepository.countBySongSong_id(selectedSong.getSong_id());
+                long questionCount = questionRepository.countBySongId(selectedSong.getSong_id());
                 logger.info("既存の問題数: songId={}, count={}", selectedSong.getSong_id(), questionCount);
 
                 if (questionCount >= QUESTION_THRESHOLD) {
@@ -216,12 +216,12 @@ public class QuizService {
         String format = request.getQuestionFormat();
 
         if ("LISTENING_ONLY".equals(format)) {
-            return questionRepository.findBySongSong_idAndQuestionFormat(songId, com.example.api.enums.QuestionFormat.LISTENING);
+            return questionRepository.findBySongIdAndQuestionFormat(songId, com.example.api.enums.QuestionFormat.LISTENING);
         } else if ("FILL_IN_BLANK_ONLY".equals(format)) {
-            return questionRepository.findBySongSong_idAndQuestionFormat(songId, com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK);
+            return questionRepository.findBySongIdAndQuestionFormat(songId, com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK);
         } else {
             // ALL_RANDOM
-            return questionRepository.findBySongSong_id(songId);
+            return questionRepository.findBySongId(songId);
         }
     }
 
@@ -271,7 +271,7 @@ public class QuizService {
         QuestionGenerationResponse response = questionGeneratorService.generateQuestions(genRequest);
 
         // 生成された問題を取得
-        return questionRepository.findBySongSong_id(selectedSong.getSong_id());
+        return questionRepository.findBySongId(selectedSong.getSong_id());
     }
 
     /**
