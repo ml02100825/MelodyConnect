@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 認証サービスクラス
@@ -103,6 +104,7 @@ public class AuthService {
         user.setMailaddress(request.getEmail());
         user.setPassword(passwordHash);
         user.setUsername("user_" + System.currentTimeMillis()); // 仮ユーザー名（後でプロフィール設定画面で変更）
+        user.setUserUuid(UUID.randomUUID().toString()); // フレンド申請用のユーザーID
         user = userRepository.save(user);
 
         // 現在のシーズンを取得
