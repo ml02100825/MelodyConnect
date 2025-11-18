@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../models/quiz_models.dart';
 import '../services/quiz_api_service.dart';
+import '../services/token_storage_service.dart';
 import 'quiz_result_screen.dart';
 
 class QuizQuestionScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class QuizQuestionScreen extends StatefulWidget {
 
 class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   final QuizApiService _apiService = QuizApiService();
+  final TokenStorageService _tokenStorage = TokenStorageService();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _answerController = TextEditingController();
 
@@ -33,6 +35,20 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   bool _showResult = false;
   bool _isCorrect = false;
   String _correctAnswer = '';
+  String? _accessToken;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccessToken();
+  }
+
+  Future<void> _loadAccessToken() async {
+    final token = await _tokenStorage.getAccessToken();
+    setState(() {
+      _accessToken = token;
+    });
+  }
 
   @override
   void dispose() {
@@ -363,6 +379,11 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   }
 
   Future<void> _completeQuiz() async {
+    if (_accessToken == null) {
+      _showError('認証情報が取得できませんでした');
+      return;
+    }
+
     try {
       final request = QuizCompleteRequest(
         sessionId: widget.sessionId,
@@ -370,7 +391,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         answers: _answers,
       );
 
-      final response = await _apiService.completeQuiz(request);
+      final response = await _apiService.completeQuiz(request, _accessToken!);
 
       if (mounted) {
         Navigator.pushReplacement(

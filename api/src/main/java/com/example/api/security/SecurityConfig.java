@@ -64,6 +64,8 @@ public class SecurityConfig {
 
                 // エンドポイントのアクセス権限設定
                 .authorizeHttpRequests(auth -> auth
+                        // CORSプリフライトリクエストを許可
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         // 認証不要のエンドポイント
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
