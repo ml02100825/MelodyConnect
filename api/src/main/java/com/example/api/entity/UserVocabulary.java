@@ -1,4 +1,4 @@
-package com.example.demo.entity;
+package com.example.api.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -30,14 +30,13 @@ public class UserVocabulary {
      * ユーザーID（外部キー）
      */
     @Column(name = "user_id", nullable = false)
-    private User userId;
+    private Long userId;
 
     /**
      * 単語ID（外部キー）
      */
     @Column(name = "vocab_id", nullable = false)
-    private Vocaublary vocabId;
-
+    private Integer vocabId;
 
     /**
      * 始めて学習した日
@@ -45,9 +44,29 @@ public class UserVocabulary {
     @Column(name = "first_learned_at", nullable = false)
     private LocalDateTime firstLearnedAt;
 
+    /**
+     * 最後に復習した日
+     */
+    @Column(name = "last_reviewed_at")
+    private LocalDateTime lastReviewedAt;
 
+    /**
+     * 習熟度レベル
+     */
+    @Column(name = "mastery_level")
+    private Integer masteryLevel;
 
-  
+    /**
+     * 正解回数
+     */
+    @Column(name = "times_correct")
+    private Integer timesCorrect;
+
+    /**
+     * 不正解回数
+     */
+    @Column(name = "times_incorrect")
+    private Integer timesIncorrect;
 
     /**
      * 学習済みフラグ
@@ -72,8 +91,8 @@ public class UserVocabulary {
         if (lastReviewedAt == null) {
             lastReviewedAt = LocalDateTime.now();
         }
-        if (mastaryLevel == null) {
-            mastaryLevel = 1;
+        if (masteryLevel == null) {
+            masteryLevel = 1;
         }
         if (timesCorrect == null) {
             timesCorrect = 0;
@@ -109,15 +128,15 @@ public class UserVocabulary {
      * 習熟度をレベルアップ
      */
     public void levelUp() {
-        this.mastaryLevel++;
+        this.masteryLevel++;
     }
 
     /**
      * 習熟度をレベルダウン
      */
     public void levelDown() {
-        if (this.mastaryLevel > 1) {
-            this.mastaryLevel--;
+        if (this.masteryLevel > 1) {
+            this.masteryLevel--;
         }
     }
 }
