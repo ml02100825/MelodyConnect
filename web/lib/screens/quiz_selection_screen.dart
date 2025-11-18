@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/quiz_models.dart';
 import '../services/quiz_api_service.dart';
+import '../services/token_storage_service.dart';
 import 'quiz_question_screen.dart';
 
 class QuizSelectionScreen extends StatefulWidget {
-  final int userId;
-
-  const QuizSelectionScreen({super.key, required this.userId});
+  const QuizSelectionScreen({super.key});
 
   @override
   State<QuizSelectionScreen> createState() => _QuizSelectionScreenState();
@@ -14,6 +13,10 @@ class QuizSelectionScreen extends StatefulWidget {
 
 class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
   final QuizApiService _apiService = QuizApiService();
+  final TokenStorageService _tokenStorage = TokenStorageService();
+
+  // ユーザーID
+  int? _userId;
 
   // 選択状態
   String _selectedLanguage = 'en';
@@ -26,6 +29,19 @@ class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
   String? _songUrl;
 
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    final userId = await _tokenStorage.getUserId();
+    setState(() {
+      _userId = userId;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -329,11 +345,16 @@ class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
   }
 
   Future<void> _startQuiz() async {
+    if (_userId == null) {
+      _showError('ユーザー情報が取得できませんでした');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final request = QuizStartRequest(
-        userId: widget.userId,
+        userId: _userId!,
         language: _selectedLanguage,
         generationMode: _selectedMode,
         questionFormat: _selectedFormat,
@@ -355,7 +376,7 @@ class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
           MaterialPageRoute(
             builder: (context) => QuizQuestionScreen(
               sessionId: response.sessionId!,
-              userId: widget.userId,
+              userId: _userId!,
               questions: response.questions,
               songInfo: response.songInfo,
             ),
