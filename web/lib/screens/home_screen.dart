@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
-import 'quiz_selection_screen.dart';
 
 /// ホーム画面（プレースホルダー）
 class HomeScreen extends StatefulWidget {
@@ -173,12 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         height: 80,
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const QuizSelectionScreen(),
-                              ),
-                            );
+                            Navigator.pushNamed(context, '/learning');
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
