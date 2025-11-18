@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/quiz")
-@CrossOrigin(origins = "*")
 public class QuizController {
 
     private static final Logger logger = LoggerFactory.getLogger(QuizController.class);

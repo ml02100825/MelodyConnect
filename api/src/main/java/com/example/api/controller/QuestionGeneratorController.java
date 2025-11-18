@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/questions")
-@CrossOrigin(origins = "*")
 public class QuestionGeneratorController {
 
     private static final Logger logger = LoggerFactory.getLogger(QuestionGeneratorController.class);
