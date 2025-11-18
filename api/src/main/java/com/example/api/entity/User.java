@@ -86,6 +86,7 @@ public class User {
     @Column(name = "ban_flag", nullable = false)
     private boolean banFlag = false;
 
+
     /**
      * エンティティ保存前の処理
      */

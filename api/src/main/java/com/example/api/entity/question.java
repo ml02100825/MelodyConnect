@@ -1,6 +1,6 @@
-package com.example.demo.entity;
+package com.example.api.entity;
 
-import com.example.demo.enums.QuestionFormat;
+import com.example.api.enums.QuestionFormat;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
