@@ -35,7 +35,7 @@ class SpotifyArtist {
       'spotifyId': spotifyId,
       'name': name,
       'imageUrl': imageUrl,
-      'genre': genres.isNotEmpty ? genres.first : 'pop',
+      'genres': genres,
     };
   }
 }
