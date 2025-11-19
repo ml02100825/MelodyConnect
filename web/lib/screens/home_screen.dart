@@ -4,6 +4,7 @@ import '../services/artist_api_service.dart';
 import '../services/token_storage_service.dart';
 import '../widgets/artist_selection_dialog.dart';
 import 'login_screen.dart';
+import 'friend_screen.dart';
 
 /// ホーム画面（プレースホルダー）
 class HomeScreen extends StatefulWidget {
@@ -235,6 +236,43 @@ class _HomeScreenState extends State<HomeScreen> {
                               SizedBox(width: 16),
                               Text(
                                 '学習',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // フレンドボタン
+                      SizedBox(
+                        width: double.infinity,
+                        height: 80,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const FriendScreen()),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.people, size: 36),
+                              SizedBox(width: 16),
+                              Text(
+                                'フレンド',
                                 style: TextStyle(
                                   fontSize: 28,
                                   fontWeight: FontWeight.bold,
