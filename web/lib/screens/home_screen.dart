@@ -5,6 +5,7 @@ import '../services/token_storage_service.dart';
 import '../widgets/genre_selection_dialog.dart';
 import '../widgets/artist_selection_dialog.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
 
 /// ホーム画面（プレースホルダー）
 class HomeScreen extends StatefulWidget {
@@ -148,6 +149,22 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('MelodyConnect'),
         centerTitle: true,
         actions: [
+          // ========================================
+          // 設定ボタン → SettingsScreenに遷移
+          // ========================================
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: '設定',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+          // ========================================
+          // ログアウトボタン
+          // ========================================
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'ログアウト',
