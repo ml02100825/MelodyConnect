@@ -170,7 +170,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
                         padding: const EdgeInsets.all(16),
                         itemCount: _requests.length,
                         itemBuilder: (context, index) {
-                          return _requestCard(_requests[index]);
+                          final request = _requests[index] as Map<String, dynamic>;
+                          return _requestCard(request);
                         },
                       ),
                     ),
@@ -191,10 +192,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
           CircleAvatar(
             radius: 24,
             backgroundColor: Colors.blue.shade50,
-            backgroundImage: request['requesterImageUrl'] != null
+            backgroundImage: (request['requesterImageUrl'] != null && request['requesterImageUrl'].toString().isNotEmpty)
                 ? NetworkImage(request['requesterImageUrl'])
                 : null,
-            child: request['requesterImageUrl'] == null
+            child: (request['requesterImageUrl'] == null || request['requesterImageUrl'].toString().isEmpty)
                 ? const Icon(Icons.person, color: Colors.purple)
                 : null,
           ),

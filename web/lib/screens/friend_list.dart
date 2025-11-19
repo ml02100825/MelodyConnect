@@ -172,7 +172,8 @@ class _FriendListScreenState extends State<FriendListScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         itemCount: _friends.length,
                         itemBuilder: (context, index) {
-                          return _buildFriendItem(_friends[index]);
+                          final friend = _friends[index] as Map<String, dynamic>;
+                          return _buildFriendItem(friend);
                         },
                       ),
                     ),
@@ -196,10 +197,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
             CircleAvatar(
               radius: 24,
               backgroundColor: Colors.blue.shade50,
-              backgroundImage: friend['imageUrl'] != null
+              backgroundImage: (friend['imageUrl'] != null && friend['imageUrl'].toString().isNotEmpty)
                   ? NetworkImage(friend['imageUrl'])
                   : null,
-              child: friend['imageUrl'] == null
+              child: (friend['imageUrl'] == null || friend['imageUrl'].toString().isEmpty)
                   ? const Icon(Icons.person, color: Colors.purple)
                   : null,
             ),
