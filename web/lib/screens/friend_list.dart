@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../bottom_nav.dart'; // 共通の BottomNavBar
+import '../services/friend_api_service.dart';
+import '../services/token_storage_service.dart';
+import 'friend_profile_screen.dart';
 
 class FriendListScreen extends StatefulWidget {
   const FriendListScreen({Key? key}) : super(key: key);
@@ -9,8 +11,56 @@ class FriendListScreen extends StatefulWidget {
 }
 
 class _FriendListScreenState extends State<FriendListScreen> {
-  // フレンドリスト（初期は空）
-  final List<Friend> friends = [];
+  final FriendApiService _friendApiService = FriendApiService();
+  final TokenStorageService _tokenStorage = TokenStorageService();
+
+  List<dynamic> _friends = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFriends();
+  }
+
+  Future<void> _loadFriends() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      final userId = await _tokenStorage.getUserId();
+
+      if (accessToken == null || userId == null) {
+        throw Exception('ログインが必要です');
+      }
+
+      final friends = await _friendApiService.getFriendList(userId, accessToken);
+      setState(() {
+        _friends = friends;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _navigateToProfile(Map<String, dynamic> friend) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FriendProfileScreen(friendUserId: friend['userId']),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,113 +81,104 @@ class _FriendListScreenState extends State<FriendListScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        centerTitle: false,
+        centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.black),
-            onPressed: () {
-              // 検索処理
-            },
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            onPressed: _loadFriends,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // 検索バー
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: Row(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadFriends,
+                        child: const Text('再読み込み'),
+                      ),
+                    ],
+                  ),
+                )
+              : _friends.isEmpty
+                  ? Center(
+                      child: Text(
+                        'フレンドがいません',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadFriends,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: _friends.length,
+                        itemBuilder: (context, index) {
+                          return _buildFriendItem(_friends[index]);
+                        },
+                      ),
+                    ),
+    );
+  }
+
+  Widget _buildFriendItem(Map<String, dynamic> friend) {
+    return GestureDetector(
+      onTap: () => _navigateToProfile(friend),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            // アイコン
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: Colors.blue.shade50,
+              backgroundImage: friend['imageUrl'] != null
+                  ? NetworkImage(friend['imageUrl'])
+                  : null,
+              child: friend['imageUrl'] == null
+                  ? const Icon(Icons.person, color: Colors.purple)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            // 名前とID
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.search, color: Colors.grey[600], size: 20),
-                  const SizedBox(width: 8),
                   Text(
-                    'ユーザー検索',
+                    friend['username'] ?? '',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '@${friend['userUuid'] ?? ''}',
                     style: TextStyle(
+                      fontSize: 12,
                       color: Colors.grey[600],
-                      fontSize: 14,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          const Divider(height: 1, thickness: 1),
-
-          // フレンドリスト
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: friends.length,
-              itemBuilder: (context, index) {
-                return _buildFriendItem(friends[index]);
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: 3,
-        onTap: (index) {
-          // TODO: 画面遷移処理を書く
-        },
+            // 矢印アイコン
+            Icon(Icons.chevron_right, color: Colors.grey[400]),
+          ],
+        ),
       ),
     );
   }
-
-  Widget _buildFriendItem(Friend friend) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        children: [
-          // 名前とステータスのみ
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  friend.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  friend.status,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class Friend {
-  final String name;
-  final String status;
-
-  Friend({
-    required this.name,
-    required this.status,
-  });
 }

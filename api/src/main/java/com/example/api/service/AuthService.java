@@ -89,6 +89,11 @@ public class AuthService {
             throw new IllegalArgumentException("このメールアドレスは既に登録されています");
         }
 
+        // ユーザーUUIDの重複チェック
+        if (userRepository.existsByUserUuid(request.getUserUuid())) {
+            throw new IllegalArgumentException("このユーザーIDは既に使用されています");
+        }
+
         // BCryptの72バイト制限チェック
         byte[] passwordBytes = request.getPassword().getBytes(StandardCharsets.UTF_8);
         if (passwordBytes.length > 72) {
@@ -103,6 +108,7 @@ public class AuthService {
         user.setMailaddress(request.getEmail());
         user.setPassword(passwordHash);
         user.setUsername("user_" + System.currentTimeMillis()); // 仮ユーザー名（後でプロフィール設定画面で変更）
+        user.setUserUuid(request.getUserUuid()); // フレンド申請用のユーザーID
         user = userRepository.save(user);
 
         // 現在のシーズンを取得

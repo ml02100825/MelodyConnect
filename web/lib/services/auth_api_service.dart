@@ -11,10 +11,11 @@ class AuthApiService {
   ///
   /// [email] - メールアドレス
   /// [password] - パスワード
+  /// [userUuid] - ユーザーID（フレンド申請用）
   ///
   /// 返り値: AuthResponse（ユーザーID、メールアドレス、トークン）
   /// エラーの場合は例外をスロー
-  Future<Map<String, dynamic>> register(String email, String password) async {
+  Future<Map<String, dynamic>> register(String email, String password, String userUuid) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/register'),
@@ -24,6 +25,7 @@ class AuthApiService {
         body: jsonEncode({
           'email': email,
           'password': password,
+          'userUuid': userUuid,
         }),
       );
 

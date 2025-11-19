@@ -24,12 +24,21 @@ public class RegisterRequest {
     )
     private String password;
 
+    @NotBlank(message = "ユーザーIDは必須です")
+    @Size(min = 4, max = 20, message = "ユーザーIDは4文字以上20文字以下である必要があります")
+    @Pattern(
+        regexp = "^[a-zA-Z0-9_]+$",
+        message = "ユーザーIDは英数字とアンダースコアのみ使用できます"
+    )
+    private String userUuid;
+
     public RegisterRequest() {
     }
 
-    public RegisterRequest(String email, String password) {
+    public RegisterRequest(String email, String password, String userUuid) {
         this.email = email;
         this.password = password;
+        this.userUuid = userUuid;
     }
 
     public String getEmail() {
@@ -46,5 +55,13 @@ public class RegisterRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getUserUuid() {
+        return userUuid;
+    }
+
+    public void setUserUuid(String userUuid) {
+        this.userUuid = userUuid;
     }
 }

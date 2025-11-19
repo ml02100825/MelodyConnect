@@ -16,6 +16,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _userUuidController = TextEditingController();
   final _authApiService = AuthApiService();
   final _tokenStorage = TokenStorageService();
 
@@ -28,7 +29,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _userUuidController.dispose();
     super.dispose();
+  }
+
+  /// ユーザーIDのバリデーション
+  String? _validateUserUuid(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'ユーザーIDを入力してください';
+    }
+
+    if (value.length < 4) {
+      return 'ユーザーIDは4文字以上である必要があります';
+    }
+
+    if (value.length > 20) {
+      return 'ユーザーIDは20文字以下である必要があります';
+    }
+
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+      return 'ユーザーIDは英数字とアンダースコアのみ使用できます';
+    }
+
+    return null;
   }
 
   /// メールアドレスのバリデーション
@@ -105,6 +128,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final response = await _authApiService.register(
         _emailController.text.trim(),
         _passwordController.text,
+        _userUuidController.text.trim(),
       );
 
       // トークンを保存
@@ -190,6 +214,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
+
+                  // ユーザーID入力
+                  TextFormField(
+                    controller: _userUuidController,
+                    decoration: const InputDecoration(
+                      labelText: 'ユーザーID',
+                      hintText: '英数字とアンダースコア（4-20文字）',
+                      prefixIcon: Icon(Icons.badge),
+                      border: OutlineInputBorder(),
+                      helperText: 'フレンド申請に使用されます',
+                    ),
+                    validator: _validateUserUuid,
+                    enabled: !_isLoading,
+                  ),
+                  const SizedBox(height: 16),
 
                   // メールアドレス入力
                   TextFormField(
