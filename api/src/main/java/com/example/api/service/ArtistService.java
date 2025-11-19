@@ -4,8 +4,11 @@ import com.example.api.client.SpotifyApiClient;
 import com.example.api.dto.LikeArtistRequest;
 import com.example.api.dto.SpotifyArtistDto;
 import com.example.api.entity.Artist;
+import com.example.api.entity.ArtistGenre;
+import com.example.api.entity.Genre;
 import com.example.api.entity.LikeArtist;
 import com.example.api.entity.User;
+import com.example.api.repository.ArtistGenreRepository;
 import com.example.api.repository.ArtistRepository;
 import com.example.api.repository.GenreRepository;
 import com.example.api.repository.LikeArtistRepository;
@@ -41,6 +44,9 @@ public class ArtistService {
 
     @Autowired
     private GenreRepository genreRepository;
+
+    @Autowired
+    private ArtistGenreRepository artistGenreRepository;
 
     /**
      * アーティストを検索
@@ -89,18 +95,38 @@ public class ArtistService {
         artist.setArtistApiId(artistInfo.getSpotifyId());
         artist.setImageUrl(artistInfo.getImageUrl());
 
-        // ジャンルIDを設定（デフォルトは1: Pop）
-        Integer genreId = 1;
-        if (artistInfo.getGenre() != null && !artistInfo.getGenre().isEmpty()) {
-            genreId = genreRepository.findByName(artistInfo.getGenre())
+        // デフォルトジャンルIDを設定（最初のジャンルまたはデフォルト1: Pop）
+        Integer defaultGenreId = 1;
+        List<String> genres = artistInfo.getGenres();
+        if (genres != null && !genres.isEmpty()) {
+            defaultGenreId = genreRepository.findByName(genres.get(0))
                 .map(genre -> genre.getId().intValue())
                 .orElse(1);
         }
-        artist.setGenreId(genreId);
+        artist.setGenreId(defaultGenreId);
 
         Artist savedArtist = artistRepository.save(artist);
         logger.info("新しいアーティストを作成しました: name={}, spotifyId={}",
             artistInfo.getName(), artistInfo.getSpotifyId());
+
+        // ArtistGenreテーブルに全ジャンルを紐付け
+        if (genres != null) {
+            for (String genreName : genres) {
+                genreRepository.findByName(genreName).ifPresent(genre -> {
+                    // 既に紐付けがないか確認
+                    if (artistGenreRepository.findByArtistIdAndGenreId(
+                            savedArtist.getArtistId(), genre.getId()).isEmpty()) {
+                        ArtistGenre artistGenre = new ArtistGenre();
+                        artistGenre.setArtist(savedArtist);
+                        artistGenre.setGenre(genre);
+                        artistGenreRepository.save(artistGenre);
+                    }
+                });
+            }
+            logger.info("アーティストジャンル紐付けを作成しました: artistId={}, genreCount={}",
+                savedArtist.getArtistId(), genres.size());
+        }
+
         return savedArtist;
     }
 
