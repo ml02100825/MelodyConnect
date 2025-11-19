@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../bottom_nav.dart';
 
 class ContactScreen extends StatefulWidget {
@@ -11,16 +12,37 @@ class ContactScreen extends StatefulWidget {
 class _ContactScreenState extends State<ContactScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _bodyController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
 
-  // 画像は簡易的にパス文字列で扱う（実運用では ImagePicker 等を使います）
-  String? _attachedImage;
+  // 複数画像を保持するリスト
+  List<XFile?> _attachedImages = [];
 
   bool _showConfirmation = false;
 
-  void _attachImage() async {
-    // スタブ: 実装では file picker を利用
+  Future<void> _attachImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      
+      if (image != null) {
+        setState(() {
+          _attachedImages.add(image);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('画像の選択に失敗しました: $e')),
+      );
+    }
+  }
+
+  void _removeImage(int index) {
     setState(() {
-      _attachedImage = 'attached_image_placeholder';
+      _attachedImages.removeAt(index);
     });
   }
 
@@ -88,7 +110,7 @@ class _ContactScreenState extends State<ContactScreen> {
                       expands: true,
                       textAlignVertical: TextAlignVertical.top,
                       decoration: InputDecoration(
-                        hintText: 'お問い合わせ内容を介せください',
+                        hintText: 'お問い合わせ内容を入力してください',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                       ),
                     ),
@@ -96,16 +118,85 @@ class _ContactScreenState extends State<ContactScreen> {
 
                   const SizedBox(height: 8),
 
-                  // 画像添付エリア（簡易）
+                  // 画像添付エリア
                   Row(
                     children: [
-                      Expanded(child: Text('画像があれば貼ってください', style: TextStyle(color: Colors.grey[700]))),
+                      Expanded(
+                        child: Text(
+                          '画像があれば添付してください (${_attachedImages.length}枚)',
+                          style: TextStyle(color: Colors.grey[700]),
+                        ),
+                      ),
+                      // ギャラリーから選択
                       IconButton(
                         onPressed: _attachImage,
-                        icon: const Icon(Icons.image_outlined),
+                        icon: const Icon(Icons.photo_library_outlined),
+                        tooltip: 'ギャラリーから選択',
                       ),
                     ],
                   ),
+
+                  // 添付画像のプレビュー
+                  if (_attachedImages.isNotEmpty)
+                    SizedBox(
+                      height: 100,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _attachedImages.length,
+                        itemBuilder: (context, index) {
+                          return Stack(
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: FutureBuilder(
+                                  future: _attachedImages[index]!.readAsBytes(),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasData) {
+                                      return ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.memory(
+                                          snapshot.data!,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      );
+                                    } else {
+                                      return const Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    }
+                                  },
+                                ),
+                              ),
+                              // 削除ボタン
+                              Positioned(
+                                top: 4,
+                                right: 12,
+                                child: GestureDetector(
+                                  onTap: () => _removeImage(index),
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
 
                   const SizedBox(height: 12),
 
@@ -115,11 +206,10 @@ class _ContactScreenState extends State<ContactScreen> {
                     child: ElevatedButton(
                       onPressed: _send,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
+                        backgroundColor: Colors.blue,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(28),
-                          side: const BorderSide(color: Colors.black, width: 2),
                         ),
                         elevation: 4,
                       ),

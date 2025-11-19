@@ -142,11 +142,10 @@ class _VolumeSettingsScreenState extends State<VolumeSettingsScreen> {
                 child: ElevatedButton(
                   onPressed: _resetDefaults,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
+                    backgroundColor: Colors.blue,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(28),
-                      side: const BorderSide(color: Colors.black, width: 2),
                     ),
                     elevation: 4,
                   ),
