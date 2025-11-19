@@ -106,6 +106,51 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     }
 
     @Override
+    public Song getRandomSongBySpotifyArtistId(String spotifyArtistId) {
+        if (spotifyArtistId == null || spotifyArtistId.isEmpty()) {
+            logger.warn("SpotifyアーティストIDが指定されていません");
+            return getRandomSong();
+        }
+
+        String token = getAccessToken();
+        if (token == null) {
+            logger.warn("トークンが取得できないためモックデータを返します");
+            return createMockSong("pop");
+        }
+
+        try {
+            // アーティストのトップトラックを取得
+            String response = apiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/artists/" + spotifyArtistId + "/top-tracks")
+                    .queryParam("market", "JP")
+                    .build())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode tracks = jsonNode.path("tracks");
+
+            if (tracks.isArray() && tracks.size() > 0) {
+                // ランダムにトラックを選択
+                int randomIndex = random.nextInt(tracks.size());
+                Song song = parseTrackToSong(tracks.get(randomIndex));
+                logger.info("アーティスト {} の楽曲を取得: {}", spotifyArtistId, song.getSongname());
+                return song;
+            }
+
+            logger.warn("アーティスト {} のトップトラックが見つかりませんでした", spotifyArtistId);
+            return getRandomSong();
+
+        } catch (Exception e) {
+            logger.error("アーティスト {} の楽曲検索に失敗しました", spotifyArtistId, e);
+            return getRandomSong();
+        }
+    }
+
+    @Override
     public Song getRandomSongByGenre(String genreName) {
         String token = getAccessToken();
         if (token == null) {

@@ -157,8 +157,12 @@ public class QuestionGeneratorService {
             .orElseThrow(() -> new IllegalStateException("お気に入りアーティストが見つかりません"));
 
         Integer artistId = randomLikeArtist.getArtist().getArtistId();
+        String artistApiId = randomLikeArtist.getArtist().getArtistApiId();
+
+        logger.debug("選択されたアーティスト: artistId={}, artistApiId={}", artistId, artistApiId);
+
         return songRepository.findRandomByArtist(artistId.longValue())
-            .orElseGet(() -> spotifyApiClient.getRandomSongByArtist(artistId));
+            .orElseGet(() -> spotifyApiClient.getRandomSongBySpotifyArtistId(artistApiId));
     }
 
     /**

@@ -29,6 +29,14 @@ public interface SpotifyApiClient {
     Song getRandomSongByArtist(Integer artistId);
 
     /**
+     * SpotifyアーティストIDからランダムな楽曲を取得
+     *
+     * @param spotifyArtistId SpotifyアーティストID
+     * @return 楽曲情報
+     */
+    Song getRandomSongBySpotifyArtistId(String spotifyArtistId);
+
+    /**
      * ジャンル名からランダムな楽曲を取得
      *
      * @param genreName ジャンル名
