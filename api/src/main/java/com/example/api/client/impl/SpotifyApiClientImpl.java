@@ -444,12 +444,12 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                 Long geniusSongId = geniusApiClient.searchSong(songName, artistName);
                 if (geniusSongId != null) {
                     song.setGenius_song_id(geniusSongId);
-                    // logger.info("Genius Song IDを取得: {} - {} -> {}", songName, artistName, geniusSongId);
+                    logger.info("Genius Song IDを取得: {} - {} -> {}", songName, artistName, geniusSongId);
                 } else {
-                    // logger.warn("Genius Song IDが見つかりませんでした: {} - {}", songName, artistName);
+                    logger.warn("Genius Song IDが見つかりませんでした: {} - {}", songName, artistName);
                 }
             } catch (Exception e) {
-                // logger.error("Genius Song ID取得中にエラー: {} - {}", songName, artistName, e);
+                logger.error("Genius Song ID取得中にエラー: {} - {}", songName, artistName, e);
             }
         }
 
