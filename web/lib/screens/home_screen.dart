@@ -9,7 +9,6 @@ import 'vocabulary_screen.dart';
 import 'shop_screen.dart';
 import 'badge_screen.dart';
 import 'ranking_screen.dart';
-import '../bottom_nav.dart';
 
 /// ホーム画面
 class HomeScreen extends StatefulWidget {
@@ -23,8 +22,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final _authApiService = AuthApiService();
   final _tokenStorage = TokenStorageService();
 
-  String? _username;
-  String? _email;
   bool _isLoading = true;
 
   @override
@@ -34,14 +31,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// ユーザー情報を読み込む
+  /// ユーザー情報を読み込む
   Future<void> _loadUserData() async {
     try {
-      final username = await _tokenStorage.getUsername();
-      final email = await _tokenStorage.getEmail();
+      await _tokenStorage.getEmail();
 
       setState(() {
-        _username = username;
-        _email = email;
         _isLoading = false;
       });
     } catch (e) {
@@ -50,8 +45,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
-
-  /// ログアウト処理
   Future<void> _handleLogout() async {
     try {
       final userId = await _tokenStorage.getUserId();
@@ -108,6 +101,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.black87),
+            onPressed: _handleLogout,
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
