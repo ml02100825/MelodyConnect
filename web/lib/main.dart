@@ -5,6 +5,7 @@ import 'screens/language_selection_screen.dart';
 import 'screens/matching_screen.dart';
 import 'screens/battle_screen.dart';
 import 'screens/quiz_selection_screen.dart';
+import 'services/friend_notification_service.dart';
 
 void main() => runApp(const MyApp());
 
@@ -20,6 +21,11 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const LoginScreen(),
+      builder: (context, child) {
+        return FriendNotificationOverlay(
+          child: child ?? const SizedBox(),
+        );
+      },
       routes: {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),

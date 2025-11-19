@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/artist_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../services/friend_notification_service.dart';
 import '../widgets/artist_selection_dialog.dart';
 import 'login_screen.dart';
 import 'friend_screen.dart';
@@ -18,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _authApiService = AuthApiService();
   final _artistApiService = ArtistApiService();
   final _tokenStorage = TokenStorageService();
+  final _notificationService = FriendNotificationService();
 
   String? _username;
   String? _email;
@@ -28,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadUserData();
+    _notificationService.connect();
   }
 
   /// ユーザー情報を読み込む
