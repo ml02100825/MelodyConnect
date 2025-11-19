@@ -7,6 +7,7 @@ import 'language_settings_screen.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
+import 'withdraw_screen.dart';
 
 
 class OtherScreen extends StatefulWidget {
@@ -21,7 +22,12 @@ class _OtherScreenState extends State<OtherScreen> {
   final AuthApiService _authApiService = AuthApiService();
 
   // ログアウト処理
-  Future<void> _handleLogout() async {
+  void _handleLogout() {
+    _performLogout();
+  }
+
+  // 実際のログアウト処理
+  Future<void> _performLogout() async {
     try {
       final userId = await _tokenStorage.getUserId();
       final accessToken = await _tokenStorage.getAccessToken();
@@ -174,6 +180,18 @@ class _OtherScreenState extends State<OtherScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ContactScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.delete_outline,
+              label: '退会',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WithdrawScreen()),
                 );
               },
             ),
