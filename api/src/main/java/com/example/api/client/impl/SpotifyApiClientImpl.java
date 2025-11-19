@@ -1,5 +1,6 @@
 package com.example.api.client.impl;
 
+import com.example.api.client.GeniusApiClient;
 import com.example.api.client.SpotifyApiClient;
 import com.example.api.dto.SpotifyArtistDto;
 import com.example.api.entity.Song;
@@ -45,6 +46,14 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
     private String accessToken;
     private Instant tokenExpiry;
+
+    // GeniusApiClientを遅延注入（循環依存を回避）
+    private GeniusApiClient geniusApiClient;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setGeniusApiClient(GeniusApiClient geniusApiClient) {
+        this.geniusApiClient = geniusApiClient;
+    }
 
     public SpotifyApiClientImpl(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -412,13 +421,15 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     private Song parseTrackToSong(JsonNode trackNode) {
         Song song = new Song();
 
-        song.setSongname(trackNode.path("name").asText());
+        String songName = trackNode.path("name").asText();
+        song.setSongname(songName);
         song.setSpotify_track_id(trackNode.path("id").asText());
 
         // アーティスト情報
+        String artistName = null;
         JsonNode artists = trackNode.path("artists");
         if (artists.isArray() && artists.size() > 0) {
-            String artistName = artists.get(0).path("name").asText();
+            artistName = artists.get(0).path("name").asText();
             // Note: アーティストIDは別途マッピングが必要
             song.setAritst_id(0L); // プレースホルダー
         }
@@ -426,6 +437,21 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         // ジャンルはトラックレベルでは取得できないため、デフォルト設定
         song.setGenre("pop");
         song.setLanguage("en");
+
+        // Genius Song IDを取得
+        if (geniusApiClient != null && artistName != null) {
+            try {
+                Long geniusSongId = geniusApiClient.searchSong(songName, artistName);
+                if (geniusSongId != null) {
+                    song.setGenius_song_id(geniusSongId);
+                    logger.info("Genius Song IDを取得: {} - {} -> {}", songName, artistName, geniusSongId);
+                } else {
+                    logger.warn("Genius Song IDが見つかりませんでした: {} - {}", songName, artistName);
+                }
+            } catch (Exception e) {
+                logger.error("Genius Song ID取得中にエラー: {} - {}", songName, artistName, e);
+            }
+        }
 
         logger.info("Spotify楽曲を取得: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
         return song;
