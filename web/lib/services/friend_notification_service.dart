@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'token_storage_service.dart';
+import 'friend_api_service.dart';
 
 /// フレンド申請通知サービス
 /// WebSocketでフレンド申請通知を受信し、ポップアップを表示します
 class FriendNotificationService {
-  static final FriendNotificationService _instance = FriendNotificationService._internal();
+  static final FriendNotificationService _instance =
+      FriendNotificationService._internal();
   factory FriendNotificationService() => _instance;
   FriendNotificationService._internal();
 
@@ -29,7 +31,8 @@ class FriendNotificationService {
   final StreamController<Map<String, dynamic>> _notificationController =
       StreamController<Map<String, dynamic>>.broadcast();
 
-  Stream<Map<String, dynamic>> get notificationStream => _notificationController.stream;
+  Stream<Map<String, dynamic>> get notificationStream =>
+      _notificationController.stream;
 
   /// 現在の画面を設定
   void setCurrentScreen(String screenName) {
@@ -85,7 +88,8 @@ class FriendNotificationService {
       final Map<String, dynamic> notification = jsonDecode(body);
 
       // 現在の画面が無効リストにない場合のみ通知
-      if (_currentScreen == null || !_disabledScreens.contains(_currentScreen)) {
+      if (_currentScreen == null ||
+          !_disabledScreens.contains(_currentScreen)) {
         _notificationController.add(notification);
       }
     } catch (e) {
@@ -230,15 +234,19 @@ class FriendRequestPopup extends StatelessWidget {
 class FriendNotificationOverlay extends StatefulWidget {
   final Widget child;
 
-  const FriendNotificationOverlay({Key? key, required this.child}) : super(key: key);
+  const FriendNotificationOverlay({Key? key, required this.child})
+      : super(key: key);
 
   @override
-  State<FriendNotificationOverlay> createState() => _FriendNotificationOverlayState();
+  State<FriendNotificationOverlay> createState() =>
+      _FriendNotificationOverlayState();
 }
 
 class _FriendNotificationOverlayState extends State<FriendNotificationOverlay> {
-  final FriendNotificationService _notificationService = FriendNotificationService();
+  final FriendNotificationService _notificationService =
+      FriendNotificationService();
   final TokenStorageService _tokenStorage = TokenStorageService();
+  final FriendApiService _friendApiService = FriendApiService();
 
   Map<String, dynamic>? _currentNotification;
   StreamSubscription<Map<String, dynamic>>? _subscription;
@@ -251,7 +259,8 @@ class _FriendNotificationOverlayState extends State<FriendNotificationOverlay> {
 
   Future<void> _initNotifications() async {
     await _notificationService.connect();
-    _subscription = _notificationService.notificationStream.listen((notification) {
+    _subscription =
+        _notificationService.notificationStream.listen((notification) {
       if (notification['type'] == 'friend_request') {
         setState(() {
           _currentNotification = notification;
@@ -272,10 +281,14 @@ class _FriendNotificationOverlayState extends State<FriendNotificationOverlay> {
         // この場合は承認せずに閉じる（申請画面で承認）
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('フレンド申請画面から承認してください'),
+            content: Text('フレンドが追加されました。'),
             backgroundColor: Colors.blue,
           ),
         );
+        final requesterid = _currentNotification!['requesterId'];
+
+        await _friendApiService.acceptFriendRequestbyId(
+            userId, requesterid, accessToken);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

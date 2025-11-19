@@ -3,6 +3,8 @@ package com.example.api.controller;
 import com.example.api.dto.*;
 import com.example.api.service.FriendService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/friend")
+
 public class FriendController {
 
     @Autowired
@@ -86,6 +89,17 @@ public class FriendController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("フレンド申請承認中にエラーが発生しました"));
         }
+    }
+       @PostMapping("/accept")
+    public ResponseEntity<Void> acceptFriend(
+         @Valid @RequestBody FriendAcceptRequestDto request) {
+
+        Long loginUserId = request.getLoginUserId();
+        Long otherUserId = request.getOtherUserId();
+
+        friendService.acceptFriendRequest(loginUserId, otherUserId);
+
+        return ResponseEntity.ok().build();
     }
 
     /**

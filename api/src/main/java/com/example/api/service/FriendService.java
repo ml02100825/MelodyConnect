@@ -5,6 +5,7 @@ import com.example.api.entity.*;
 import com.example.api.repository.*;
 import com.example.api.util.SeasonCalculator;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -190,6 +191,38 @@ public class FriendService {
         // レコードを削除
         friendRepository.delete(friend);
     }
+
+    /**
+     * フレンド一覧を取得
+     * @param userId ユーザーID, userId2 　ユーザーID２
+     * @return フレンド
+     */
+     @Transactional
+    public void acceptFriendRequestbyId(Long loginUserId, Long otherUserId) {
+
+        Long low  = Math.min(loginUserId, otherUserId);
+        Long high = Math.max(loginUserId, otherUserId);
+
+        Friend friend = friendRepository
+            .getByUserLowAndUserHigh(low, high);
+   // 自分宛ての申請かチェック
+        boolean isRecipient = (friend.getUserLow().getId().equals(loginUserId) || friend.getUserHigh().getId().equals(loginUserId))
+                && !friend.getRequester().getId().equals(loginUserId);
+
+        if (!isRecipient) {
+            throw new IllegalArgumentException("この申請を承認する権限がありません");
+        }
+
+        if (friend.getFriendFlag()) {
+            throw new IllegalArgumentException("既にフレンドです");
+        }
+
+        // フレンド承認
+        friend.setFriendFlag(true);
+        friend.setAcceptedAt(LocalDateTime.now());
+        friendRepository.save(friend);
+    }
+
 
     /**
      * フレンド一覧を取得

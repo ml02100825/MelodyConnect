@@ -7,7 +7,8 @@ class FriendApiService {
   static const String baseUrl = 'http://localhost:8080/api/friend';
 
   /// UUIDでユーザーを検索
-  Future<Map<String, dynamic>> searchUser(String userUuid, String accessToken) async {
+  Future<Map<String, dynamic>> searchUser(
+      String userUuid, String accessToken) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/search/$userUuid'),
@@ -32,7 +33,8 @@ class FriendApiService {
   }
 
   /// フレンド申請を送信
-  Future<void> sendFriendRequest(int userId, String targetUserUuid, String accessToken) async {
+  Future<void> sendFriendRequest(
+      int userId, String targetUserUuid, String accessToken) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/$userId/request'),
@@ -58,7 +60,8 @@ class FriendApiService {
   }
 
   /// フレンド申請を承認
-  Future<void> acceptFriendRequest(int userId, int friendId, String accessToken) async {
+  Future<void> acceptFriendRequest(
+      int userId, int friendId, String accessToken) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/$userId/accept/$friendId'),
@@ -80,8 +83,37 @@ class FriendApiService {
     }
   }
 
+  /// フレンド申請を承認（相手ユーザーIDベース）
+  Future<void> acceptFriendRequestbyId(
+      int userId, int otherUserId, String accessToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/accept'), // 例: /api/friends/accept みたいな想定
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({
+          'loginUserId': userId,
+          'otherUserId': otherUserId, // サーバーのDTOのフィールド名に合わせる
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'フレンド申請の承認に失敗しました');
+      }
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('ネットワークエラーが発生しました');
+    }
+  }
+
   /// フレンド申請を拒否
-  Future<void> rejectFriendRequest(int userId, int friendId, String accessToken) async {
+  Future<void> rejectFriendRequest(
+      int userId, int friendId, String accessToken) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/$userId/reject/$friendId'),
@@ -129,7 +161,8 @@ class FriendApiService {
   }
 
   /// フレンド申請一覧を取得
-  Future<List<dynamic>> getPendingRequests(int userId, String accessToken) async {
+  Future<List<dynamic>> getPendingRequests(
+      int userId, String accessToken) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/$userId/requests'),
@@ -154,7 +187,8 @@ class FriendApiService {
   }
 
   /// フレンドプロフィールを取得
-  Future<Map<String, dynamic>> getFriendProfile(int userId, int friendUserId, String accessToken) async {
+  Future<Map<String, dynamic>> getFriendProfile(
+      int userId, int friendUserId, String accessToken) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/$userId/profile/$friendUserId'),
@@ -179,7 +213,8 @@ class FriendApiService {
   }
 
   /// フレンドを削除
-  Future<void> deleteFriend(int userId, int friendId, String accessToken) async {
+  Future<void> deleteFriend(
+      int userId, int friendId, String accessToken) async {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/$userId/delete/$friendId'),

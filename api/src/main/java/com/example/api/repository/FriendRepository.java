@@ -56,4 +56,12 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
      * @return 存在する場合true
      */
     boolean existsByUserLowAndUserHigh(User userLow, User userHigh);
+
+    /**
+     * 2人のユーザー間に既存のフレンド関係があるか確認
+     * @param userLow ID小のユーザー
+     * @param userHigh ID大のユーザー
+     * @return 存在する場合Friendエンティティ
+     */
+   Friend getByUserLowAndUserHigh( Long userLow,Long userHigh);
 }
