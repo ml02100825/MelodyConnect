@@ -62,6 +62,60 @@ class _FriendListScreenState extends State<FriendListScreen> {
     );
   }
 
+  Future<void> _deleteFriend(Map<String, dynamic> friend) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('フレンド削除'),
+        content: Text('${friend['username']}さんをフレンドから削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      final userId = await _tokenStorage.getUserId();
+
+      if (accessToken == null || userId == null) {
+        throw Exception('ログインが必要です');
+      }
+
+      await _friendApiService.deleteFriend(userId, friend['friendId'], accessToken);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('フレンドを削除しました'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      _loadFriends();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,6 +227,12 @@ class _FriendListScreenState extends State<FriendListScreen> {
                   ),
                 ],
               ),
+            ),
+            // 削除ボタン
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: Colors.red[400]),
+              onPressed: () => _deleteFriend(friend),
+              tooltip: '削除',
             ),
             // 矢印アイコン
             Icon(Icons.chevron_right, color: Colors.grey[400]),
