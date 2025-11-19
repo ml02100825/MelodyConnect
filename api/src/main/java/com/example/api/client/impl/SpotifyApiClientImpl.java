@@ -272,6 +272,65 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         return mockList;
     }
 
+    @Override
+    public List<SpotifyArtistDto> getPopularArtists(int limit) {
+        String token = getAccessToken();
+        if (token == null) {
+            logger.warn("トークンが取得できないためモックデータを返します");
+            return createMockArtists("popular");
+        }
+
+        List<SpotifyArtistDto> allArtists = new ArrayList<>();
+        // 様々なジャンルから人気アーティストを取得
+        String[] genres = {"pop", "rock", "hip-hop", "r-n-b", "k-pop", "j-pop", "latin", "electronic", "country", "jazz"};
+
+        try {
+            int perGenre = Math.max(1, limit / genres.length);
+
+            for (String genre : genres) {
+                if (allArtists.size() >= limit) break;
+
+                String response = apiClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                        .path("/search")
+                        .queryParam("q", "genre:" + genre)
+                        .queryParam("type", "artist")
+                        .queryParam("limit", perGenre)
+                        .build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+                JsonNode jsonNode = objectMapper.readTree(response);
+                JsonNode artists = jsonNode.path("artists").path("items");
+
+                if (artists.isArray()) {
+                    for (JsonNode artistNode : artists) {
+                        if (allArtists.size() >= limit) break;
+
+                        SpotifyArtistDto dto = parseArtistNode(artistNode);
+                        if (dto != null && dto.getPopularity() >= 50) { // 人気度50以上
+                            // 重複チェック
+                            boolean isDuplicate = allArtists.stream()
+                                .anyMatch(a -> a.getSpotifyId().equals(dto.getSpotifyId()));
+                            if (!isDuplicate) {
+                                allArtists.add(dto);
+                            }
+                        }
+                    }
+                }
+            }
+
+            logger.info("人気アーティストを取得しました: count={}", allArtists.size());
+            return allArtists;
+
+        } catch (Exception e) {
+            logger.error("人気アーティストの取得に失敗しました", e);
+            return createMockArtists("popular");
+        }
+    }
+
     /**
      * 検索してランダムに1曲選択
      */

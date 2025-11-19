@@ -80,6 +80,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/hello").permitAll()
                         .requestMatchers("/samples/**").permitAll()
+                        .requestMatchers("/api/dev/**").permitAll() // 開発用エンドポイント
                         // その他のエンドポイントは認証が必要
                         .anyRequest().authenticated()
                 )

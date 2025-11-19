@@ -51,4 +51,13 @@ public interface SpotifyApiClient {
      * @return 楽曲情報
      */
     Song searchSong(String songName, String artistName);
+
+    /**
+     * 人気アーティストを取得（開発用）
+     * 様々なジャンルから人気アーティストを取得
+     *
+     * @param limit 取得件数
+     * @return アーティストリスト
+     */
+    List<SpotifyArtistDto> getPopularArtists(int limit);
 }
