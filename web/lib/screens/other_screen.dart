@@ -7,50 +7,19 @@ import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
 
-
 class OtherScreen extends StatefulWidget {
   const OtherScreen({Key? key}) : super(key: key);
 
-	@override
-	State<OtherScreen> createState() => _OtherScreenState();
+  @override
+  State<OtherScreen> createState() => _OtherScreenState();
 }
 
 class _OtherScreenState extends State<OtherScreen> {
   final TokenStorageService _tokenStorage = TokenStorageService();
   final AuthApiService _authApiService = AuthApiService();
 
-  // ログアウト処理（確認ダイアログ表示）
-  void _handleLogout() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('本当に退会しますか？'),
-        content: const Text(
-          '退会すると今までの履歴や\nサブスクリプションの情報が\n閲覧できなくなります。\n退会する場合は退会するを押してください',
-          textAlign: TextAlign.center,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('戻る'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _performLogout();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-            ),
-            child: const Text('退会する', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 実際のログアウト処理
-  Future<void> _performLogout() async {
+  // ログアウト処理
+  Future<void> _handleLogout() async {
     try {
       final userId = await _tokenStorage.getUserId();
       final accessToken = await _tokenStorage.getAccessToken();
@@ -185,7 +154,7 @@ class _OtherScreenState extends State<OtherScreen> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: IconButton(
-              icon: const Icon(Icons.logout),
+              icon: const Icon(Icons.logout, size: 18),
               tooltip: 'ログアウト',
               onPressed: _handleLogout,
             ),
