@@ -12,7 +12,7 @@ class FriendProfile extends StatelessWidget {
     required this.userName,
     required this.userId,
     required this.lastLogin,
-    this.isFriend = false, // デフォルトはfalse（申請中）
+    this.isFriend = false,
   }) : super(key: key);
 
   @override
@@ -69,8 +69,6 @@ class FriendProfile extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 16),
-            
-            // アバター
             Container(
               width: 120,
               height: 120,
@@ -84,10 +82,7 @@ class FriendProfile extends StatelessWidget {
                 size: 70,
               ),
             ),
-            
             const SizedBox(height: 24),
-            
-            // ユーザー名
             Text(
               userName,
               style: const TextStyle(
@@ -96,10 +91,7 @@ class FriendProfile extends StatelessWidget {
                 color: Colors.black87,
               ),
             ),
-            
             const SizedBox(height: 12),
-            
-            // 現在のレート
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -115,10 +107,7 @@ class FriendProfile extends StatelessWidget {
                 ),
               ),
             ),
-            
             const SizedBox(height: 16),
-            
-            // レート
             Text(
               '1400pt',
               style: TextStyle(
@@ -127,10 +116,7 @@ class FriendProfile extends StatelessWidget {
                 color: Colors.blue[700],
               ),
             ),
-            
             const SizedBox(height: 12),
-            
-            // バッジ
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -154,10 +140,7 @@ class FriendProfile extends StatelessWidget {
                 ],
               ),
             ),
-            
             const SizedBox(height: 32),
-            
-            // バッジグリッド
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -172,16 +155,13 @@ class FriendProfile extends StatelessWidget {
                 return _buildBadgeSlot(index == 0);
               },
             ),
-            
             const SizedBox(height: 32),
           ],
         ),
       ),
       bottomNavigationBar: BottomNavBar(
         currentIndex: 3,
-        onTap: (index) {
-          // TODO: 画面遷移処理を書く
-        },
+        onTap: (index) {},
       ),
     );
   }
@@ -228,32 +208,24 @@ class FriendProfile extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // フレンドの場合のみ表示
-              if (isFriend) ...[
+              if (isFriend)
                 ListTile(
                   leading: const Icon(Icons.message, color: Colors.blue),
                   title: const Text('メッセージを送る'),
                   onTap: () {
                     Navigator.pop(context);
-                    _sendMessage(context);
+                    _showMessageDialog(context);
                   },
                 ),
-              ],
               ListTile(
                 leading: const Icon(Icons.share, color: Colors.green),
                 title: const Text('プロフィールを共有'),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('プロフィールを共有しました'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  _showShareDialog(context);
                 },
               ),
-              // フレンドの場合のみ表示
-              if (isFriend) ...[
+              if (isFriend)
                 ListTile(
                   leading: const Icon(Icons.person_remove, color: Colors.orange),
                   title: const Text('フレンドを解除'),
@@ -262,7 +234,6 @@ class FriendProfile extends StatelessWidget {
                     _removeFriend(context);
                   },
                 ),
-              ],
               ListTile(
                 leading: const Icon(Icons.report, color: Colors.red),
                 title: const Text('報告する'),
@@ -280,9 +251,7 @@ class FriendProfile extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.close, color: Colors.grey),
                 title: const Text('キャンセル'),
-                onTap: () {
-                  Navigator.pop(context);
-                },
+                onTap: () => Navigator.pop(context),
               ),
             ],
           ),
@@ -291,17 +260,91 @@ class FriendProfile extends StatelessWidget {
     );
   }
 
-  void _sendMessage(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$userNameさんにメッセージを送信します'),
-        duration: const Duration(seconds: 2),
-        backgroundColor: Colors.blue,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+  // メッセージ入力ダイアログ
+  void _showMessageDialog(BuildContext context) {
+    final TextEditingController _msgController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('$userName にメッセージ'),
+          content: TextField(
+            controller: _msgController,
+            decoration: const InputDecoration(
+              hintText: 'メッセージを入力',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('キャンセル'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('$userName にメッセージを送信しました: ${_msgController.text}'),
+                    duration: const Duration(seconds: 2),
+                    backgroundColor: Colors.blue,
+                  ),
+                );
+              },
+              child: const Text('送信'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // プロフィール共有ダイアログ
+  void _showShareDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.link, color: Colors.blue),
+                title: const Text('リンクで共有'),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('リンクをコピーしました'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.mail, color: Colors.red),
+                title: const Text('メールで共有'),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('メールアプリを開きます'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.close, color: Colors.grey),
+                title: const Text('キャンセル'),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -326,9 +369,7 @@ class FriendProfile extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: Text(
                 'キャンセル',
                 style: TextStyle(
@@ -345,25 +386,13 @@ class FriendProfile extends StatelessWidget {
                     content: Text('$userNameさんをフレンドから解除しました'),
                     duration: const Duration(seconds: 2),
                     backgroundColor: Colors.orange,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
                   ),
                 );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
               ),
-              child: const Text(
-                '解除する',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: const Text('解除する'),
             ),
           ],
         );
