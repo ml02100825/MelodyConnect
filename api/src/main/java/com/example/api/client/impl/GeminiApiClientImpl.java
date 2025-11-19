@@ -35,7 +35,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
     @Value("${gemini.api.key:}")
     private String apiKey;
 
-    @Value("${gemini.api.model:gemini-1.5-flash}")
+    @Value("${gemini.api.model:gemini-2.0-flash}")
     private String model;
 
     public GeminiApiClientImpl(ObjectMapper objectMapper) {
