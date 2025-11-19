@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../bottom_nav.dart';
+import 'my_profile.dart';
 import 'volume_settings_screen.dart';
 import 'contact_screen.dart';
 import 'language_settings_screen.dart';
@@ -112,7 +113,12 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.edit,
               label: 'プロフィール編集',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MyProfile()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
