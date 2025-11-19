@@ -276,17 +276,6 @@ class FriendProfile extends StatelessWidget {
                   );
                 },
               ),
-              // フレンドの場合のみ表示
-              if (isFriend) ...[
-                ListTile(
-                  leading: const Icon(Icons.block, color: Colors.red),
-                  title: const Text('ブロックする'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _blockUser(context);
-                  },
-                ),
-              ],
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.close, color: Colors.grey),
@@ -371,72 +360,6 @@ class FriendProfile extends StatelessWidget {
               ),
               child: const Text(
                 '解除する',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _blockUser(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'ユーザーをブロック',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          content: Text(
-            '$userNameさんをブロックしますか？',
-            style: const TextStyle(fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text(
-                'キャンセル',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$userNameさんをブロックしました'),
-                    duration: const Duration(seconds: 2),
-                    backgroundColor: Colors.red,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                'ブロックする',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                 ),
