@@ -119,10 +119,10 @@ public class MatchingService {
     public synchronized MatchResult tryMatch(String language) {
         List<MatchingQueueService.QueuedPlayer> queue = queueService.getQueueByLanguage(language);
 
-        logger.debug("tryMatch開始: language={}, キューサイズ={}", language, queue.size());
+        // logger.debug("tryMatch開始: language={}, キューサイズ={}", language, queue.size());
 
         if (queue.size() < 2) {
-            logger.debug("マッチング不可（プレイヤー不足）: language={}, キューサイズ={}", language, queue.size());
+            // logger.debug("マッチング不可（プレイヤー不足）: language={}, キューサイズ={}", language, queue.size());
             return null; // 2人未満の場合はマッチング不可
         }
 
@@ -174,7 +174,7 @@ public class MatchingService {
             }
         }
 
-        logger.debug("マッチング不成立（条件を満たす相手なし）: language={}", language);
+        // logger.debug("マッチング不成立（条件を満たす相手なし）: language={}", language);
         return null; // マッチング不成立
     }
 
