@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import '../bottom_nav.dart';
+import 'volume_settings_screen.dart';
+import 'contact_screen.dart';
+import 'language_settings_screen.dart';
+import '../services/auth_api_service.dart';
+import '../services/token_storage_service.dart';
+import 'login_screen.dart';
 
 
 class OtherScreen extends StatefulWidget {
@@ -10,6 +16,41 @@ class OtherScreen extends StatefulWidget {
 }
 
 class _OtherScreenState extends State<OtherScreen> {
+  final TokenStorageService _tokenStorage = TokenStorageService();
+  final AuthApiService _authApiService = AuthApiService();
+
+  // ログアウト処理
+  Future<void> _handleLogout() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (userId != null && accessToken != null) {
+        await _authApiService.logout(userId, accessToken);
+      }
+
+      // ローカルの認証情報を削除
+      await _tokenStorage.clearAuthData();
+
+      if (!mounted) return;
+
+      // ログイン画面に戻る
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('ログアウトに失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,13 +95,9 @@ class _OtherScreenState extends State<OtherScreen> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.person_add,
-                color: Colors.black87,
-                size: 20,
-              ),
-              onPressed: () {},
+              icon: const Icon(Icons.logout),
+              tooltip: 'ログアウト',
+              onPressed: _handleLogout,
             ),
           ),
         ],
@@ -82,14 +119,24 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.volume_up,
               label: '音量設定',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const VolumeSettingsScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.language,
               label: '言語設定',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LanguageSettingsScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
@@ -117,7 +164,12 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.support_agent,
               label: 'お問い合わせ',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ContactScreen()),
+                );
+              },
             ),
           ],
         ),
