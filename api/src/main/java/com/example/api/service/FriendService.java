@@ -44,6 +44,7 @@ public class FriendService {
      * @return ユーザー検索結果
      * @throws IllegalArgumentException ユーザーが見つからない場合
      */
+    @Transactional(readOnly = true)
     public UserSearchResponse searchUserByUuid(String userUuid) {
         User user = userRepository.findByUserUuid(userUuid)
                 .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
@@ -174,6 +175,7 @@ public class FriendService {
      * @param userId ユーザーID
      * @return フレンド一覧
      */
+    @Transactional(readOnly = true)
     public List<FriendResponse> getFriendList(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
@@ -202,6 +204,7 @@ public class FriendService {
      * @param userId ユーザーID
      * @return フレンド申請一覧
      */
+    @Transactional(readOnly = true)
     public List<FriendRequestResponse> getPendingRequests(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
@@ -228,6 +231,7 @@ public class FriendService {
      * @return フレンドプロフィール
      * @throws IllegalArgumentException フレンドでない場合
      */
+    @Transactional(readOnly = true)
     public FriendProfileResponse getFriendProfile(Long userId, Long friendUserId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
