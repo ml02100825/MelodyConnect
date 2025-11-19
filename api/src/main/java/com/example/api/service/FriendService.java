@@ -166,6 +166,32 @@ public class FriendService {
     }
 
     /**
+     * フレンドを削除
+     * @param userId ユーザーID
+     * @param friendId フレンドレコードID
+     * @throws IllegalArgumentException 無効な操作の場合
+     */
+    @Transactional
+    public void deleteFriend(Long userId, Long friendId) {
+        Friend friend = friendRepository.findById(friendId)
+                .orElseThrow(() -> new IllegalArgumentException("フレンド関係が見つかりません"));
+
+        // 自分のフレンド関係かチェック
+        boolean isInvolved = friend.getUserLow().getId().equals(userId) || friend.getUserHigh().getId().equals(userId);
+
+        if (!isInvolved) {
+            throw new IllegalArgumentException("このフレンドを削除する権限がありません");
+        }
+
+        if (!friend.getFriendFlag()) {
+            throw new IllegalArgumentException("フレンドではありません");
+        }
+
+        // レコードを削除
+        friendRepository.delete(friend);
+    }
+
+    /**
      * フレンド一覧を取得
      * @param userId ユーザーID
      * @return フレンド一覧

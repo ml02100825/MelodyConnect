@@ -171,6 +171,29 @@ public class FriendController {
     }
 
     /**
+     * フレンドを削除
+     * @param userId ユーザーID
+     * @param friendId フレンドレコードID
+     * @return 成功メッセージ
+     */
+    @DeleteMapping("/{userId}/delete/{friendId}")
+    public ResponseEntity<?> deleteFriend(@PathVariable Long userId,
+                                           @PathVariable Long friendId) {
+        try {
+            friendService.deleteFriend(userId, friendId);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "フレンドを削除しました");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("フレンド削除中にエラーが発生しました"));
+        }
+    }
+
+    /**
      * エラーレスポンスを作成
      * @param message エラーメッセージ
      * @return エラーレスポンスマップ

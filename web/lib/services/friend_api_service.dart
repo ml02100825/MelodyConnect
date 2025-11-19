@@ -177,4 +177,27 @@ class FriendApiService {
       throw Exception('ネットワークエラーが発生しました');
     }
   }
+
+  /// フレンドを削除
+  Future<void> deleteFriend(int userId, int friendId, String accessToken) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/$userId/delete/$friendId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'フレンドの削除に失敗しました');
+      }
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('ネットワークエラーが発生しました');
+    }
+  }
 }
