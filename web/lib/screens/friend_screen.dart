@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
-import '../bottom_nav.dart';
+import 'user_search_screen.dart';
 import 'friend_list.dart';
 import 'friend_request_screen.dart';
-import 'user_search_screen.dart';
+import '../bottom_nav.dart';
 
 
-class FriendScreen extends StatelessWidget {
+class FriendScreen extends StatefulWidget {
   const FriendScreen({Key? key}) : super(key: key);
+
+	@override
+	State<FriendScreen> createState() => _FriendScreenState();
+}
+
+class _FriendScreenState extends State<FriendScreen> {
 
   @override
   Widget build(BuildContext context) {
@@ -77,37 +83,31 @@ class FriendScreen extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const UserSearchScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const UserSearchScreen()),
                 );
               },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
-              icon: Icons.people,
+              icon: Icons.group,
               label: 'フレンド一覧',
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const FriendListScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const FriendListScreen()),
                 );
               },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
-              icon: Icons.schedule,
+              icon: Icons.person_add,
               label: 'フレンド申請一覧',
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const FriendRequestScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const FriendRequestScreen()),
                 );
               },
             ),

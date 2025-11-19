@@ -9,6 +9,7 @@ import 'vocabulary_screen.dart';
 import 'shop_screen.dart';
 import 'badge_screen.dart';
 import 'ranking_screen.dart';
+import '../bottom_nav.dart';
 
 /// ホーム画面
 class HomeScreen extends StatefulWidget {

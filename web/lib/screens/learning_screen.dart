@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import '../bottom_nav.dart';
 
 
-class BattleScreen extends StatefulWidget {
-  const BattleScreen({Key? key}) : super(key: key);
-
-	@override
-	State<BattleScreen> createState() => _BattleScreenState();
+class LearningScreen extends StatefulWidget {
+  const LearningScreen({Key? key}) : super(key: key);
+  
+  @override
+	State<LearningScreen> createState() => _LearningScreenState();
 }
 
-class _BattleScreenState extends State<BattleScreen> {
+class _LearningScreenState extends State<LearningScreen> {
 
   @override
   Widget build(BuildContext context) {
@@ -28,14 +28,14 @@ class _BattleScreenState extends State<BattleScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Icon(
-                Icons.music_note,
+                Icons.school,
                 color: Colors.white,
                 size: 24,
               ),
             ),
             const SizedBox(width: 8),
             const Text(
-              '対戦',
+              '学習',
               style: TextStyle(
                 color: Colors.black,
                 fontSize: 18,
@@ -75,7 +75,7 @@ class _BattleScreenState extends State<BattleScreen> {
       ),
 
       bottomNavigationBar: BottomNavBar(
-        currentIndex: 1,
+        currentIndex: 2,
         onTap: (index) {
           // TODO: 画面遷移処理を書く
         },

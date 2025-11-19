@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import '../bottom_nav.dart';
 
 
-class BattleScreen extends StatefulWidget {
-  const BattleScreen({Key? key}) : super(key: key);
+class OtherScreen extends StatefulWidget {
+  const OtherScreen({Key? key}) : super(key: key);
 
 	@override
-	State<BattleScreen> createState() => _BattleScreenState();
+	State<OtherScreen> createState() => _OtherScreenState();
 }
 
-class _BattleScreenState extends State<BattleScreen> {
+class _OtherScreenState extends State<OtherScreen> {
 
   @override
   Widget build(BuildContext context) {
@@ -28,14 +28,14 @@ class _BattleScreenState extends State<BattleScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Icon(
-                Icons.music_note,
+                Icons.settings,
                 color: Colors.white,
                 size: 24,
               ),
             ),
             const SizedBox(width: 8),
             const Text(
-              '対戦',
+              '設定',
               style: TextStyle(
                 color: Colors.black,
                 fontSize: 18,
@@ -70,12 +70,61 @@ class _BattleScreenState extends State<BattleScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [],
+          children: [
+            _buildMenuButton(
+              context,
+              icon: Icons.edit,
+              label: 'プロフィール編集',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.volume_up,
+              label: '音量設定',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.language,
+              label: '言語設定',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.lock,
+              label: 'プライバシー設定',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.payment,
+              label: '支払い情報管理',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.subscriptions,
+              label: 'サブスク登録・解約',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.support_agent,
+              label: 'お問い合わせ',
+              onTap: () {},
+            ),
+          ],
         ),
       ),
 
       bottomNavigationBar: BottomNavBar(
-        currentIndex: 1,
+        currentIndex: 4,
         onTap: (index) {
           // TODO: 画面遷移処理を書く
         },
