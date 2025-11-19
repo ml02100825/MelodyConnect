@@ -6,7 +6,6 @@ import 'language_settings_screen.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
-import 'withdraw_screen.dart';
 
 
 class OtherScreen extends StatefulWidget {
@@ -20,9 +19,34 @@ class _OtherScreenState extends State<OtherScreen> {
   final TokenStorageService _tokenStorage = TokenStorageService();
   final AuthApiService _authApiService = AuthApiService();
 
-  // ログアウト処理
+  // ログアウト処理（確認ダイアログ表示）
   void _handleLogout() {
-    _performLogout();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('本当に退会しますか？'),
+        content: const Text(
+          '退会すると今までの履歴や\nサブスクリプションの情報が\n閲覧できなくなります。\n退会する場合は退会するを押してください',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('戻る'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _performLogout();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+            ),
+            child: const Text('退会する', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // 実際のログアウト処理
@@ -52,6 +76,66 @@ class _OtherScreenState extends State<OtherScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('ログアウトに失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // 退会確認ダイアログ（OtherScreen から直接実行する）
+  void _confirmWithdraw() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('本当に退会しますか？'),
+        content: const Text(
+          '退会すると今までの履歴や\nサブスクリプションの情報が\n閲覧できなくなります。\n退会する場合は退会するを押してください',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('戻る'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _performWithdraw();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('退会する', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 退会処理（アカウント削除またはログアウト）
+  Future<void> _performWithdraw() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (userId != null && accessToken != null) {
+        // バックエンドに専用の削除 API があればそちらを実装してください。
+        // 現状は logout を呼んでセッションを切断します。
+        await _authApiService.logout(userId, accessToken);
+      }
+
+      await _tokenStorage.clearAuthData();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('退会に失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -182,12 +266,7 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.delete_outline,
               label: '退会',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WithdrawScreen()),
-                );
-              },
+              onTap: _confirmWithdraw,
             ),
           ],
         ),
@@ -253,4 +332,3 @@ class _OtherScreenState extends State<OtherScreen> {
     );
   }
 }
-
