@@ -1,8 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'token_storage_service.dart';
-import 'friend_api_service.dart';
 
 /// フレンド申請通知サービス
 /// WebSocketでフレンド申請通知を受信し、ポップアップを表示します
@@ -82,15 +82,7 @@ class FriendNotificationService {
   void _handleNotification(String body) {
     try {
       // JSON文字列をパース
-      final Map<String, dynamic> notification = {};
-      // 簡易的なJSONパース（実際はdart:convertを使用）
-      final parts = body.replaceAll('{', '').replaceAll('}', '').replaceAll('"', '').split(',');
-      for (final part in parts) {
-        final keyValue = part.split(':');
-        if (keyValue.length >= 2) {
-          notification[keyValue[0].trim()] = keyValue.sublist(1).join(':').trim();
-        }
-      }
+      final Map<String, dynamic> notification = jsonDecode(body);
 
       // 現在の画面が無効リストにない場合のみ通知
       if (_currentScreen == null || !_disabledScreens.contains(_currentScreen)) {
@@ -246,7 +238,6 @@ class FriendNotificationOverlay extends StatefulWidget {
 
 class _FriendNotificationOverlayState extends State<FriendNotificationOverlay> {
   final FriendNotificationService _notificationService = FriendNotificationService();
-  final FriendApiService _friendApiService = FriendApiService();
   final TokenStorageService _tokenStorage = TokenStorageService();
 
   Map<String, dynamic>? _currentNotification;

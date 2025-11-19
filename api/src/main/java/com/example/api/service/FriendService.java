@@ -93,9 +93,8 @@ public class FriendService {
             if (friend.getFriendFlag()) {
                 throw new IllegalArgumentException("既にフレンドです");
             }
-            if (friend.getInviteFlag()) {
-                throw new IllegalArgumentException("既にフレンド申請が送信されています");
-            }
+            // レコードが存在し、friend_flag = false なら申請中
+            throw new IllegalArgumentException("既にフレンド申請が送信されています");
         }
 
         // フレンド申請を作成
@@ -103,7 +102,7 @@ public class FriendService {
         friendRequest.setUserLow(userLow);
         friendRequest.setUserHigh(userHigh);
         friendRequest.setRequester(requester);
-        friendRequest.setInviteFlag(true);
+        friendRequest.setInviteFlag(false);
         friendRequest.setFriendFlag(false);
         friendRepository.save(friendRequest);
 
@@ -135,10 +134,6 @@ public class FriendService {
 
         if (friend.getFriendFlag()) {
             throw new IllegalArgumentException("既にフレンドです");
-        }
-
-        if (!friend.getInviteFlag()) {
-            throw new IllegalArgumentException("有効なフレンド申請ではありません");
         }
 
         // フレンド承認

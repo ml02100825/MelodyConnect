@@ -34,11 +34,11 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     List<Friend> findFriendsByUser(@Param("user") User user);
 
     /**
-     * ユーザーへのフレンド申請一覧を取得（invite_flag = true, friend_flag = false, 自分が申請者でない）
+     * ユーザーへのフレンド申請一覧を取得（friend_flag = false, 自分が申請者でない）
      * @param user ユーザー
      * @return フレンド申請一覧
      */
-    @Query("SELECT f FROM Friend f WHERE (f.userLow = :user OR f.userHigh = :user) AND f.inviteFlag = true AND f.friendFlag = false AND f.requester != :user")
+    @Query("SELECT f FROM Friend f WHERE (f.userLow = :user OR f.userHigh = :user) AND f.friendFlag = false AND f.requester != :user")
     List<Friend> findPendingRequestsForUser(@Param("user") User user);
 
     /**
@@ -46,7 +46,7 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
      * @param user ユーザー
      * @return 送信した申請一覧
      */
-    @Query("SELECT f FROM Friend f WHERE f.requester = :user AND f.inviteFlag = true AND f.friendFlag = false")
+    @Query("SELECT f FROM Friend f WHERE f.requester = :user AND f.friendFlag = false")
     List<Friend> findSentRequestsByUser(@Param("user") User user);
 
     /**
