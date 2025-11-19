@@ -1,0 +1,31 @@
+package com.example.api.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * 回答検証リクエストDTO
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AnswerValidationRequest {
+
+    /**
+     * 問題ID
+     */
+    private Integer questionId;
+
+    /**
+     * ユーザーの回答
+     */
+    private String userAnswer;
+
+    /**
+     * ユーザーID（単語保存用）
+     */
+    private Long userId;
+}

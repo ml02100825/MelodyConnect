@@ -1,0 +1,86 @@
+package com.example.api.repository;
+
+import com.example.api.entity.Session;
+import com.example.api.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * セッションリポジトリインターフェース
+ * セッションエンティティのデータベース操作を提供します
+ */
+@Repository
+public interface SessionRepository extends JpaRepository<Session, Long> {
+
+    /**
+     * ユーザーで有効なセッションを検索
+     * @param user ユーザーエンティティ
+     * @param now 現在時刻
+     * @return 有効なセッションのリスト
+     */
+    @Query("SELECT s FROM Session s WHERE s.user = :user AND s.revokedFlag = false AND s.expiresAt > :now")
+    List<Session> findValidSessionsByUser(@Param("user") User user, @Param("now") LocalDateTime now);
+
+    /**
+     * ユーザーIDで有効なセッションを検索（後方互換性のため）
+     * @param userId ユーザーID
+     * @param now 現在時刻
+     * @return 有効なセッションのリスト
+     */
+    @Query("SELECT s FROM Session s WHERE s.user.id = :userId AND s.revokedFlag = false AND s.expiresAt > :now")
+    List<Session> findValidSessionsByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
+
+    /**
+     * リフレッシュトークンハッシュで有効なセッションを検索
+     * @param refreshHash リフレッシュトークンハッシュ
+     * @param now 現在時刻
+     * @return セッション（存在する場合）
+     */
+    @Query("SELECT s FROM Session s WHERE s.refreshHash = :refreshHash AND s.revokedFlag = false AND s.expiresAt > :now")
+    Optional<Session> findValidSessionByRefreshHash(@Param("refreshHash") String refreshHash, @Param("now") LocalDateTime now);
+
+    /**
+     * ユーザーで全てのセッションを取得
+     * @param user ユーザーエンティティ
+     * @return セッションのリスト
+     */
+    List<Session> findByUser(User user);
+
+    /**
+     * ユーザーIDで全てのセッションを取得（後方互換性のため）
+     * @param userId ユーザーID
+     * @return セッションのリスト
+     */
+    @Query("SELECT s FROM Session s WHERE s.user.id = :userId")
+    List<Session> findByUserId(@Param("userId") Long userId);
+
+    /**
+     * 期限切れのセッションを削除
+     * @param now 現在時刻
+     */
+    @Modifying
+    @Query("DELETE FROM Session s WHERE s.expiresAt < :now")
+    void deleteExpiredSessions(@Param("now") LocalDateTime now);
+
+    /**
+     * ユーザーの全セッションを無効化
+     * @param user ユーザーエンティティ
+     */
+    @Modifying
+    @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user = :user")
+    void revokeAllUserSessions(@Param("user") User user);
+
+    /**
+     * ユーザーIDで全セッションを無効化（後方互換性のため）
+     * @param userId ユーザーID
+     */
+    @Modifying
+    @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user.id = :userId")
+    void revokeAllUserSessionsById(@Param("userId") Long userId);
+}

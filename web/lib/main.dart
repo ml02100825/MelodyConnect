@@ -1,17 +1,10 @@
-﻿import "dart:convert";
-import "package:flutter/material.dart";
-import "package:http/http.dart" as http;
-
-const baseUrl = String.fromEnvironment(
-  "API_BASE_URL",
-  defaultValue: "http://10.0.2.2:8080",
-);
-
-Future<String> fetchHello() async {
-  final res = await http.get(Uri.parse("$baseUrl/api/hello"));
-  if (res.statusCode != 200) throw Exception("HTTP ${res.statusCode}");
-  return json.decode(res.body).toString();
-}
+import 'package:flutter/material.dart';
+import 'screens/login_screen.dart';
+import 'screens/battle_mode_selection_screen.dart';
+import 'screens/language_selection_screen.dart';
+import 'screens/matching_screen.dart';
+import 'screens/battle_screen.dart';
+import 'screens/quiz_selection_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -21,21 +14,43 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text("Flutter x Spring")),
-        body: FutureBuilder<String>(
-          future: fetchHello(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text("Error: ${snapshot.error}"));
-            }
-            return Center(child: Text("API: ${snapshot.data}"));
-          },
-        ),
+      title: 'MelodyConnect',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
       ),
+      home: const LoginScreen(),
+      routes: {
+        '/battle-mode': (context) => const BattleModeSelectionScreen(),
+        '/language-selection': (context) => const LanguageSelectionScreen(),
+        '/learning': (context) => const QuizSelectionScreen(),
+      },
+      onGenerateRoute: (settings) {
+        // /matching?language=english のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/matching') == true) {
+          final uri = Uri.parse(settings.name!);
+          final language = uri.queryParameters['language'] ?? 'english';
+          return MaterialPageRoute(
+            builder: (context) => MatchingScreen(language: language),
+            settings: settings,
+          );
+        }
+
+        // /battle?matchId=xxx のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/battle') == true) {
+          final uri = Uri.parse(settings.name!);
+          final matchId = uri.queryParameters['matchId'];
+          if (matchId != null) {
+            return MaterialPageRoute(
+              builder: (context) => BattleScreen(matchId: matchId),
+              settings: settings,
+            );
+          }
+        }
+
+        return null;
+      },
+      debugShowCheckedModeBanner: false,
     );
   }
 }
