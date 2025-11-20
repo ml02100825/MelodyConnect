@@ -210,13 +210,15 @@ public class QuestionGeneratorService {
      * 問題を保存
      */
     private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
+        Artist artist = null;
+
         // Songがまだ保存されていない場合は先に保存
         if (song.getSong_id() == null) {
             // Artistを作成/検索
             if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
                 if (song.getTempArtistName() != null && song.getTempArtistApiId() != null) {
                     // SpotifyのartistApiIdでArtistを検索
-                    Artist artist = artistRepository.findByArtistApiId(song.getTempArtistApiId())
+                    artist = artistRepository.findByArtistApiId(song.getTempArtistApiId())
                         .orElseGet(() -> {
                             // 存在しない場合は新規作成
                             Artist newArtist = new Artist();
@@ -231,19 +233,27 @@ public class QuestionGeneratorService {
                 } else {
                     logger.warn("Songにアーティスト情報がありません。デフォルトのartist_id=1を使用します。");
                     song.setAritst_id(1L);
+                    // デフォルトのArtistを取得
+                    artist = artistRepository.findById(1)
+                        .orElseThrow(() -> new IllegalStateException("Default artist (id=1) not found"));
                 }
+            } else {
+                // artist_idが既に設定されている場合は取得
+                artist = artistRepository.findById(song.getAritst_id().intValue())
+                    .orElseThrow(() -> new IllegalStateException("Artist not found for id: " + song.getAritst_id()));
             }
 
             logger.debug("Songを保存します: songName={}", song.getSongname());
             song = songRepository.save(song);
             logger.debug("Song保存完了: songId={}", song.getSong_id());
+        } else {
+            // Songが既に保存されている場合はArtistを取得
+            artist = artistRepository.findById(song.getAritst_id().intValue())
+                .orElseThrow(() -> new IllegalStateException("Artist not found for id: " + song.getAritst_id()));
         }
 
         Question newQuestion = new Question();
         newQuestion.setSong(song);
-        // Artist is set via the song's artist_id - fetch from repository if needed
-        Artist artist = artistRepository.findById(song.getAritst_id().intValue())
-            .orElseThrow(() -> new IllegalStateException("Artist not found for id: " + song.getAritst_id()));
         newQuestion.setArtist(artist);
         newQuestion.setText(claudeQuestion.getSentence());
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
