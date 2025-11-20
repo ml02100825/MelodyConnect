@@ -212,6 +212,28 @@ public class QuestionGeneratorService {
     private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
         // Songがまだ保存されていない場合は先に保存
         if (song.getSong_id() == null) {
+            // Artistを作成/検索
+            if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
+                if (song.getTempArtistName() != null && song.getTempArtistApiId() != null) {
+                    // SpotifyのartistApiIdでArtistを検索
+                    Artist artist = artistRepository.findByArtistApiId(song.getTempArtistApiId())
+                        .orElseGet(() -> {
+                            // 存在しない場合は新規作成
+                            Artist newArtist = new Artist();
+                            newArtist.setArtistName(song.getTempArtistName());
+                            newArtist.setArtistApiId(song.getTempArtistApiId());
+                            // デフォルトのジャンルIDを設定（1 = Pop等）
+                            newArtist.setGenreId(1);
+                            return artistRepository.save(newArtist);
+                        });
+                    song.setAritst_id(artist.getArtistId().longValue());
+                    logger.debug("Artist設定完了: artistId={}, artistName={}", artist.getArtistId(), artist.getArtistName());
+                } else {
+                    logger.warn("Songにアーティスト情報がありません。デフォルトのartist_id=1を使用します。");
+                    song.setAritst_id(1L);
+                }
+            }
+
             logger.debug("Songを保存します: songName={}", song.getSongname());
             song = songRepository.save(song);
             logger.debug("Song保存完了: songId={}", song.getSong_id());

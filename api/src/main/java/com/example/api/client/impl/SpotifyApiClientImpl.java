@@ -427,10 +427,15 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
         // アーティスト情報
         String artistName = null;
+        String artistApiId = null;
         JsonNode artists = trackNode.path("artists");
         if (artists.isArray() && artists.size() > 0) {
             artistName = artists.get(0).path("name").asText();
-            // Note: アーティストIDは別途マッピングが必要
+            artistApiId = artists.get(0).path("id").asText();
+            // アーティスト情報を一時フィールドに保存
+            song.setTempArtistName(artistName);
+            song.setTempArtistApiId(artistApiId);
+            // Note: artist_idは後で設定される
             song.setAritst_id(0L); // プレースホルダー
         }
 
