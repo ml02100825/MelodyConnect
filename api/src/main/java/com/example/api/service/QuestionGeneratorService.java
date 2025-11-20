@@ -210,6 +210,13 @@ public class QuestionGeneratorService {
      * 問題を保存
      */
     private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
+        // Songがまだ保存されていない場合は先に保存
+        if (song.getSong_id() == null) {
+            logger.debug("Songを保存します: songName={}", song.getSongname());
+            song = songRepository.save(song);
+            logger.debug("Song保存完了: songId={}", song.getSong_id());
+        }
+
         Question newQuestion = new Question();
         newQuestion.setSong(song);
         // Artist is set via the song's artist_id - fetch from repository if needed
