@@ -242,7 +242,8 @@ public class QuestionGeneratorService {
         Question newQuestion = new Question();
         newQuestion.setSong(song);
         // Artist is set via the song's artist_id - fetch from repository if needed
-        Artist artist = artistRepository.findById(song.getAritst_id().intValue()).orElse(null);
+        Artist artist = artistRepository.findById(song.getAritst_id().intValue())
+            .orElseThrow(() -> new IllegalStateException("Artist not found for id: " + song.getAritst_id()));
         newQuestion.setArtist(artist);
         newQuestion.setText(claudeQuestion.getSentence());
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
