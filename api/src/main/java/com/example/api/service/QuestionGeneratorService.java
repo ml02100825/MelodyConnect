@@ -157,8 +157,12 @@ public class QuestionGeneratorService {
             .orElseThrow(() -> new IllegalStateException("お気に入りアーティストが見つかりません"));
 
         Integer artistId = randomLikeArtist.getArtist().getArtistId();
+        String artistApiId = randomLikeArtist.getArtist().getArtistApiId();
+
+        logger.debug("選択されたアーティスト: artistId={}, artistApiId={}", artistId, artistApiId);
+
         return songRepository.findRandomByArtist(artistId.longValue())
-            .orElseGet(() -> spotifyApiClient.getRandomSongByArtist(artistId));
+            .orElseGet(() -> spotifyApiClient.getRandomSongBySpotifyArtistId(artistApiId));
     }
 
     /**
@@ -206,6 +210,35 @@ public class QuestionGeneratorService {
      * 問題を保存
      */
     private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
+        // Songがまだ保存されていない場合は先に保存
+        if (song.getSong_id() == null) {
+            // Artistを作成/検索
+            if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
+                if (song.getTempArtistName() != null && song.getTempArtistApiId() != null) {
+                    // SpotifyのartistApiIdでArtistを検索
+                    Artist artist = artistRepository.findByArtistApiId(song.getTempArtistApiId())
+                        .orElseGet(() -> {
+                            // 存在しない場合は新規作成
+                            Artist newArtist = new Artist();
+                            newArtist.setArtistName(song.getTempArtistName());
+                            newArtist.setArtistApiId(song.getTempArtistApiId());
+                            // デフォルトのジャンルIDを設定（1 = Pop等）
+                            newArtist.setGenreId(1);
+                            return artistRepository.save(newArtist);
+                        });
+                    song.setAritst_id(artist.getArtistId().longValue());
+                    logger.debug("Artist設定完了: artistId={}, artistName={}", artist.getArtistId(), artist.getArtistName());
+                } else {
+                    logger.warn("Songにアーティスト情報がありません。デフォルトのartist_id=1を使用します。");
+                    song.setAritst_id(1L);
+                }
+            }
+
+            logger.debug("Songを保存します: songName={}", song.getSongname());
+            song = songRepository.save(song);
+            logger.debug("Song保存完了: songId={}", song.getSong_id());
+        }
+
         Question newQuestion = new Question();
         newQuestion.setSong(song);
         // Artist is set via the song's artist_id - fetch from repository if needed

@@ -66,6 +66,7 @@ public class ProfileController {
             response.put("username", user.getUsername());
             response.put("email", user.getMailaddress());
             response.put("imageUrl", user.getImageUrl());
+            response.put("userUuid", user.getUserUuid());
             response.put("totalPlay", user.getTotalPlay());
             response.put("life", user.getLife());
 

@@ -137,7 +137,7 @@ public class MatchingController {
      */
     @Scheduled(fixedRate = 1000)
     public void performMatching() {
-        logger.debug("定期マッチング処理開始");
+        // logger.debug("定期マッチング処理開始");
 
         // 英語キューでマッチング試行
         tryMatchForLanguage("english");
@@ -150,7 +150,7 @@ public class MatchingController {
      * 指定言語でマッチングを試行
      */
     private void tryMatchForLanguage(String language) {
-        logger.debug("マッチング試行: language={}", language);
+        // logger.debug("マッチング試行: language={}", language);
         MatchingService.MatchResult match = matchingService.tryMatch(language);
 
         if (match != null) {
@@ -192,7 +192,7 @@ public class MatchingController {
             );
             logger.info("マッチング通知送信完了: user2={}", match.getUser2Id());
         } else {
-            logger.debug("マッチング不成立: language={}", language);
+            // logger.debug("マッチング不成立: language={}", language);
         }
     }
 

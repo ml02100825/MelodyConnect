@@ -80,7 +80,7 @@ public class MatchingService {
      */
     @Transactional(readOnly = true)
     public boolean joinQueue(Long userId, String language) {
-        logger.info("キュー参加処理開始: userId={}, language={}", userId, language);
+        // logger.info("キュー参加処理開始: userId={}, language={}", userId, language);
 
         // ユーザーのレーティングを取得
         User user = userRepository.findById(userId)
@@ -90,14 +90,14 @@ public class MatchingService {
         Rate rate = rateRepository.findByUserAndSeason(user, currentSeason)
                 .orElseGet(() -> {
                     // レーティングが存在しない場合は作成
-                    logger.info("新規Rateレコード作成: userId={}, season={}", userId, currentSeason);
+                    // logger.info("新規Rateレコード作成: userId={}, season={}", userId, currentSeason);
                     Rate newRate = new Rate(user, currentSeason);
                     return rateRepository.save(newRate);
                 });
 
-        logger.info("プレイヤー情報: userId={}, rating={}, language={}", userId, rate.getRate(), language);
+        // logger.info("プレイヤー情報: userId={}, rating={}, language={}", userId, rate.getRate(), language);
         boolean result = queueService.addToQueue(userId, rate.getRate(), language);
-        logger.info("キュー追加結果: userId={}, success={}", userId, result);
+        // logger.info("キュー追加結果: userId={}, success={}", userId, result);
 
         return result;
     }
@@ -119,10 +119,10 @@ public class MatchingService {
     public synchronized MatchResult tryMatch(String language) {
         List<MatchingQueueService.QueuedPlayer> queue = queueService.getQueueByLanguage(language);
 
-        logger.debug("tryMatch開始: language={}, キューサイズ={}", language, queue.size());
+        // logger.debug("tryMatch開始: language={}, キューサイズ={}", language, queue.size());
 
         if (queue.size() < 2) {
-            logger.debug("マッチング不可（プレイヤー不足）: language={}, キューサイズ={}", language, queue.size());
+            // logger.debug("マッチング不可（プレイヤー不足）: language={}, キューサイズ={}", language, queue.size());
             return null; // 2人未満の場合はマッチング不可
         }
 
@@ -137,8 +137,8 @@ public class MatchingService {
             // 待機時間に応じたレーティング差の許容範囲を決定
             int allowedDiff = waitTime >= 90 ? 200 : 150;
 
-            logger.debug("プレイヤー検索: userId={}, rating={}, 待機時間={}秒, 許容レート差={}",
-                    player1.getUserId(), player1.getRating(), waitTime, allowedDiff);
+            // logger.debug("プレイヤー検索: userId={}, rating={}, 待機時間={}秒, 許容レート差={}",
+            //         player1.getUserId(), player1.getRating(), waitTime, allowedDiff);
 
             // 最も近いレーティングのプレイヤーを探す
             MatchingQueueService.QueuedPlayer bestMatch = null;
@@ -148,20 +148,20 @@ public class MatchingService {
                 MatchingQueueService.QueuedPlayer player2 = queue.get(j);
                 int ratingDiff = Math.abs(player1.getRating() - player2.getRating());
 
-                logger.debug("  候補チェック: userId={}, rating={}, レート差={}",
-                        player2.getUserId(), player2.getRating(), ratingDiff);
+                // logger.debug("  候補チェック: userId={}, rating={}, レート差={}",
+                //         player2.getUserId(), player2.getRating(), ratingDiff);
 
                 if (ratingDiff <= allowedDiff && ratingDiff < minDiff) {
                     minDiff = ratingDiff;
                     bestMatch = player2;
-                    logger.debug("  -> 候補マッチ更新: userId={}, レート差={}", player2.getUserId(), ratingDiff);
+                    // logger.debug("  -> 候補マッチ更新: userId={}, レート差={}", player2.getUserId(), ratingDiff);
                 }
             }
 
             // マッチング成立
             if (bestMatch != null) {
-                logger.info("マッチング成立確定: user1={} (rating={}), user2={} (rating={}), レート差={}",
-                        player1.getUserId(), player1.getRating(), bestMatch.getUserId(), bestMatch.getRating(), minDiff);
+                // logger.info("マッチング成立確定: user1={} (rating={}), user2={} (rating={}), レート差={}",
+                //         player1.getUserId(), player1.getRating(), bestMatch.getUserId(), bestMatch.getRating(), minDiff);
 
                 // キューから削除
                 queueService.removeFromQueue(player1.getUserId());
@@ -174,7 +174,7 @@ public class MatchingService {
             }
         }
 
-        logger.debug("マッチング不成立（条件を満たす相手なし）: language={}", language);
+        // logger.debug("マッチング不成立（条件を満たす相手なし）: language={}", language);
         return null; // マッチング不成立
     }
 

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/artist_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../widgets/genre_selection_dialog.dart';
 import '../widgets/artist_selection_dialog.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
 
 /// ホーム画面（プレースホルダー）
 class HomeScreen extends StatefulWidget {
@@ -63,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!isCompleted && mounted) {
         _showedArtistDialog = true;
-        _showArtistSelectionDialog();
+        _showGenreSelectionDialog();
       }
     } catch (e) {
       // エラーが発生してもダイアログは表示しない
@@ -71,12 +73,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// ジャンル選択ダイアログを表示
+  Future<void> _showGenreSelectionDialog() async {
+    final selectedGenres = await showDialog<List<String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const GenreSelectionDialog(),
+    );
+
+    if (!mounted) return;
+
+    // ジャンル選択後、アーティスト選択ダイアログを表示
+    _showArtistSelectionDialog(selectedGenres);
+  }
+
   /// アーティスト選択ダイアログを表示
-  Future<void> _showArtistSelectionDialog() async {
+  Future<void> _showArtistSelectionDialog(List<String>? selectedGenres) async {
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const ArtistSelectionDialog(),
+      builder: (context) => ArtistSelectionDialog(selectedGenres: selectedGenres),
     );
 
     if (result == true && mounted) {
@@ -133,6 +149,22 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('MelodyConnect'),
         centerTitle: true,
         actions: [
+          // ========================================
+          // 設定ボタン → SettingsScreenに遷移
+          // ========================================
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: '設定',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+          // ========================================
+          // ログアウトボタン
+          // ========================================
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'ログアウト',

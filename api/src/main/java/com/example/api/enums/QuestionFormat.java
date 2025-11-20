@@ -25,6 +25,11 @@ public enum QuestionFormat {
     }
 
     public static QuestionFormat fromValue(String value) {
+        // Gemini APIが "fill_in_blank" を返す場合に対応
+        if ("fill_in_blank".equalsIgnoreCase(value)) {
+            return FILL_IN_THE_BLANK;
+        }
+
         for (QuestionFormat format : QuestionFormat.values()) {
             if (format.value.equalsIgnoreCase(value)) {
                 return format;

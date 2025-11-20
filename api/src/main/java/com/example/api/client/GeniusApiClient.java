@@ -21,4 +21,13 @@ public interface GeniusApiClient {
      * @return 歌詞テキスト
      */
     String getLyricsByUrl(String songUrl);
+
+    /**
+     * 曲を検索してGenius Song IDを取得
+     *
+     * @param songTitle 曲名
+     * @param artistName アーティスト名
+     * @return Genius Song ID（見つからない場合はnull）
+     */
+    Long searchSong(String songTitle, String artistName);
 }

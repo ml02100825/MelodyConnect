@@ -5,7 +5,9 @@ import '../services/token_storage_service.dart';
 
 /// お気に入りアーティスト選択ダイアログ
 class ArtistSelectionDialog extends StatefulWidget {
-  const ArtistSelectionDialog({Key? key}) : super(key: key);
+  final List<String>? selectedGenres;
+
+  const ArtistSelectionDialog({Key? key, this.selectedGenres}) : super(key: key);
 
   @override
   State<ArtistSelectionDialog> createState() => _ArtistSelectionDialogState();
@@ -22,6 +24,20 @@ class _ArtistSelectionDialogState extends State<ArtistSelectionDialog> {
   bool _isSubmitting = false;
   Timer? _debounceTimer;
 
+  String? _currentGenre;
+  List<String> _genres = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _genres = widget.selectedGenres ?? [];
+    if (_genres.isNotEmpty) {
+      _currentGenre = _genres.first;
+      // 初期ジャンルでアーティストを検索
+      _searchArtistsByGenre(_currentGenre!);
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -35,6 +51,8 @@ class _ArtistSelectionDialogState extends State<ArtistSelectionDialog> {
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       if (query.isNotEmpty) {
         _searchArtists(query);
+      } else if (_currentGenre != null) {
+        _searchArtistsByGenre(_currentGenre!);
       } else {
         setState(() {
           _searchResults = [];
@@ -55,7 +73,45 @@ class _ArtistSelectionDialogState extends State<ArtistSelectionDialog> {
         throw Exception('認証が必要です');
       }
 
-      final results = await _artistApiService.searchArtists(query, accessToken);
+      // ジャンルが選択されている場合はジャンル付きで検索
+      String searchQuery = query;
+      if (_currentGenre != null && _currentGenre!.isNotEmpty) {
+        searchQuery = '$query genre:$_currentGenre';
+      }
+
+      final results = await _artistApiService.searchArtists(searchQuery, accessToken);
+      setState(() {
+        _searchResults = results;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('検索に失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isSearching = false;
+      });
+    }
+  }
+
+  /// ジャンルでアーティストを検索
+  Future<void> _searchArtistsByGenre(String genre) async {
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken == null) {
+        throw Exception('認証が必要です');
+      }
+
+      final results = await _artistApiService.searchArtists('genre:$genre', accessToken);
       setState(() {
         _searchResults = results;
       });
@@ -84,6 +140,15 @@ class _ArtistSelectionDialogState extends State<ArtistSelectionDialog> {
         _selectedArtists.add(artist);
       }
     });
+  }
+
+  /// ジャンルを切り替え
+  void _selectGenre(String genre) {
+    setState(() {
+      _currentGenre = genre;
+      _searchController.clear();
+    });
+    _searchArtistsByGenre(genre);
   }
 
   /// 選択を確定
@@ -133,8 +198,8 @@ class _ArtistSelectionDialogState extends State<ArtistSelectionDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       child: Container(
-        width: 500,
-        height: 600,
+        width: 600,
+        height: 700,
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -157,11 +222,40 @@ class _ArtistSelectionDialogState extends State<ArtistSelectionDialog> {
             ),
             const SizedBox(height: 16),
 
+            // ジャンルタブ（選択されている場合）
+            if (_genres.isNotEmpty) ...[
+              SizedBox(
+                height: 40,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _genres.length,
+                  itemBuilder: (context, index) {
+                    final genre = _genres[index];
+                    final isSelected = genre == _currentGenre;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(_getGenreDisplayName(genre)),
+                        selected: isSelected,
+                        onSelected: (_) => _selectGenre(genre),
+                        selectedColor: Colors.blue.withOpacity(0.3),
+                        checkmarkColor: Colors.blue,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // 検索ボックス
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'アーティスト名を入力',
+                hintText: _currentGenre != null
+                    ? '${_getGenreDisplayName(_currentGenre!)}のアーティストを検索'
+                    : 'アーティスト名を入力',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -183,72 +277,96 @@ class _ArtistSelectionDialogState extends State<ArtistSelectionDialog> {
 
             // 選択済みアーティスト
             if (_selectedArtists.isNotEmpty) ...[
-              const Text(
-                '選択中:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                children: [
+                  const Text(
+                    '選択中:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_selectedArtists.length}アーティスト',
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _selectedArtists.map((artist) {
-                  return Chip(
-                    label: Text(artist.name),
-                    deleteIcon: const Icon(Icons.close, size: 18),
-                    onDeleted: () => _toggleArtist(artist),
-                  );
-                }).toList(),
+              SizedBox(
+                height: 40,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _selectedArtists.length,
+                  itemBuilder: (context, index) {
+                    final artist = _selectedArtists[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Chip(
+                        label: Text(artist.name),
+                        deleteIcon: const Icon(Icons.close, size: 18),
+                        onDeleted: () => _toggleArtist(artist),
+                      ),
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 16),
             ],
 
             // 検索結果
             Expanded(
-              child: _searchResults.isEmpty
-                  ? const Center(
+              child: _searchResults.isEmpty && !_isSearching
+                  ? Center(
                       child: Text(
-                        'アーティストを検索してください',
-                        style: TextStyle(color: Colors.grey),
+                        _genres.isEmpty
+                            ? 'アーティストを検索してください'
+                            : '上のジャンルタブを選択するか、検索してください',
+                        style: const TextStyle(color: Colors.grey),
+                        textAlign: TextAlign.center,
                       ),
                     )
-                  : ListView.builder(
-                      itemCount: _searchResults.length,
-                      itemBuilder: (context, index) {
-                        final artist = _searchResults[index];
-                        final isSelected = _selectedArtists
-                            .any((a) => a.spotifyId == artist.spotifyId);
+                  : _isSearching && _searchResults.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView.builder(
+                          itemCount: _searchResults.length,
+                          itemBuilder: (context, index) {
+                            final artist = _searchResults[index];
+                            final isSelected = _selectedArtists
+                                .any((a) => a.spotifyId == artist.spotifyId);
 
-                        return ListTile(
-                          leading: artist.imageUrl != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Image.network(
-                                    artist.imageUrl!,
-                                    width: 48,
-                                    height: 48,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        const Icon(Icons.person, size: 48),
-                                  ),
-                                )
-                              : const Icon(Icons.person, size: 48),
-                          title: Text(artist.name),
-                          subtitle: artist.genres.isNotEmpty
-                              ? Text(
-                                  artist.genres.take(2).join(', '),
-                                  style: const TextStyle(fontSize: 12),
-                                )
-                              : null,
-                          trailing: isSelected
-                              ? const Icon(Icons.check_circle,
-                                  color: Colors.green)
-                              : const Icon(Icons.add_circle_outline),
-                          onTap: () => _toggleArtist(artist),
-                        );
-                      },
-                    ),
+                            return ListTile(
+                              leading: artist.imageUrl != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: Image.network(
+                                        artist.imageUrl!,
+                                        width: 48,
+                                        height: 48,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            const Icon(Icons.person, size: 48),
+                                      ),
+                                    )
+                                  : const Icon(Icons.person, size: 48),
+                              title: Text(artist.name),
+                              subtitle: artist.genres.isNotEmpty
+                                  ? Text(
+                                      artist.genres.take(2).join(', '),
+                                      style: const TextStyle(fontSize: 12),
+                                    )
+                                  : null,
+                              trailing: isSelected
+                                  ? const Icon(Icons.check_circle,
+                                      color: Colors.green)
+                                  : const Icon(Icons.add_circle_outline),
+                              onTap: () => _toggleArtist(artist),
+                            );
+                          },
+                        ),
             ),
 
             // ボタン
@@ -282,5 +400,33 @@ class _ArtistSelectionDialogState extends State<ArtistSelectionDialog> {
         ),
       ),
     );
+  }
+
+  /// ジャンル名を表示名に変換
+  String _getGenreDisplayName(String genre) {
+    switch (genre) {
+      case 'pop':
+        return 'Pop';
+      case 'rock':
+        return 'Rock';
+      case 'hip-hop':
+        return 'Hip Hop';
+      case 'r-n-b':
+        return 'R&B';
+      case 'k-pop':
+        return 'K-Pop';
+      case 'j-pop':
+        return 'J-Pop';
+      case 'latin':
+        return 'Latin';
+      case 'electronic':
+        return 'Electronic';
+      case 'country':
+        return 'Country';
+      case 'jazz':
+        return 'Jazz';
+      default:
+        return genre;
+    }
   }
 }

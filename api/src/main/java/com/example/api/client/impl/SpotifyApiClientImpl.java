@@ -1,5 +1,6 @@
 package com.example.api.client.impl;
 
+import com.example.api.client.GeniusApiClient;
 import com.example.api.client.SpotifyApiClient;
 import com.example.api.dto.SpotifyArtistDto;
 import com.example.api.entity.Song;
@@ -45,6 +46,14 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
     private String accessToken;
     private Instant tokenExpiry;
+
+    // GeniusApiClientを遅延注入（循環依存を回避）
+    private GeniusApiClient geniusApiClient;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setGeniusApiClient(GeniusApiClient geniusApiClient) {
+        this.geniusApiClient = geniusApiClient;
+    }
 
     public SpotifyApiClientImpl(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -103,6 +112,51 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         // 現時点ではランダム検索にフォールバック
         logger.info("アーティストID {} から楽曲を検索", artistId);
         return getRandomSong();
+    }
+
+    @Override
+    public Song getRandomSongBySpotifyArtistId(String spotifyArtistId) {
+        if (spotifyArtistId == null || spotifyArtistId.isEmpty()) {
+            logger.warn("SpotifyアーティストIDが指定されていません");
+            return getRandomSong();
+        }
+
+        String token = getAccessToken();
+        if (token == null) {
+            logger.warn("トークンが取得できないためモックデータを返します");
+            return createMockSong("pop");
+        }
+
+        try {
+            // アーティストのトップトラックを取得
+            String response = apiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/artists/" + spotifyArtistId + "/top-tracks")
+                    .queryParam("market", "JP")
+                    .build())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode tracks = jsonNode.path("tracks");
+
+            if (tracks.isArray() && tracks.size() > 0) {
+                // ランダムにトラックを選択
+                int randomIndex = random.nextInt(tracks.size());
+                Song song = parseTrackToSong(tracks.get(randomIndex));
+                logger.info("アーティスト {} の楽曲を取得: {}", spotifyArtistId, song.getSongname());
+                return song;
+            }
+
+            logger.warn("アーティスト {} のトップトラックが見つかりませんでした", spotifyArtistId);
+            return getRandomSong();
+
+        } catch (Exception e) {
+            logger.error("アーティスト {} の楽曲検索に失敗しました", spotifyArtistId, e);
+            return getRandomSong();
+        }
     }
 
     @Override
@@ -367,20 +421,42 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     private Song parseTrackToSong(JsonNode trackNode) {
         Song song = new Song();
 
-        song.setSongname(trackNode.path("name").asText());
+        String songName = trackNode.path("name").asText();
+        song.setSongname(songName);
         song.setSpotify_track_id(trackNode.path("id").asText());
 
         // アーティスト情報
+        String artistName = null;
+        String artistApiId = null;
         JsonNode artists = trackNode.path("artists");
         if (artists.isArray() && artists.size() > 0) {
-            String artistName = artists.get(0).path("name").asText();
-            // Note: アーティストIDは別途マッピングが必要
+            artistName = artists.get(0).path("name").asText();
+            artistApiId = artists.get(0).path("id").asText();
+            // アーティスト情報を一時フィールドに保存
+            song.setTempArtistName(artistName);
+            song.setTempArtistApiId(artistApiId);
+            // Note: artist_idは後で設定される
             song.setAritst_id(0L); // プレースホルダー
         }
 
         // ジャンルはトラックレベルでは取得できないため、デフォルト設定
         song.setGenre("pop");
         song.setLanguage("en");
+
+        // Genius Song IDを取得
+        if (geniusApiClient != null && artistName != null) {
+            try {
+                Long geniusSongId = geniusApiClient.searchSong(songName, artistName);
+                if (geniusSongId != null) {
+                    song.setGenius_song_id(geniusSongId);
+                    logger.info("Genius Song IDを取得: {} - {} -> {}", songName, artistName, geniusSongId);
+                } else {
+                    logger.warn("Genius Song IDが見つかりませんでした: {} - {}", songName, artistName);
+                }
+            } catch (Exception e) {
+                logger.error("Genius Song ID取得中にエラー: {} - {}", songName, artistName, e);
+            }
+        }
 
         logger.info("Spotify楽曲を取得: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
         return song;
