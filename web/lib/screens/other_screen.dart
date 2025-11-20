@@ -4,16 +4,17 @@ import 'my_profile.dart';
 import 'volume_settings_screen.dart';
 import 'contact_screen.dart';
 import 'language_settings_screen.dart';
+import 'subscription_screen.dart';
+import 'payment_management_screen.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
 
-
 class OtherScreen extends StatefulWidget {
   const OtherScreen({Key? key}) : super(key: key);
 
-	@override
-	State<OtherScreen> createState() => _OtherScreenState();
+  @override
+  State<OtherScreen> createState() => _OtherScreenState();
 }
 
 class _OtherScreenState extends State<OtherScreen> {
@@ -96,7 +97,7 @@ class _OtherScreenState extends State<OtherScreen> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: IconButton(
-              icon: const Icon(Icons.logout),
+              icon: const Icon(Icons.logout, size: 18),
               tooltip: 'ログアウト',
               onPressed: _handleLogout,
             ),
@@ -156,14 +157,24 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.payment,
               label: '支払い情報管理',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PaymentManagementScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.subscriptions,
               label: 'サブスク登録・解約',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
@@ -241,4 +252,3 @@ class _OtherScreenState extends State<OtherScreen> {
     );
   }
 }
-
