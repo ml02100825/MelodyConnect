@@ -49,6 +49,12 @@ public class QuestionGenerationRequest {
     private Integer listeningCount = 10;
 
     /**
+     * ユーザーの学習言語（vocabulary保存用）
+     * 例: "en", "ja", "ko" など
+     */
+    private String targetLanguage;
+
+    /**
      * 生成モード enum
      */
     public enum GenerationMode {

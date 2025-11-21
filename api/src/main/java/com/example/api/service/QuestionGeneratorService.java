@@ -103,7 +103,9 @@ public class QuestionGeneratorService {
                 generatedQuestions.add(convertToDto(savedQuestion));
 
                 // 虫食い問題の場合は、全ての空欄単語の情報を保存
-                saveVocabulary(q.getBlankWord());
+                // ユーザーの学習言語を設定（指定されていない場合は"en"）
+                String targetLang = request.getTargetLanguage() != null ? request.getTargetLanguage() : "en";
+                saveVocabulary(q.getBlankWord(), targetLang);
             }
 
             // リスニング問題を保存
@@ -339,8 +341,11 @@ public class QuestionGeneratorService {
     /**
      * 単語情報を保存
      * Wordnik APIキーが設定されていない場合はスキップ
+     *
+     * @param word 単語
+     * @param language ユーザーの学習言語（例: "en", "ja", "ko"）
      */
-    private void saveVocabulary(String word) {
+    private void saveVocabulary(String word, String language) {
         // すでに存在する場合はスキップ
         if (vocabularyRepository.existsByWord(word)) {
             logger.debug("単語は既に存在します: word={}", word);
@@ -364,10 +369,11 @@ public class QuestionGeneratorService {
                 .example_sentence(wordInfo.getExampleSentence())
                 .example_translate(wordInfo.getExampleTranslate())
                 .audio_url(wordInfo.getAudioUrl())
+                .language(language)  // ユーザーの学習言語を設定
                 .build();
 
             vocabularyRepository.save(vocab);
-            logger.debug("単語情報を保存しました: word={}", word);
+            logger.debug("単語情報を保存しました: word={}, language={}", word, language);
 
         } catch (Exception e) {
             logger.warn("単語情報の保存に失敗しました: word={}, error={}", word, e.getMessage());

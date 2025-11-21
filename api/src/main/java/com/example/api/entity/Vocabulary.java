@@ -40,6 +40,9 @@ public class Vocabulary {
     @Column(name = "audio_url", length = 500)
     private String audio_url;
 
+    @Column(name = "language", length = 10)
+    private String language;
+
     @Column(name = "created_at")
     private LocalDateTime created_at;
 
