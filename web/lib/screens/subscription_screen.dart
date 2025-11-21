@@ -206,7 +206,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     elevation: 2,
                   ),
                   child: Text(
-                    _hasPaymentMethod ? '¥500/月で登録する' : '支払い方法を登録して購入',
+                    _hasPaymentMethod ? '¥500/月で登録する' : '支払い方法を登録して購読',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -305,7 +305,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
             ),
           ),
-          const Icon(Icons.check_circle, color: Colors.green, size: 24),
+          const Icon(Icons.check_circle, color: Colors.blue, size: 24),
         ],
       ),
     );
