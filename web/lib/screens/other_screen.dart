@@ -3,6 +3,9 @@ import '../bottom_nav.dart';
 import 'volume_settings_screen.dart';
 import 'contact_screen.dart';
 import 'language_settings_screen.dart';
+import 'privacy_settings_screen.dart';
+import 'purchase_screen.dart';
+import 'payment_management_screen.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
@@ -202,21 +205,36 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.lock,
               label: 'プライバシー設定',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.payment,
               label: '支払い情報管理',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PaymentManagementScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.subscriptions,
               label: 'サブスク登録・解約',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PurchaseScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
