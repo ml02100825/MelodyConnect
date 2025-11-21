@@ -211,6 +211,7 @@ public class QuestionGeneratorService {
      */
     private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
         Artist artist = null;
+        Song savedSong = song;
 
         // Songがまだ保存されていない場合は先に保存
         if (song.getSong_id() == null) {
@@ -244,8 +245,8 @@ public class QuestionGeneratorService {
             }
 
             logger.debug("Songを保存します: songName={}", song.getSongname());
-            song = songRepository.save(song);
-            logger.debug("Song保存完了: songId={}", song.getSong_id());
+            savedSong = songRepository.save(song);
+            logger.debug("Song保存完了: songId={}", savedSong.getSong_id());
         } else {
             // Songが既に保存されている場合はArtistを取得
             artist = artistRepository.findById(song.getAritst_id().intValue())
@@ -253,13 +254,13 @@ public class QuestionGeneratorService {
         }
 
         Question newQuestion = new Question();
-        newQuestion.setSong(song);
+        newQuestion.setSong(savedSong);
         newQuestion.setArtist(artist);
         newQuestion.setText(claudeQuestion.getSentence());
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
         newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
-        newQuestion.setLanguage(song.getLanguage());
+        newQuestion.setLanguage(savedSong.getLanguage());
         newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
         newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
         // is_active and is_deleted are set by @PrePersist with default values
