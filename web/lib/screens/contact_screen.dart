@@ -46,11 +46,6 @@ class _ContactScreenState extends State<ContactScreen> {
     });
   }
 
-  void _saveDraft() {
-    // スタブ: 永続化は未実装
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('下書きを保存しました')));
-  }
-
   void _send() {
     // 簡易バリデーション
     if (_titleController.text.trim().isEmpty || _bodyController.text.trim().isEmpty) {
@@ -215,12 +210,6 @@ class _ContactScreenState extends State<ContactScreen> {
                       ),
                       child: const Text('送信', style: TextStyle(fontSize: 16, color: Colors.white)),
                     ),
-                  ),
-
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: _saveDraft,
-                    child: const Text('下書き保存', style: TextStyle(color: Colors.blueAccent)),
                   ),
 
                   const SizedBox(height: 8),
