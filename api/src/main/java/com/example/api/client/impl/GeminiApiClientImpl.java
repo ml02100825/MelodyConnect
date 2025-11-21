@@ -271,6 +271,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
             .sentence(node.path("sentence").asText())
             .blankWord(node.path("blankWord").asText())
             .difficulty(node.path("difficulty").asInt(3))
+            .skillFocus(node.path("skillFocus").asText(null))
             .explanation(node.path("explanation").asText())
             .translationJa(node.path("translationJa").asText())
             .audioUrl(node.path("audioUrl").asText(null))

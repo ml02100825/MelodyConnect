@@ -50,6 +50,11 @@ public class ClaudeQuestionResponse {
         private Integer difficulty;
 
         /**
+         * 学習焦点（vocabulary, grammar, collocation, idiom等）
+         */
+        private String skillFocus;
+
+        /**
          * 説明
          */
         private String explanation;

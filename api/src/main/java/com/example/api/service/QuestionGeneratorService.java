@@ -261,6 +261,7 @@ public class QuestionGeneratorService {
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
         newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
+        newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
         newQuestion.setLanguage(savedSong.getLanguage());
         newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
         newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
