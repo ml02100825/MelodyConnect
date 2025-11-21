@@ -82,64 +82,78 @@ public class GeminiApiClientImpl implements GeminiApiClient {
         return String.format("""
             You are an expert language learning content creator. Generate high-quality %s learning questions from the following song lyrics.
 
-            **CRITICAL: The lyrics must be in proper %s language (NOT romanized text). Use the actual lyrics as they are.**
+**CRITICAL: The lyrics must be in proper %s language (NOT romanized text). Use the actual lyrics as they are.**
 
-            **LYRICS:**
-            %s
+**LYRICS:**
+%s
 
-            **REQUIREMENTS:**
+**REQUIREMENTS:**
 
-            1. Generate %d fill-in-the-blank questions:
-               - Select meaningful words (verbs, nouns, adjectives, adverbs) that are pedagogically valuable
-               - Avoid articles (a, an, the) and simple pronouns
-               - Ensure each blank tests different language skills (vocabulary, grammar, collocations)
-               - Vary difficulty levels from 1 (beginner) to 5 (advanced)
-               - Consider word frequency and complexity for difficulty assignment
-               - Provide Japanese translation (translationJa) for each sentence
+1. Generate %d fill-in-the-blank questions:
+   - Select meaningful content words (verbs, nouns, adjectives, adverbs) that are pedagogically valuable
+   - Avoid articles (a, an, the) and simple pronouns (I, you, he, she, etc.) as blanks
+   - Avoid proper nouns (names, places, brands, titles) as blanks unless they are clearly important for learning
+   - Avoid interjections or fillers such as “oh”, “yeah”, “la la”, etc. as blanks
+   - Each question must have EXACTLY ONE blank (“_____”) in the sentence
+   - The blank must replace exactly one word or short phrase that appears in the original lyrics
+   - Ensure each blank tests different language skills (vocabulary, grammar, collocations, idioms, nuances, etc.)
+   - Vary difficulty levels from 1 (beginner) to 5 (advanced)
+   - Consider word frequency and complexity for difficulty assignment
+   - Provide a natural Japanese translation (translationJa) for each sentence (including the blank position)
+   - For each question, set a "skillFocus" field with a short English label describing the main focus (e.g., "vocabulary", "grammar", "collocation", "idiom")
+   - Keep each "explanation" field to 1–2 concise sentences in English.
 
-            2. Generate %d listening comprehension questions:
-               - Choose complete, meaningful sentences from the lyrics
-               - Select sentences with clear grammatical structures
-               - Include sentences with idioms, phrasal verbs, or interesting expressions when possible
-               - Vary difficulty based on sentence complexity, length, and vocabulary
-               - Provide Japanese translation (translationJa) for each sentence
+2. Generate %d listening dictation questions:
+   - Each listening item is ONE complete, meaningful sentence from the lyrics
+   - The learner will HEAR this sentence and must type the ENTIRE sentence exactly as in the lyrics (dictation)
+   - Choose sentences with clear grammatical structures and natural rhythm
+   - Include sentences with idioms, phrasal verbs, or interesting expressions when possible
+   - Avoid using only interjections or meaningless fragments as listening sentences
+   - Vary difficulty based on sentence complexity, length, vocabulary, and presence of idioms/expressions
+   - Provide a natural Japanese translation (translationJa) for each sentence
+   - For each question, set a "skillFocus" field with a short English label describing the main focus (e.g., "listening-dictation", "idiom", "long-sentence")
+   - Keep each "explanation" field to 1–2 concise sentences in English.
 
-            **DIFFICULTY LEVEL GUIDELINES:**
-            - Level 1: Common words (top 1000), simple grammar
-            - Level 2: Intermediate words (top 3000), basic tenses
-            - Level 3: Advanced vocabulary, complex tenses
-            - Level 4: Idioms, phrasal verbs, nuanced meanings
-            - Level 5: Literary expressions, rare vocabulary, complex structures
+**DIFFICULTY LEVEL GUIDELINES:**
+- Level 1: Very common words (top 1000), simple grammar, short and clear sentences
+- Level 2: Intermediate words (top 3000), basic tenses and slightly longer sentences
+- Level 3: More advanced vocabulary, complex tenses, and/or longer sentences
+- Level 4: Idioms, phrasal verbs, nuanced meanings, or tricky word order
+- Level 5: Literary expressions, rare vocabulary, complex or layered structures
 
-            **OUTPUT FORMAT (JSON):**
-            {
-              "fillInBlank": [
-                {
-                  "sentence": "The sentence with _____ replacing the word (in %s)",
-                  "blankWord": "the word that was removed",
-                  "difficulty": 1-5,
-                  "explanation": "Brief explanation in English of why this word/grammar point is important",
-                  "translationJa": "問題文の日本語訳（空欄を含む）"
-                }
-              ],
-              "listening": [
-                {
-                  "sentence": "The complete sentence from lyrics (in %s)",
-                  "blankWord": "key word or phrase to focus on",
-                  "difficulty": 1-5,
-                  "explanation": "What makes this sentence valuable for listening practice",
-                  "translationJa": "文章の日本語訳"
-                }
-              ]
-            }
+**OUTPUT FORMAT (JSON):**
+{
+  "fillInBlank": [
+    {
+      "sentence": "The sentence with _____ replacing ONE word or short phrase (in %s)",
+      "blankWord": "the single word or short phrase that was removed",
+      "difficulty": 1-5,
+      "skillFocus": "short English label such as 'vocabulary', 'grammar', 'collocation', or 'idiom'",
+      "explanation": "Brief explanation in English of why this word/grammar point is important (1–2 sentences).",
+      "translationJa": "問題文の日本語訳（空欄を含む、自然な日本語）"
+    }
+  ],
+  "listening": [
+    {
+      "sentence": "The complete sentence from lyrics (in %s) used for dictation",
+      "blankWord": "key word or phrase to pay special attention to when listening",
+      "difficulty": 1-5,
+      "skillFocus": "short English label such as 'listening-dictation', 'idiom', or 'long-sentence'",
+      "explanation": "What makes this sentence valuable for listening/dictation practice (1–2 sentences).",
+      "translationJa": "文章の日本語訳（自然な日本語）"
+    }
+  ]
+}
 
-            **IMPORTANT:**
-            - Return ONLY valid JSON, no additional text or markdown formatting
-            - Do not wrap the JSON in code blocks
-            - Ensure all questions are directly from the provided lyrics IN %s (not romanized)
-            - Each question should be unique and test different language aspects
-            - Provide clear, pedagogically sound explanations
-            - ALL translationJa fields MUST be in Japanese (日本語)
+**IMPORTANT:**
+- Return ONLY valid JSON, no additional text or markdown formatting
+- Do not wrap the JSON in code blocks
+- Ensure all sentences and words come directly from the provided lyrics IN %s (not romanized). Do NOT invent, paraphrase, or modify lyrics.
+- If the lyrics do not contain enough suitable words/sentences to reach the requested numbers, generate as many high-quality questions as possible WITHOUT inventing any new lyrics or lines.
+- Each question should be unique and test different language aspects
+- Provide clear, pedagogically sound explanations
+- ALL translationJa fields MUST be in Japanese (日本語)
+- Use double quotes for all JSON string values and do NOT include any trailing commas
             """, languageName, languageName, lyrics, fillInBlankCount, listeningCount,
                 languageName, languageName, languageName.toUpperCase());
     }
