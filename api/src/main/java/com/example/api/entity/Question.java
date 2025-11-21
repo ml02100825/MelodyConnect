@@ -42,16 +42,22 @@ public class Question {
     private Artist artist;
 
     /**
-     * 問題文
+     * 問題文（穴埋めの場合は空欄「_____」を含む）
      */
     @Column(name = "text", length = 100, nullable = false)
     private String text;
 
     /**
-     * 答え
+     * 答え（空欄に入る単語）
      */
     @Column(name = "answer", length = 100, nullable = false)
     private String answer;
+
+    /**
+     * 完全な文（穴埋め問題の場合、空欄が埋まった状態の文）
+     */
+    @Column(name = "complete_sentence", length = 200)
+    private String completeSentence;
 
     /**
      * 追加日時

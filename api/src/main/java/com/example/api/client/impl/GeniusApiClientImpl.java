@@ -145,6 +145,9 @@ public class GeniusApiClientImpl implements GeniusApiClient {
 
             String result = bestSection.lyrics.trim();
 
+            // セクションマーカー（[Intro], [Verse 1], [Chorus]等）を削除
+            result = removeSectionMarkers(result);
+
             // ローマ字のみの歌詞かチェック
             if (isAllRomanized(result)) {
                 logger.warn("取得した歌詞がローマ字版のみです。オリジナル言語の歌詞が見つかりませんでした: {}", songUrl);
@@ -372,6 +375,34 @@ public class GeniusApiClientImpl implements GeniusApiClient {
         }
 
         return false;
+    }
+
+    /**
+     * セクションマーカーを削除
+     * [Intro], [Verse 1], [Chorus], [Bridge], [Outro]などを削除
+     */
+    private String removeSectionMarkers(String lyrics) {
+        if (lyrics == null || lyrics.isEmpty()) {
+            return lyrics;
+        }
+
+        // [...]形式のセクションマーカーを削除
+        // 例: [Intro], [Verse 1], [Chorus], [Bridge], [Outro], [Pre-Chorus], [Hook]など
+        String cleaned = lyrics.replaceAll("(?m)^\\s*\\[.*?\\]\\s*$", "");
+
+        // インライン（行の途中）の[...]も削除
+        cleaned = cleaned.replaceAll("\\[.*?\\]", "");
+
+        // 連続する空行を1つにまとめる
+        cleaned = cleaned.replaceAll("(?m)^\\s*$\\n", "\n");
+
+        // 先頭と末尾の空行を削除
+        cleaned = cleaned.trim();
+
+        logger.debug("セクションマーカーを削除: 元の長さ={}, 削除後の長さ={}",
+            lyrics.length(), cleaned.length());
+
+        return cleaned;
     }
 
     /**

@@ -308,9 +308,42 @@ public class QuestionGeneratorService {
         newQuestion.setLanguage(savedSong.getLanguage());
         newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
         newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+
+        // 穴埋め問題の場合、完全な文（空欄が埋まった状態）を構築して保存
+        if ("fill_in_blank".equals(questionFormat)) {
+            String completeSentence = buildCompleteSentence(
+                claudeQuestion.getSentence(),
+                claudeQuestion.getBlankWord()
+            );
+            newQuestion.setCompleteSentence(completeSentence);
+            logger.debug("完全な文を構築: \"{}\"", completeSentence);
+        }
+
         // is_active and is_deleted are set by @PrePersist with default values
 
         return questionRepository.save(newQuestion);
+    }
+
+    /**
+     * 完全な文を構築
+     * 穴埋め問題の空欄「_____」を答えの単語で置き換える
+     *
+     * @param sentence 問題文（空欄を含む）
+     * @param blankWord 空欄に入る単語
+     * @return 完全な文
+     */
+    private String buildCompleteSentence(String sentence, String blankWord) {
+        if (sentence == null || blankWord == null) {
+            return sentence;
+        }
+
+        // 「_____」を答えの単語で置き換え
+        String completeSentence = sentence.replace("_____", blankWord);
+
+        // 念のため「___」（5文字未満のアンダースコア）も置き換え
+        completeSentence = completeSentence.replaceAll("_{3,}", blankWord);
+
+        return completeSentence;
     }
 
     /**
