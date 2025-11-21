@@ -1,6 +1,7 @@
 package com.example.api.client.impl;
 
 import com.example.api.client.GeniusApiClient;
+import com.example.api.util.LanguageDetectionUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
@@ -244,28 +245,18 @@ public class GeniusApiClientImpl implements GeniusApiClient {
     /**
      * 歌詞全体がローマ字版のみかどうかを判定
      * オリジナル言語の文字（ハングル、日本語等）がほとんど含まれていない場合trueを返す
+     *
+     * LanguageDetectionUtilsを使用して判定を行う
      */
     private boolean isAllRomanized(String lyrics) {
         if (lyrics == null || lyrics.trim().isEmpty()) {
             return true;
         }
 
-        // ハングル文字の割合をチェック
-        long hangulCount = lyrics.chars()
-            .filter(c -> c >= 0xAC00 && c <= 0xD7AF)
-            .count();
-
-        // 日本語文字の割合をチェック（ひらがな、カタカナ、漢字）
-        long japaneseCount = lyrics.chars()
-            .filter(c -> (c >= 0x3040 && c <= 0x309F) ||  // ひらがな
-                         (c >= 0x30A0 && c <= 0x30FF) ||  // カタカナ
-                         (c >= 0x4E00 && c <= 0x9FAF))    // 漢字
-            .count();
-
-        // 全文字数（空白を除く）
-        long totalChars = lyrics.chars()
-            .filter(c -> !Character.isWhitespace(c))
-            .count();
+        // LanguageDetectionUtilsを使用して文字数をカウント
+        long hangulCount = LanguageDetectionUtils.countHangulCharacters(lyrics);
+        long japaneseCount = LanguageDetectionUtils.countJapaneseCharacters(lyrics);
+        long totalChars = LanguageDetectionUtils.countNonWhitespaceCharacters(lyrics);
 
         if (totalChars == 0) {
             return true;
@@ -287,6 +278,8 @@ public class GeniusApiClientImpl implements GeniusApiClient {
      * 歌詞から言語を検出
      * 歌詞の文字種から言語を判定する
      *
+     * LanguageDetectionUtilsを使用して判定を行う
+     *
      * @param lyrics 歌詞テキスト
      * @return 検出された言語コード（ja, ko, en等）、判定できない場合はnull
      */
@@ -295,51 +288,14 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             return null;
         }
 
-        // ハングル文字の数をカウント
-        long hangulCount = lyrics.chars()
-            .filter(c -> c >= 0xAC00 && c <= 0xD7AF)
-            .count();
+        // LanguageDetectionUtilsを使用して言語を検出
+        com.example.api.enums.LanguageCode detected = LanguageDetectionUtils.detectFromCharacters(lyrics);
 
-        // 日本語文字の数をカウント（ひらがな、カタカナ、漢字）
-        long japaneseCount = lyrics.chars()
-            .filter(c -> (c >= 0x3040 && c <= 0x309F) ||  // ひらがな
-                         (c >= 0x30A0 && c <= 0x30FF) ||  // カタカナ
-                         (c >= 0x4E00 && c <= 0x9FAF))    // 漢字
-            .count();
-
-        // 全文字数（空白を除く）
-        long totalChars = lyrics.chars()
-            .filter(c -> !Character.isWhitespace(c))
-            .count();
-
-        if (totalChars == 0) {
-            return null;
+        if (detected != null && detected.isValid()) {
+            logger.debug("言語検出: {}", detected.getDisplayName());
+            return detected.getCode();
         }
 
-        // ハングルが5%以上含まれていれば韓国語
-        double hangulRatio = (double)hangulCount / totalChars;
-        if (hangulRatio >= 0.05) {
-            logger.debug("言語検出: 韓国語 (ハングル {}/{} = {:.2f}%)",
-                hangulCount, totalChars, hangulRatio * 100);
-            return "ko";
-        }
-
-        // 日本語文字が5%以上含まれていれば日本語
-        double japaneseRatio = (double)japaneseCount / totalChars;
-        if (japaneseRatio >= 0.05) {
-            logger.debug("言語検出: 日本語 (日本語文字 {}/{} = {:.2f}%)",
-                japaneseCount, totalChars, japaneseRatio * 100);
-            return "ja";
-        }
-
-        // 英語の一般的な単語が含まれていれば英語
-        String lowerText = lyrics.toLowerCase();
-        if (lowerText.matches(".*\\b(the|and|you|me|my|your|love|like|that|this|was|were|are|have|has)\\b.*")) {
-            logger.debug("言語検出: 英語（一般的な英単語を検出）");
-            return "en";
-        }
-
-        // 判定できない場合はnull
         logger.debug("言語検出: 判定不可");
         return null;
     }
@@ -348,6 +304,17 @@ public class GeniusApiClientImpl implements GeniusApiClient {
     public String searchAndGetLyrics(String songTitle, String artistName) {
         LyricsResult result = searchAndGetLyricsWithMetadata(songTitle, artistName);
         return result != null ? result.getLyrics() : null;
+    }
+
+    @Override
+    public String detectLanguageFromLyrics(String lyrics) {
+        if (lyrics == null || lyrics.trim().isEmpty()) {
+            return null;
+        }
+
+        String detectedLang = detectLanguage(lyrics);
+        logger.debug("歌詞から言語を判定: {}", detectedLang);
+        return detectedLang;
     }
 
     @Override

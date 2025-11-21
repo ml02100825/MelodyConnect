@@ -77,4 +77,13 @@ public interface GeniusApiClient {
      * @return 歌詞とメタデータ（見つからない、またはすべてローマ字版の場合はnull）
      */
     LyricsResult searchAndGetLyricsWithMetadata(String songTitle, String artistName);
+
+    /**
+     * 歌詞から言語を判定
+     * 歌詞に含まれる文字種を分析して言語を判定する
+     *
+     * @param lyrics 歌詞テキスト
+     * @return 判定された言語コード（ja, ko, en等）、判定できない場合はnull
+     */
+    String detectLanguageFromLyrics(String lyrics);
 }

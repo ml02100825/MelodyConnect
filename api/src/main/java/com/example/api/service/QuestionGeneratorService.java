@@ -6,7 +6,9 @@ import com.example.api.client.SpotifyApiClient;
 import com.example.api.client.WordnikApiClient;
 import com.example.api.dto.*;
 import com.example.api.entity.*;
+import com.example.api.enums.LanguageCode;
 import com.example.api.repository.*;
+import com.example.api.util.LanguageDetectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -269,48 +271,19 @@ public class QuestionGeneratorService {
 
     /**
      * 歌詞から言語を簡易検出
-     * GeniusApiClientのdetectLanguageメソッドと同様のロジック
+     * LanguageDetectionUtilsを使用して判定を行う
      */
     private String detectLanguageSimple(String lyrics) {
         if (lyrics == null || lyrics.trim().isEmpty()) {
             return null;
         }
 
-        // ハングル文字の数をカウント
-        long hangulCount = lyrics.chars()
-            .filter(c -> c >= 0xAC00 && c <= 0xD7AF)
-            .count();
+        // LanguageDetectionUtilsを使用して言語を検出
+        LanguageCode detected = LanguageDetectionUtils.detectFromCharacters(lyrics);
 
-        // 日本語文字の数をカウント（ひらがな、カタカナ、漢字）
-        long japaneseCount = lyrics.chars()
-            .filter(c -> (c >= 0x3040 && c <= 0x309F) ||  // ひらがな
-                         (c >= 0x30A0 && c <= 0x30FF) ||  // カタカナ
-                         (c >= 0x4E00 && c <= 0x9FAF))    // 漢字
-            .count();
-
-        // 全文字数（空白を除く）
-        long totalChars = lyrics.chars()
-            .filter(c -> !Character.isWhitespace(c))
-            .count();
-
-        if (totalChars == 0) {
-            return null;
-        }
-
-        // ハングルが5%以上含まれていれば韓国語
-        if ((double)hangulCount / totalChars >= 0.05) {
-            return "ko";
-        }
-
-        // 日本語文字が5%以上含まれていれば日本語
-        if ((double)japaneseCount / totalChars >= 0.05) {
-            return "ja";
-        }
-
-        // 英語の一般的な単語が含まれていれば英語
-        String lowerText = lyrics.toLowerCase();
-        if (lowerText.matches(".*\\b(the|and|you|me|my|your|love|like|that|this|was|were|are|have|has)\\b.*")) {
-            return "en";
+        if (detected != null && detected.isValid()) {
+            logger.debug("言語検出: {}", detected.getDisplayName());
+            return detected.getCode();
         }
 
         return null;
