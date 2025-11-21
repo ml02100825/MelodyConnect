@@ -441,22 +441,12 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
         // ジャンルはトラックレベルでは取得できないため、デフォルト設定
         song.setGenre("pop");
-        song.setLanguage("en");
+        // 言語はSpotify APIから取得できないため、nullに設定（歌詞取得時に判定）
+        song.setLanguage(null);
 
-        // Genius Song IDを取得
-        if (geniusApiClient != null && artistName != null) {
-            try {
-                Long geniusSongId = geniusApiClient.searchSong(songName, artistName);
-                if (geniusSongId != null) {
-                    song.setGenius_song_id(geniusSongId);
-                    logger.info("Genius Song IDを取得: {} - {} -> {}", songName, artistName, geniusSongId);
-                } else {
-                    logger.warn("Genius Song IDが見つかりませんでした: {} - {}", songName, artistName);
-                }
-            } catch (Exception e) {
-                logger.error("Genius Song ID取得中にエラー: {} - {}", songName, artistName, e);
-            }
-        }
+        // Genius Song IDは問題生成時に動的に検索するため、ここでは設定しない
+        // （SpotifyApiClientで事前に検索すると、間違ったIDを設定してしまう可能性があるため）
+        song.setGenius_song_id(null);
 
         logger.info("Spotify楽曲を取得: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
         return song;
@@ -469,9 +459,9 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         Song song = new Song();
         song.setSongname("Mock Song - " + System.currentTimeMillis());
         song.setSpotify_track_id("mock_" + System.currentTimeMillis());
-        song.setGenius_song_id(12345L);
+        song.setGenius_song_id(null);  // 歌詞取得時に設定
         song.setGenre(genre);
-        song.setLanguage("en");
+        song.setLanguage(null);  // 歌詞取得時に判定
         song.setAritst_id(1L);
         return song;
     }

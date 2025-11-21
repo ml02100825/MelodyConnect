@@ -198,12 +198,122 @@ public class QuestionGeneratorService {
 
     /**
      * 歌詞を取得
+     * Geniusで複数候補を試行し、失敗した場合はMusixmatchにフォールバック
+     * 歌詞取得成功時、GeniusSongIdと検出された言語をSongに設定
      */
     private String fetchLyrics(Song song) {
-        if (song.getGenius_song_id() != null) {
-            return geniusApiClient.getLyrics(song.getGenius_song_id());
+        String lyrics = null;
+
+        // 1. Geniusで検索して複数候補を試行（優先度順）
+        if (song.getSongname() != null && song.getTempArtistName() != null) {
+            logger.info("Geniusで楽曲を検索して歌詞を取得します: artist={}, song={}",
+                song.getTempArtistName(), song.getSongname());
+
+            GeniusApiClient.LyricsResult result = geniusApiClient.searchAndGetLyricsWithMetadata(
+                song.getSongname(), song.getTempArtistName());
+
+            if (result != null && result.getLyrics() != null && !result.getLyrics().isEmpty()) {
+                logger.info("Geniusから歌詞を取得しました（複数候補から選択）: geniusSongId={}, language={}",
+                    result.getGeniusSongId(), result.getDetectedLanguage());
+
+                // Genius Song IDと検出された言語をSongに設定
+                song.setGenius_song_id(result.getGeniusSongId());
+                song.setLanguage(result.getDetectedLanguage());
+
+                return result.getLyrics();
+            }
+
+            logger.warn("Geniusの検索で歌詞を取得できませんでした（全候補がローマ字版の可能性）");
         }
-        throw new IllegalStateException("Genius Song IDが設定されていません");
+
+        // 2. 直接Song IDがある場合は試行（検索で失敗した場合のフォールバック）
+        if (song.getGenius_song_id() != null) {
+            logger.debug("Genius Song IDから直接歌詞を取得します: geniusSongId={}", song.getGenius_song_id());
+            lyrics = geniusApiClient.getLyrics(song.getGenius_song_id());
+
+            if (lyrics != null && !lyrics.isEmpty()) {
+                logger.info("Genius Song IDから歌詞を取得しました");
+                // 既にGeniusSongIdは設定されているので、言語のみ検出して設定
+                if (song.getLanguage() == null) {
+                    song.setLanguage(detectLanguageSimple(lyrics));
+                }
+                return lyrics;
+            }
+
+            logger.warn("Genius Song IDから歌詞を取得できませんでした");
+        }
+
+        // 3. Musixmatchにフォールバック
+        if (song.getSongname() != null && song.getTempArtistName() != null) {
+            logger.info("Musixmatchから歌詞を取得します: artist={}, song={}",
+                song.getTempArtistName(), song.getSongname());
+
+            lyrics = musixmatchApiClient.getLyrics(song.getTempArtistName(), song.getSongname());
+
+            if (lyrics != null && !lyrics.isEmpty()) {
+                logger.info("Musixmatchから歌詞を取得しました");
+                // Musixmatchから取得した場合も言語を検出
+                if (song.getLanguage() == null) {
+                    song.setLanguage(detectLanguageSimple(lyrics));
+                }
+                return lyrics;
+            }
+
+            logger.warn("Musixmatchからも歌詞を取得できませんでした");
+        }
+
+        // 4. どちらからも取得できなかった
+        logger.error("どの歌詞APIからも歌詞を取得できませんでした: songName={}", song.getSongname());
+        return null;
+    }
+
+    /**
+     * 歌詞から言語を簡易検出
+     * GeniusApiClientのdetectLanguageメソッドと同様のロジック
+     */
+    private String detectLanguageSimple(String lyrics) {
+        if (lyrics == null || lyrics.trim().isEmpty()) {
+            return null;
+        }
+
+        // ハングル文字の数をカウント
+        long hangulCount = lyrics.chars()
+            .filter(c -> c >= 0xAC00 && c <= 0xD7AF)
+            .count();
+
+        // 日本語文字の数をカウント（ひらがな、カタカナ、漢字）
+        long japaneseCount = lyrics.chars()
+            .filter(c -> (c >= 0x3040 && c <= 0x309F) ||  // ひらがな
+                         (c >= 0x30A0 && c <= 0x30FF) ||  // カタカナ
+                         (c >= 0x4E00 && c <= 0x9FAF))    // 漢字
+            .count();
+
+        // 全文字数（空白を除く）
+        long totalChars = lyrics.chars()
+            .filter(c -> !Character.isWhitespace(c))
+            .count();
+
+        if (totalChars == 0) {
+            return null;
+        }
+
+        // ハングルが5%以上含まれていれば韓国語
+        if ((double)hangulCount / totalChars >= 0.05) {
+            return "ko";
+        }
+
+        // 日本語文字が5%以上含まれていれば日本語
+        if ((double)japaneseCount / totalChars >= 0.05) {
+            return "ja";
+        }
+
+        // 英語の一般的な単語が含まれていれば英語
+        String lowerText = lyrics.toLowerCase();
+        if (lowerText.matches(".*\\b(the|and|you|me|my|your|love|like|that|this|was|were|are|have|has)\\b.*")) {
+            return "en";
+        }
+
+        return null;
     }
 
     /**
