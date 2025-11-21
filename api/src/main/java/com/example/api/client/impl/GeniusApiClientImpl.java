@@ -97,11 +97,23 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             Elements lyricsContainers = doc.select("[data-lyrics-container='true']");
             if (!lyricsContainers.isEmpty()) {
                 for (Element container : lyricsContainers) {
+                    // Romanizedセクションをスキップ（韓国語歌詞の場合）
+                    String containerText = container.text().toLowerCase();
+                    if (containerText.contains("romanized") || containerText.contains("romanization")) {
+                        logger.debug("Romanizedセクションをスキップします");
+                        continue;
+                    }
+
                     // HTMLをテキストに変換（<br>を改行に）
                     String text = container.html()
                         .replaceAll("<br\\s*/?>", "\n")
                         .replaceAll("<[^>]+>", "");
-                    lyrics.append(Jsoup.parse(text).text()).append("\n");
+                    String parsedText = Jsoup.parse(text).text();
+
+                    // ローマ字のみの行を除外（ハングルや英語のみを含める）
+                    if (!isOnlyRomanized(parsedText)) {
+                        lyrics.append(parsedText).append("\n");
+                    }
                 }
             }
 
@@ -109,10 +121,21 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             if (lyrics.length() == 0) {
                 Elements altContainers = doc.select("div[class*='Lyrics__Container']");
                 for (Element container : altContainers) {
+                    // Romanizedセクションをスキップ
+                    String containerText = container.text().toLowerCase();
+                    if (containerText.contains("romanized") || containerText.contains("romanization")) {
+                        logger.debug("Romanizedセクションをスキップします");
+                        continue;
+                    }
+
                     String text = container.html()
                         .replaceAll("<br\\s*/?>", "\n")
                         .replaceAll("<[^>]+>", "");
-                    lyrics.append(Jsoup.parse(text).text()).append("\n");
+                    String parsedText = Jsoup.parse(text).text();
+
+                    if (!isOnlyRomanized(parsedText)) {
+                        lyrics.append(parsedText).append("\n");
+                    }
                 }
             }
 
@@ -132,12 +155,43 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             }
 
             logger.info("歌詞を取得しました: {} 文字", result.length());
+            logger.debug("歌詞の最初の200文字: {}", result.substring(0, Math.min(200, result.length())));
             return result;
 
         } catch (Exception e) {
             logger.error("スクレイピングに失敗しました: {}", songUrl, e);
             return getMockLyrics();
         }
+    }
+
+    /**
+     * テキストがローマ字のみかどうかを判定
+     * ハングルや英語のアルファベット、数字、一般的な記号が含まれていればfalseを返す
+     */
+    private boolean isOnlyRomanized(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return true;
+        }
+
+        // ハングル文字が含まれている場合はローマ字ではない
+        if (text.matches(".*[\\uAC00-\\uD7AF]+.*")) {
+            return false;
+        }
+
+        // 英語の一般的な単語が含まれている場合はローマ字ではない
+        // （Geniusの英語歌詞を保持）
+        String lowerText = text.toLowerCase();
+        if (lowerText.matches(".*\\b(the|and|you|me|my|your|love|like|that|this|was|were|are|have|has)\\b.*")) {
+            return false;
+        }
+
+        // その他の言語の文字が含まれている場合
+        // 日本語（ひらがな、カタカナ、漢字）
+        if (text.matches(".*[\\u3040-\\u309F\\u30A0-\\u30FF\\u4E00-\\u9FAF]+.*")) {
+            return false;
+        }
+
+        return false; // デフォルトでは除外しない（安全側に倒す）
     }
 
     /**

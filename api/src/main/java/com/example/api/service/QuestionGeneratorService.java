@@ -78,6 +78,7 @@ public class QuestionGeneratorService {
             }
 
             logger.info("歌詞取得完了: length={}", lyrics.length());
+            logger.debug("取得した歌詞の最初の200文字: {}", lyrics.substring(0, Math.min(200, lyrics.length())));
 
             // 3. Gemini APIで問題を生成
             String language = selectedSong.getLanguage() != null ? selectedSong.getLanguage() : "en";
