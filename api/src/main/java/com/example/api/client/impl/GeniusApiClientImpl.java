@@ -154,6 +154,13 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                 return getMockLyrics();
             }
 
+            // ローマ字のみの歌詞かチェック
+            if (isAllRomanized(result)) {
+                logger.warn("取得した歌詞がローマ字版のみです。オリジナル言語の歌詞が見つかりませんでした: {}", songUrl);
+                // 空文字列を返すことで、呼び出し側で別のソースを試すことができる
+                return null;
+            }
+
             logger.info("歌詞を取得しました: {} 文字", result.length());
             logger.debug("歌詞の最初の200文字: {}", result.substring(0, Math.min(200, result.length())));
             return result;
@@ -200,6 +207,48 @@ public class GeniusApiClientImpl implements GeniusApiClient {
         }
 
         return false; // デフォルトでは除外しない（安全側に倒す）
+    }
+
+    /**
+     * 歌詞全体がローマ字版のみかどうかを判定
+     * オリジナル言語の文字（ハングル、日本語等）がほとんど含まれていない場合trueを返す
+     */
+    private boolean isAllRomanized(String lyrics) {
+        if (lyrics == null || lyrics.trim().isEmpty()) {
+            return true;
+        }
+
+        // ハングル文字の割合をチェック
+        long hangulCount = lyrics.chars()
+            .filter(c -> c >= 0xAC00 && c <= 0xD7AF)
+            .count();
+
+        // 日本語文字の割合をチェック（ひらがな、カタカナ、漢字）
+        long japaneseCount = lyrics.chars()
+            .filter(c -> (c >= 0x3040 && c <= 0x309F) ||  // ひらがな
+                         (c >= 0x30A0 && c <= 0x30FF) ||  // カタカナ
+                         (c >= 0x4E00 && c <= 0x9FAF))    // 漢字
+            .count();
+
+        // 全文字数（空白を除く）
+        long totalChars = lyrics.chars()
+            .filter(c -> !Character.isWhitespace(c))
+            .count();
+
+        if (totalChars == 0) {
+            return true;
+        }
+
+        // ハングルまたは日本語が5%以上含まれていればOK
+        double nonLatinRatio = (double)(hangulCount + japaneseCount) / totalChars;
+
+        if (nonLatinRatio < 0.05) {
+            logger.debug("ローマ字判定: 非ラテン文字の割合 {}/{} = {:.2f}%",
+                hangulCount + japaneseCount, totalChars, nonLatinRatio * 100);
+            return true;
+        }
+
+        return false;
     }
 
     /**

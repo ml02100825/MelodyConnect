@@ -35,6 +35,9 @@ public class QuestionGeneratorService {
     private GeniusApiClient geniusApiClient;
 
     @Autowired
+    private com.example.api.client.MusixmatchApiClient musixmatchApiClient;
+
+    @Autowired
     private SpotifyApiClient spotifyApiClient;
 
     @Autowired
@@ -73,8 +76,18 @@ public class QuestionGeneratorService {
 
             // 2. 歌詞を取得
             String lyrics = fetchLyrics(selectedSong);
-            if (lyrics == null || lyrics.isEmpty()) {
-                throw new IllegalStateException("歌詞の取得に失敗しました");
+            if (lyrics == null) {
+                String errorMsg = String.format(
+                    "歌詞の取得に失敗しました。Geniusにオリジナル言語の歌詞が存在しない可能性があります。" +
+                    "楽曲: %s, アーティスト: %s",
+                    selectedSong.getSongname(),
+                    selectedSong.getAritst_id() != null ? "ID:" + selectedSong.getAritst_id() : "不明"
+                );
+                logger.error(errorMsg);
+                throw new IllegalStateException(errorMsg);
+            }
+            if (lyrics.isEmpty()) {
+                throw new IllegalStateException("歌詞が空です");
             }
 
             logger.info("歌詞取得完了: length={}", lyrics.length());
@@ -199,12 +212,42 @@ public class QuestionGeneratorService {
 
     /**
      * 歌詞を取得
+     * Geniusから取得を試み、失敗した場合はMusixmatchにフォールバック
      */
     private String fetchLyrics(Song song) {
+        String lyrics = null;
+
+        // 1. Geniusから取得を試行
         if (song.getGenius_song_id() != null) {
-            return geniusApiClient.getLyrics(song.getGenius_song_id());
+            logger.debug("Geniusから歌詞を取得します: geniusSongId={}", song.getGenius_song_id());
+            lyrics = geniusApiClient.getLyrics(song.getGenius_song_id());
+
+            if (lyrics != null && !lyrics.isEmpty()) {
+                logger.info("Geniusから歌詞を取得しました");
+                return lyrics;
+            }
+
+            logger.warn("Geniusから歌詞を取得できませんでした（ローマ字版のみの可能性）");
         }
-        throw new IllegalStateException("Genius Song IDが設定されていません");
+
+        // 2. Musixmatchにフォールバック
+        if (song.getSongname() != null && song.getTempArtistName() != null) {
+            logger.info("Musixmatchから歌詞を取得します: artist={}, song={}",
+                song.getTempArtistName(), song.getSongname());
+
+            lyrics = musixmatchApiClient.getLyrics(song.getTempArtistName(), song.getSongname());
+
+            if (lyrics != null && !lyrics.isEmpty()) {
+                logger.info("Musixmatchから歌詞を取得しました");
+                return lyrics;
+            }
+
+            logger.warn("Musixmatchからも歌詞を取得できませんでした");
+        }
+
+        // 3. どちらからも取得できなかった
+        logger.error("どの歌詞APIからも歌詞を取得できませんでした: songName={}", song.getSongname());
+        return null;
     }
 
     /**
