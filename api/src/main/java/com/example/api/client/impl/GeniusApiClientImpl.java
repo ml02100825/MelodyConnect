@@ -14,6 +14,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Genius API Client の実装
  * 歌詞を取得するためのGenius API統合とWebスクレイピング
@@ -89,79 +92,66 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                 .timeout(10000)
                 .get();
 
-            // Geniusの歌詞コンテナを探す
-            // 複数のセレクタを試す（Geniusのページ構造が変わることがあるため）
-            StringBuilder lyrics = new StringBuilder();
+            // 複数の歌詞セクションを収集
+            List<LyricsSection> lyricsSections = new ArrayList<>();
 
             // 方法1: data-lyrics-container属性を持つ要素
             Elements lyricsContainers = doc.select("[data-lyrics-container='true']");
             if (!lyricsContainers.isEmpty()) {
                 for (Element container : lyricsContainers) {
-                    // Romanizedセクションをスキップ（韓国語・日本語歌詞の場合）
-                    String containerText = container.text().toLowerCase();
-                    if (containerText.contains("romanized") || containerText.contains("romanization")) {
-                        logger.debug("Romanizedセクションをスキップします");
-                        continue;
-                    }
-
-                    // HTMLをテキストに変換（<br>を改行に）
-                    String text = container.html()
-                        .replaceAll("<br\\s*/?>", "\n")
-                        .replaceAll("<[^>]+>", "");
-                    String parsedText = Jsoup.parse(text).text();
-
-                    // ローマ字のみの行を除外（ハングルや英語のみを含める）
-                    if (!isOnlyRomanized(parsedText)) {
-                        lyrics.append(parsedText).append("\n");
+                    LyricsSection section = extractLyricsSection(container);
+                    if (section != null && !section.lyrics.isEmpty()) {
+                        lyricsSections.add(section);
                     }
                 }
             }
 
-            // 方法2: Lyrics__Container クラス
-            if (lyrics.length() == 0) {
+            // 方法2: Lyrics__Container クラス（フォールバック）
+            if (lyricsSections.isEmpty()) {
                 Elements altContainers = doc.select("div[class*='Lyrics__Container']");
                 for (Element container : altContainers) {
-                    // Romanizedセクションをスキップ（韓国語・日本語歌詞の場合）
-                    String containerText = container.text().toLowerCase();
-                    if (containerText.contains("romanized") || containerText.contains("romanization")) {
-                        logger.debug("Romanizedセクションをスキップします");
-                        continue;
-                    }
-
-                    String text = container.html()
-                        .replaceAll("<br\\s*/?>", "\n")
-                        .replaceAll("<[^>]+>", "");
-                    String parsedText = Jsoup.parse(text).text();
-
-                    if (!isOnlyRomanized(parsedText)) {
-                        lyrics.append(parsedText).append("\n");
+                    LyricsSection section = extractLyricsSection(container);
+                    if (section != null && !section.lyrics.isEmpty()) {
+                        lyricsSections.add(section);
                     }
                 }
             }
 
-            // 方法3: 古い形式のlyrics divクラス
-            if (lyrics.length() == 0) {
+            // 方法3: 古い形式のlyrics divクラス（フォールバック）
+            if (lyricsSections.isEmpty()) {
                 Element oldLyrics = doc.selectFirst("div.lyrics");
                 if (oldLyrics != null) {
-                    lyrics.append(oldLyrics.text());
+                    LyricsSection section = new LyricsSection();
+                    section.lyrics = oldLyrics.text();
+                    section.priority = calculatePriority(section.lyrics, "");
+                    lyricsSections.add(section);
                 }
             }
 
-            String result = lyrics.toString().trim();
-
-            if (result.isEmpty()) {
+            if (lyricsSections.isEmpty()) {
                 logger.warn("歌詞が見つかりませんでした: {}", songUrl);
                 return getMockLyrics();
             }
 
+            // 最適なセクションを選択（優先度の高い順）
+            LyricsSection bestSection = lyricsSections.stream()
+                .max((s1, s2) -> Integer.compare(s1.priority, s2.priority))
+                .orElse(null);
+
+            if (bestSection == null || bestSection.lyrics.isEmpty()) {
+                logger.warn("有効な歌詞セクションが見つかりませんでした: {}", songUrl);
+                return getMockLyrics();
+            }
+
+            String result = bestSection.lyrics.trim();
+
             // ローマ字のみの歌詞かチェック
             if (isAllRomanized(result)) {
                 logger.warn("取得した歌詞がローマ字版のみです。オリジナル言語の歌詞が見つかりませんでした: {}", songUrl);
-                // 空文字列を返すことで、呼び出し側で別のソースを試すことができる
                 return null;
             }
 
-            logger.info("歌詞を取得しました: {} 文字", result.length());
+            logger.info("歌詞を取得しました: {} 文字, 優先度={}", result.length(), bestSection.priority);
             logger.debug("歌詞の最初の200文字: {}", result.substring(0, Math.min(200, result.length())));
             return result;
 
@@ -169,6 +159,139 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             logger.error("スクレイピングに失敗しました: {}", songUrl, e);
             return getMockLyrics();
         }
+    }
+
+    /**
+     * 歌詞セクションを抽出
+     */
+    private LyricsSection extractLyricsSection(Element container) {
+        // 前後の要素から見出しを取得
+        String heading = extractHeadingFromContext(container);
+
+        // セクションタイトルに除外キーワードが含まれている場合はスキップ
+        String headingLower = heading.toLowerCase();
+        if (headingLower.contains("romanized") ||
+            headingLower.contains("romanization") ||
+            headingLower.contains("english translation") ||
+            headingLower.contains("english lyrics") ||
+            (headingLower.contains("translation") && !headingLower.contains("japanese"))) {
+            logger.debug("歌詞セクションをスキップ: {}", heading);
+            return null;
+        }
+
+        // HTMLをテキストに変換
+        String text = container.html()
+            .replaceAll("<br\\s*/?>", "\n")
+            .replaceAll("<[^>]+>", "");
+        String lyrics = Jsoup.parse(text).text().trim();
+
+        if (lyrics.isEmpty()) {
+            return null;
+        }
+
+        LyricsSection section = new LyricsSection();
+        section.lyrics = lyrics;
+        section.heading = heading;
+        section.priority = calculatePriority(lyrics, heading);
+
+        return section;
+    }
+
+    /**
+     * コンテナの前後から見出しを抽出
+     */
+    private String extractHeadingFromContext(Element container) {
+        StringBuilder heading = new StringBuilder();
+
+        // 前の兄弟要素から見出しを探す
+        Element prev = container.previousElementSibling();
+        if (prev != null) {
+            // h1-h6, strong, b などのタグをチェック
+            if (prev.tagName().matches("h[1-6]|strong|b|div")) {
+                String text = prev.text();
+                if (!text.isEmpty() && text.length() < 100) {
+                    heading.append(text).append(" ");
+                }
+            }
+        }
+
+        // data属性やclassから情報を取得
+        String dataAttr = container.attr("data-section");
+        if (!dataAttr.isEmpty()) {
+            heading.append(dataAttr).append(" ");
+        }
+
+        // 親要素のdata属性もチェック
+        Element parent = container.parent();
+        if (parent != null) {
+            String parentClass = parent.className();
+            if (parentClass.contains("Romanized") || parentClass.contains("Translation")) {
+                heading.append(parentClass).append(" ");
+            }
+        }
+
+        return heading.toString().trim();
+    }
+
+    /**
+     * 歌詞の優先度を計算
+     * 高い値ほど優先される
+     */
+    private int calculatePriority(String lyrics, String heading) {
+        int priority = 0;
+
+        String headingLower = heading.toLowerCase();
+        String lyricsLower = lyrics.toLowerCase();
+
+        // 見出しに「オリジナル」「日本語」「韓国語」などが含まれている場合は高優先度
+        if (headingLower.contains("original") || headingLower.contains("japanese") ||
+            headingLower.contains("korean") || headingLower.contains("日本語") ||
+            headingLower.contains("한국어")) {
+            priority += 1000;
+        }
+
+        // ハングル文字が含まれている場合（韓国語オリジナル）
+        long hangulCount = lyrics.chars()
+            .filter(c -> c >= 0xAC00 && c <= 0xD7AF)
+            .count();
+        if (hangulCount > 0) {
+            priority += 500 + (int)(hangulCount / 10); // ハングル文字数に応じて加点
+        }
+
+        // 日本語文字が含まれている場合（日本語オリジナル）
+        long japaneseCount = lyrics.chars()
+            .filter(c -> (c >= 0x3040 && c <= 0x309F) ||  // ひらがな
+                         (c >= 0x30A0 && c <= 0x30FF) ||  // カタカナ
+                         (c >= 0x4E00 && c <= 0x9FAF))    // 漢字
+            .count();
+        if (japaneseCount > 0) {
+            priority += 500 + (int)(japaneseCount / 10); // 日本語文字数に応じて加点
+        }
+
+        // 英語の一般的な単語が含まれている場合（英語オリジナル）
+        if (lyricsLower.matches(".*\\b(the|and|you|me|my|your|love|like|that|this|was|were|are|have|has)\\b.*")) {
+            priority += 100;
+        }
+
+        // 見出しに「Romanized」「Translation」が含まれている場合は減点
+        if (headingLower.contains("romanized") || headingLower.contains("translation") ||
+            headingLower.contains("english")) {
+            priority -= 1000;
+        }
+
+        logger.debug("優先度計算: priority={}, heading=\"{}\", hangul={}, japanese={}",
+            priority, heading, hangulCount, japaneseCount);
+
+        return priority;
+    }
+
+    /**
+     * 歌詞セクション情報を保持するクラス
+     */
+    private static class LyricsSection {
+        String lyrics;
+        String heading;
+        int priority;
     }
 
     /**
