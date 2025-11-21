@@ -99,7 +99,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
    - Ensure each blank tests different language skills (vocabulary, grammar, collocations, idioms, nuances, etc.)
    - Vary difficulty levels from 1 (beginner) to 5 (advanced)
    - Consider word frequency and complexity for difficulty assignment
-   - Provide a natural Japanese translation (translationJa) for each sentence (including the blank position)
+   - Provide a natural Japanese translation (translationJa) for each sentence as a COMPLETE sentence (the blank should be filled in the Japanese translation)
    - For each question, set a "skillFocus" field with a short English label describing the main focus (e.g., "vocabulary", "grammar", "collocation", "idiom")
    - Keep each "explanation" field to 1–2 concise sentences in English.
 
@@ -130,7 +130,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
       "difficulty": 1-5,
       "skillFocus": "short English label such as 'vocabulary', 'grammar', 'collocation', or 'idiom'",
       "explanation": "Brief explanation in English of why this word/grammar point is important (1–2 sentences).",
-      "translationJa": "問題文の日本語訳（空欄を含む、自然な日本語）"
+      "translationJa": "問題文の日本語訳（完全な文、空欄は埋めた状態の自然な日本語）"
     }
   ],
   "listening": [

@@ -212,25 +212,40 @@ public class QuestionGeneratorService {
 
     /**
      * 歌詞を取得
-     * Geniusから取得を試み、失敗した場合はMusixmatchにフォールバック
+     * Geniusで複数候補を試行し、失敗した場合はMusixmatchにフォールバック
      */
     private String fetchLyrics(Song song) {
         String lyrics = null;
 
-        // 1. Geniusから取得を試行
-        if (song.getGenius_song_id() != null) {
-            logger.debug("Geniusから歌詞を取得します: geniusSongId={}", song.getGenius_song_id());
-            lyrics = geniusApiClient.getLyrics(song.getGenius_song_id());
+        // 1. Geniusで検索して複数候補を試行（優先度順）
+        if (song.getSongname() != null && song.getTempArtistName() != null) {
+            logger.info("Geniusで楽曲を検索して歌詞を取得します: artist={}, song={}",
+                song.getTempArtistName(), song.getSongname());
+
+            lyrics = geniusApiClient.searchAndGetLyrics(song.getSongname(), song.getTempArtistName());
 
             if (lyrics != null && !lyrics.isEmpty()) {
-                logger.info("Geniusから歌詞を取得しました");
+                logger.info("Geniusから歌詞を取得しました（複数候補から選択）");
                 return lyrics;
             }
 
-            logger.warn("Geniusから歌詞を取得できませんでした（ローマ字版のみの可能性）");
+            logger.warn("Geniusの検索で歌詞を取得できませんでした（全候補がローマ字版の可能性）");
         }
 
-        // 2. Musixmatchにフォールバック
+        // 2. 直接Song IDがある場合は試行（検索で失敗した場合のフォールバック）
+        if (song.getGenius_song_id() != null) {
+            logger.debug("Genius Song IDから直接歌詞を取得します: geniusSongId={}", song.getGenius_song_id());
+            lyrics = geniusApiClient.getLyrics(song.getGenius_song_id());
+
+            if (lyrics != null && !lyrics.isEmpty()) {
+                logger.info("Genius Song IDから歌詞を取得しました");
+                return lyrics;
+            }
+
+            logger.warn("Genius Song IDから歌詞を取得できませんでした");
+        }
+
+        // 3. Musixmatchにフォールバック
         if (song.getSongname() != null && song.getTempArtistName() != null) {
             logger.info("Musixmatchから歌詞を取得します: artist={}, song={}",
                 song.getTempArtistName(), song.getSongname());
@@ -245,7 +260,7 @@ public class QuestionGeneratorService {
             logger.warn("Musixmatchからも歌詞を取得できませんでした");
         }
 
-        // 3. どちらからも取得できなかった
+        // 4. どちらからも取得できなかった
         logger.error("どの歌詞APIからも歌詞を取得できませんでした: songName={}", song.getSongname());
         return null;
     }

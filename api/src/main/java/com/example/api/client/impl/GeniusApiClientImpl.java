@@ -405,6 +405,90 @@ public class GeniusApiClientImpl implements GeniusApiClient {
         return cleaned;
     }
 
+    @Override
+    public String searchAndGetLyrics(String songTitle, String artistName) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            logger.warn("Genius APIキーが設定されていません。");
+            return null;
+        }
+
+        try {
+            logger.info("Geniusで曲を検索して歌詞を取得中: title={}, artist={}", songTitle, artistName);
+
+            String searchQuery = songTitle + " " + artistName;
+
+            String response = webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/search")
+                    .queryParam("q", searchQuery)
+                    .queryParam("per_page", 10)  // 複数結果を取得
+                    .build())
+                .header("Authorization", "Bearer " + apiKey)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+            JsonNode rootNode = objectMapper.readTree(response);
+            JsonNode hits = rootNode.path("response").path("hits");
+
+            if (hits.isArray() && hits.size() > 0) {
+                // 全ての検索結果を評価して優先度順にソート
+                List<SearchResult> candidates = new ArrayList<>();
+
+                for (JsonNode hit : hits) {
+                    JsonNode result = hit.path("result");
+
+                    String title = result.path("title").asText();
+                    String primaryArtistName = result.path("primary_artist").path("name").asText();
+                    Long songId = result.path("id").asLong();
+                    String url = result.path("url").asText();
+
+                    // 優先度を計算
+                    int priority = calculateSearchResultPriority(title, primaryArtistName, songTitle, artistName);
+
+                    SearchResult candidate = new SearchResult();
+                    candidate.songId = songId;
+                    candidate.title = title;
+                    candidate.primaryArtist = primaryArtistName;
+                    candidate.url = url;
+                    candidate.priority = priority;
+
+                    candidates.add(candidate);
+                }
+
+                // 優先度順にソート（高い順）
+                candidates.sort((c1, c2) -> Integer.compare(c2.priority, c1.priority));
+
+                // 優先度順に各候補を試す
+                for (SearchResult candidate : candidates) {
+                    logger.info("候補を試行: priority={}, title=\"{}\", artist=\"{}\"",
+                        candidate.priority, candidate.title, candidate.primaryArtist);
+
+                    // 歌詞を取得
+                    String lyrics = getLyrics(candidate.songId);
+
+                    if (lyrics != null && !lyrics.isEmpty()) {
+                        logger.info("歌詞取得成功: geniusSongId={}, title=\"{}\", lyrics_length={}",
+                            candidate.songId, candidate.title, lyrics.length());
+                        return lyrics;
+                    }
+
+                    logger.debug("歌詞取得失敗（ローマ字版またはエラー）、次の候補を試します");
+                }
+
+                logger.warn("全ての候補で歌詞取得に失敗しました: title={}, artist={}", songTitle, artistName);
+                return null;
+            }
+
+            logger.warn("曲が見つかりませんでした: title={}, artist={}", songTitle, artistName);
+            return null;
+
+        } catch (Exception e) {
+            logger.error("検索と歌詞取得中にエラーが発生しました", e);
+            return null;
+        }
+    }
+
     /**
      * 曲を検索してGenius Song IDを取得
      * ローマ字版を除外し、オリジナル言語版を優先的に選択
