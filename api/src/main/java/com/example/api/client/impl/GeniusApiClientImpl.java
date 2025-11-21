@@ -376,6 +376,7 @@ public class GeniusApiClientImpl implements GeniusApiClient {
 
     /**
      * 曲を検索してGenius Song IDを取得
+     * ローマ字版を除外し、オリジナル言語版を優先的に選択
      */
     public Long searchSong(String songTitle, String artistName) {
         if (apiKey == null || apiKey.isEmpty()) {
@@ -392,6 +393,7 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                 .uri(uriBuilder -> uriBuilder
                     .path("/search")
                     .queryParam("q", searchQuery)
+                    .queryParam("per_page", 10)  // 複数結果を取得してフィルタリング
                     .build())
                 .header("Authorization", "Bearer " + apiKey)
                 .retrieve()
@@ -402,10 +404,43 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             JsonNode hits = rootNode.path("response").path("hits");
 
             if (hits.isArray() && hits.size() > 0) {
-                // 最初の結果からSong IDを取得
-                Long songId = hits.get(0).path("result").path("id").asLong();
-                logger.info("曲が見つかりました: geniusSongId={}", songId);
-                return songId;
+                // 全ての検索結果を評価して最適なものを選択
+                List<SearchResult> candidates = new ArrayList<>();
+
+                for (JsonNode hit : hits) {
+                    JsonNode result = hit.path("result");
+
+                    String title = result.path("title").asText();
+                    String primaryArtistName = result.path("primary_artist").path("name").asText();
+                    Long songId = result.path("id").asLong();
+                    String url = result.path("url").asText();
+
+                    // 優先度を計算
+                    int priority = calculateSearchResultPriority(title, primaryArtistName, songTitle, artistName);
+
+                    SearchResult candidate = new SearchResult();
+                    candidate.songId = songId;
+                    candidate.title = title;
+                    candidate.primaryArtist = primaryArtistName;
+                    candidate.url = url;
+                    candidate.priority = priority;
+
+                    candidates.add(candidate);
+
+                    logger.debug("候補: priority={}, title=\"{}\", artist=\"{}\"",
+                        priority, title, primaryArtistName);
+                }
+
+                // 優先度が最も高いものを選択
+                SearchResult best = candidates.stream()
+                    .max((c1, c2) -> Integer.compare(c1.priority, c2.priority))
+                    .orElse(null);
+
+                if (best != null) {
+                    logger.info("曲が見つかりました: geniusSongId={}, title=\"{}\", artist=\"{}\", priority={}",
+                        best.songId, best.title, best.primaryArtist, best.priority);
+                    return best.songId;
+                }
             }
 
             logger.warn("曲が見つかりませんでした: title={}, artist={}", songTitle, artistName);
@@ -415,6 +450,102 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             logger.error("曲の検索中にエラーが発生しました", e);
             return null;
         }
+    }
+
+    /**
+     * 検索結果の優先度を計算
+     * オリジナル言語版を優先し、ローマ字版を除外
+     */
+    private int calculateSearchResultPriority(String title, String primaryArtist, String searchTitle, String searchArtist) {
+        int priority = 0;
+
+        String titleLower = title.toLowerCase();
+        String artistLower = primaryArtist.toLowerCase();
+
+        // 【除外】ローマ字版の判定
+        // タイトルに "(Romanized)" が含まれる場合は大幅減点
+        if (titleLower.contains("(romanized)") || titleLower.contains("romanized")) {
+            priority -= 2000;
+            logger.debug("ローマ字版を検出: title=\"{}\"", title);
+        }
+
+        // アーティスト名が "Genius Romanizations" の場合は大幅減点
+        if (artistLower.contains("genius romanizations") || artistLower.equals("genius romanizations")) {
+            priority -= 2000;
+            logger.debug("Genius Romanizationsを検出: artist=\"{}\"", primaryArtist);
+        }
+
+        // タイトルに "English Translation" などの翻訳版を含む場合も減点
+        if (titleLower.contains("english translation") || titleLower.contains("translation")) {
+            priority -= 1000;
+        }
+
+        // 【優先】オリジナル言語版の判定
+        // タイトルに日本語文字が含まれる場合は高優先度
+        long japaneseTitleCount = title.chars()
+            .filter(c -> (c >= 0x3040 && c <= 0x309F) ||  // ひらがな
+                         (c >= 0x30A0 && c <= 0x30FF) ||  // カタカナ
+                         (c >= 0x4E00 && c <= 0x9FAF))    // 漢字
+            .count();
+        if (japaneseTitleCount > 0) {
+            priority += 1000 + (int)(japaneseTitleCount * 10);
+            logger.debug("日本語タイトルを検出: title=\"{}\", count={}", title, japaneseTitleCount);
+        }
+
+        // タイトルにハングル文字が含まれる場合は高優先度
+        long hangulTitleCount = title.chars()
+            .filter(c -> c >= 0xAC00 && c <= 0xD7AF)
+            .count();
+        if (hangulTitleCount > 0) {
+            priority += 1000 + (int)(hangulTitleCount * 10);
+            logger.debug("ハングルタイトルを検出: title=\"{}\", count={}", title, hangulTitleCount);
+        }
+
+        // アーティスト名に日本語文字が含まれる場合は加点
+        long japaneseArtistCount = primaryArtist.chars()
+            .filter(c -> (c >= 0x3040 && c <= 0x309F) ||
+                         (c >= 0x30A0 && c <= 0x30FF) ||
+                         (c >= 0x4E00 && c <= 0x9FAF))
+            .count();
+        if (japaneseArtistCount > 0) {
+            priority += 500 + (int)(japaneseArtistCount * 5);
+        }
+
+        // アーティスト名にハングル文字が含まれる場合は加点
+        long hangulArtistCount = primaryArtist.chars()
+            .filter(c -> c >= 0xAC00 && c <= 0xD7AF)
+            .count();
+        if (hangulArtistCount > 0) {
+            priority += 500 + (int)(hangulArtistCount * 5);
+        }
+
+        // 検索クエリとの一致度を加点
+        // タイトルが完全一致またはほぼ一致する場合
+        if (titleLower.equals(searchTitle.toLowerCase())) {
+            priority += 500;
+        } else if (titleLower.contains(searchTitle.toLowerCase()) || searchTitle.toLowerCase().contains(titleLower)) {
+            priority += 200;
+        }
+
+        // アーティスト名が完全一致またはほぼ一致する場合
+        if (artistLower.equals(searchArtist.toLowerCase())) {
+            priority += 300;
+        } else if (artistLower.contains(searchArtist.toLowerCase()) || searchArtist.toLowerCase().contains(artistLower)) {
+            priority += 100;
+        }
+
+        return priority;
+    }
+
+    /**
+     * 検索結果を保持するクラス
+     */
+    private static class SearchResult {
+        Long songId;
+        String title;
+        String primaryArtist;
+        String url;
+        int priority;
     }
 
     /**
