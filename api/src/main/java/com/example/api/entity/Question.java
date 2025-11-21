@@ -81,12 +81,42 @@ public class Question {
     private String language;
 
     /**
+     * 和訳
+     */
+    @Column(name = "translation_ja", length = 500)
+    private String translationJa;
+
+    /**
+     * 音声URL (S3想定)
+     */
+    @Column(name = "audio_url", length = 500)
+    private String audioUrl;
+
+    /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    /**
      * エンティティ保存前に自動的に追加日時を設定
      */
     @PrePersist
     protected void onCreate() {
         if (addingAt == null) {
             addingAt = LocalDateTime.now();
+        }
+        if (isActive == null) {
+            isActive = true;
+        }
+        if (isDeleted == null) {
+            isDeleted = false;
         }
     }
 }

@@ -55,8 +55,12 @@ public class ClaudeQuestionResponse {
         private String explanation;
 
         /**
-         * 音声URL（リスニング問題用）
-         * TODO: TTS実装後に追加
+         * 和訳（日本語）
+         */
+        private String translationJa;
+
+        /**
+         * 音声URL（リスニング問題用、S3想定）
          */
         private String audioUrl;
     }

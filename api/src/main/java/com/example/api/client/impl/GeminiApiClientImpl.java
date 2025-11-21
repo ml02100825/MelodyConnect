@@ -82,6 +82,8 @@ public class GeminiApiClientImpl implements GeminiApiClient {
         return String.format("""
             You are an expert language learning content creator. Generate high-quality %s learning questions from the following song lyrics.
 
+            **CRITICAL: The lyrics must be in proper %s language (NOT romanized text). Use the actual lyrics as they are.**
+
             **LYRICS:**
             %s
 
@@ -93,12 +95,14 @@ public class GeminiApiClientImpl implements GeminiApiClient {
                - Ensure each blank tests different language skills (vocabulary, grammar, collocations)
                - Vary difficulty levels from 1 (beginner) to 5 (advanced)
                - Consider word frequency and complexity for difficulty assignment
+               - Provide Japanese translation (translationJa) for each sentence
 
             2. Generate %d listening comprehension questions:
                - Choose complete, meaningful sentences from the lyrics
                - Select sentences with clear grammatical structures
                - Include sentences with idioms, phrasal verbs, or interesting expressions when possible
                - Vary difficulty based on sentence complexity, length, and vocabulary
+               - Provide Japanese translation (translationJa) for each sentence
 
             **DIFFICULTY LEVEL GUIDELINES:**
             - Level 1: Common words (top 1000), simple grammar
@@ -111,18 +115,20 @@ public class GeminiApiClientImpl implements GeminiApiClient {
             {
               "fillInBlank": [
                 {
-                  "sentence": "The sentence with _____ replacing the word",
+                  "sentence": "The sentence with _____ replacing the word (in %s)",
                   "blankWord": "the word that was removed",
                   "difficulty": 1-5,
-                  "explanation": "Brief explanation of why this word/grammar point is important"
+                  "explanation": "Brief explanation in English of why this word/grammar point is important",
+                  "translationJa": "問題文の日本語訳（空欄を含む）"
                 }
               ],
               "listening": [
                 {
-                  "sentence": "The complete sentence from lyrics",
+                  "sentence": "The complete sentence from lyrics (in %s)",
                   "blankWord": "key word or phrase to focus on",
                   "difficulty": 1-5,
-                  "explanation": "What makes this sentence valuable for listening practice"
+                  "explanation": "What makes this sentence valuable for listening practice",
+                  "translationJa": "文章の日本語訳"
                 }
               ]
             }
@@ -130,10 +136,12 @@ public class GeminiApiClientImpl implements GeminiApiClient {
             **IMPORTANT:**
             - Return ONLY valid JSON, no additional text or markdown formatting
             - Do not wrap the JSON in code blocks
-            - Ensure all questions are directly from the provided lyrics
+            - Ensure all questions are directly from the provided lyrics IN %s (not romanized)
             - Each question should be unique and test different language aspects
             - Provide clear, pedagogically sound explanations
-            """, languageName, lyrics, fillInBlankCount, listeningCount);
+            - ALL translationJa fields MUST be in Japanese (日本語)
+            """, languageName, languageName, lyrics, fillInBlankCount, listeningCount,
+                languageName, languageName, languageName.toUpperCase());
     }
 
     /**
@@ -250,6 +258,8 @@ public class GeminiApiClientImpl implements GeminiApiClient {
             .blankWord(node.path("blankWord").asText())
             .difficulty(node.path("difficulty").asInt(3))
             .explanation(node.path("explanation").asText())
+            .translationJa(node.path("translationJa").asText())
+            .audioUrl(node.path("audioUrl").asText(null))
             .build();
     }
 

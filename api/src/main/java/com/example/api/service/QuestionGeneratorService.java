@@ -260,6 +260,9 @@ public class QuestionGeneratorService {
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
         newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
         newQuestion.setLanguage(song.getLanguage());
+        newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
+        newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+        // is_active and is_deleted are set by @PrePersist with default values
 
         return questionRepository.save(newQuestion);
     }
