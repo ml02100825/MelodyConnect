@@ -97,7 +97,7 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             Elements lyricsContainers = doc.select("[data-lyrics-container='true']");
             if (!lyricsContainers.isEmpty()) {
                 for (Element container : lyricsContainers) {
-                    // Romanizedセクションをスキップ（韓国語歌詞の場合）
+                    // Romanizedセクションをスキップ（韓国語・日本語歌詞の場合）
                     String containerText = container.text().toLowerCase();
                     if (containerText.contains("romanized") || containerText.contains("romanization")) {
                         logger.debug("Romanizedセクションをスキップします");
@@ -121,7 +121,7 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             if (lyrics.length() == 0) {
                 Elements altContainers = doc.select("div[class*='Lyrics__Container']");
                 for (Element container : altContainers) {
-                    // Romanizedセクションをスキップ
+                    // Romanizedセクションをスキップ（韓国語・日本語歌詞の場合）
                     String containerText = container.text().toLowerCase();
                     if (containerText.contains("romanized") || containerText.contains("romanization")) {
                         logger.debug("Romanizedセクションをスキップします");
@@ -166,15 +166,29 @@ public class GeniusApiClientImpl implements GeniusApiClient {
 
     /**
      * テキストがローマ字のみかどうかを判定
-     * ハングルや英語のアルファベット、数字、一般的な記号が含まれていればfalseを返す
+     * オリジナルの歌詞（ハングル、日本語、英語など）が含まれていればfalseを返す
+     *
+     * 対応言語:
+     * - 韓国語: ハングル文字を検出
+     * - 日本語: ひらがな、カタカナ、漢字を検出
+     * - 英語: 一般的な英単語を検出
      */
     private boolean isOnlyRomanized(String text) {
         if (text == null || text.trim().isEmpty()) {
             return true;
         }
 
-        // ハングル文字が含まれている場合はローマ字ではない
+        // ハングル文字が含まれている場合はローマ字ではない（韓国語）
+        // Unicode範囲: U+AC00 - U+D7AF (Hangul Syllables)
         if (text.matches(".*[\\uAC00-\\uD7AF]+.*")) {
+            return false;
+        }
+
+        // 日本語文字が含まれている場合はローマ字ではない
+        // ひらがな: U+3040 - U+309F
+        // カタカナ: U+30A0 - U+30FF
+        // 漢字 (CJK Unified Ideographs): U+4E00 - U+9FAF
+        if (text.matches(".*[\\u3040-\\u309F\\u30A0-\\u30FF\\u4E00-\\u9FAF]+.*")) {
             return false;
         }
 
@@ -182,12 +196,6 @@ public class GeniusApiClientImpl implements GeniusApiClient {
         // （Geniusの英語歌詞を保持）
         String lowerText = text.toLowerCase();
         if (lowerText.matches(".*\\b(the|and|you|me|my|your|love|like|that|this|was|were|are|have|has)\\b.*")) {
-            return false;
-        }
-
-        // その他の言語の文字が含まれている場合
-        // 日本語（ひらがな、カタカナ、漢字）
-        if (text.matches(".*[\\u3040-\\u309F\\u30A0-\\u30FF\\u4E00-\\u9FAF]+.*")) {
             return false;
         }
 
