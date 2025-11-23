@@ -35,9 +35,19 @@ public class ClaudeQuestionResponse {
     @AllArgsConstructor
     public static class Question {
         /**
-         * 問題文（空欄含む）
+         * 元の歌詞フラグメント（任意の言語）
          */
-        private String sentence;
+        private String sourceFragment;
+
+        /**
+         * ターゲット言語での完全な文
+         */
+        private String targetSentenceFull;
+
+        /**
+         * 空欄を含む文（fill_in_blankの場合のみ）
+         */
+        private String sentenceWithBlank;
 
         /**
          * 正解（空欄部分の単語）
@@ -50,24 +60,31 @@ public class ClaudeQuestionResponse {
         private Integer difficulty;
 
         /**
-         * 説明
-         */
-        private String explanation;
-
-        /**
-         * 学習焦点 (vocabulary, grammar, collocation, idiom等)
-         */
-        private String skillFocus;
-
-        /**
-         * 和訳
+         * 日本語訳
          */
         private String translationJa;
 
         /**
+         * 説明（日本語）
+         */
+        private String explanation;
+
+        /**
          * 音声URL（リスニング問題用）
-         * TODO: TTS実装後に追加
          */
         private String audioUrl;
+
+        // 後方互換性のため、sentenceプロパティを提供
+        @Deprecated
+        public String getSentence() {
+            return sentenceWithBlank != null ? sentenceWithBlank : targetSentenceFull;
+        }
+
+        /**
+         * 学習焦点 (vocabulary, grammar, collocation, idiom等) - 旧フォーマット用
+         * @deprecated 新しいフォーマットでは使用されません
+         */
+        @Deprecated
+        private String skillFocus;
     }
 }

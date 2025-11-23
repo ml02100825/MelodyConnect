@@ -117,22 +117,23 @@ public class GeminiApiClientImpl implements GeminiApiClient {
             {
               "fillInBlank": [
                 {
-                  "sentence": "The sentence with _____ replacing the word",
-                  "blankWord": "the word that was removed",
+                  "sourceFragment": "Original fragment from the lyrics (any language)",
+                  "targetSentenceFull": "Your translation into the TARGET LANGUAGE",
+                  "sentenceWithBlank": "Target sentence with _____ replacing one word",
+                  "blankWord": "The removed word in the TARGET LANGUAGE",
                   "difficulty": 1-5,
-                  "explanation": "Brief explanation of why this word/grammar point is important",
-                  "skillFocus": "vocabulary|grammar|collocation|idiom",
-                  "translationJa": "Japanese translation of the complete sentence (with blank filled)"
+                  "translationJa": "Natural Japanese translation of targetSentenceFull",
+                  "explanation": "Japanese explanation of why this word/grammar is important"
                 }
               ],
               "listening": [
                 {
-                  "sentence": "The complete sentence from lyrics",
-                  "blankWord": "key word or phrase to focus on",
+                  "sourceFragment": "Original fragment from the lyrics (any language)",
+                  "targetSentenceFull": "Your translation into the TARGET LANGUAGE",
                   "difficulty": 1-5,
-                  "explanation": "What makes this sentence valuable for listening practice",
-                  "skillFocus": "vocabulary|grammar|collocation|idiom",
-                  "translationJa": "Japanese translation of the sentence"
+                  "translationJa": "Natural Japanese translation of targetSentenceFull",
+                  "explanation": "Japanese explanation of why this sentence is valuable for listening",
+                  "audioUrl": ""
                 }
               ]
             }
@@ -281,16 +282,36 @@ public class GeminiApiClientImpl implements GeminiApiClient {
 
     /**
      * 個別の問題をパース
+     * 新旧両方のフォーマットに対応
      */
     private Question parseQuestion(JsonNode node) {
-        return Question.builder()
-            .sentence(node.path("sentence").asText())
-            .blankWord(node.path("blankWord").asText())
-            .difficulty(node.path("difficulty").asInt(3))
-            .explanation(node.path("explanation").asText())
-            .skillFocus(node.path("skillFocus").asText())
-            .translationJa(node.path("translationJa").asText())
-            .build();
+        // 新フォーマットのフィールドをチェック
+        boolean isNewFormat = node.has("sourceFragment") || node.has("targetSentenceFull");
+
+        if (isNewFormat) {
+            // 新フォーマット
+            return Question.builder()
+                .sourceFragment(node.path("sourceFragment").asText())
+                .targetSentenceFull(node.path("targetSentenceFull").asText())
+                .sentenceWithBlank(node.path("sentenceWithBlank").asText())
+                .blankWord(node.path("blankWord").asText())
+                .difficulty(node.path("difficulty").asInt(3))
+                .translationJa(node.path("translationJa").asText())
+                .explanation(node.path("explanation").asText())
+                .audioUrl(node.path("audioUrl").asText())
+                .build();
+        } else {
+            // 旧フォーマット（後方互換性）
+            return Question.builder()
+                .sentenceWithBlank(node.path("sentence").asText())
+                .targetSentenceFull(node.path("sentence").asText())
+                .blankWord(node.path("blankWord").asText())
+                .difficulty(node.path("difficulty").asInt(3))
+                .explanation(node.path("explanation").asText())
+                .skillFocus(node.path("skillFocus").asText())
+                .translationJa(node.path("translationJa").asText())
+                .build();
+        }
     }
 
     /**
@@ -300,25 +321,26 @@ public class GeminiApiClientImpl implements GeminiApiClient {
         List<Question> fillInBlankQuestions = new ArrayList<>();
         List<Question> listeningQuestions = new ArrayList<>();
 
-        // モックデータ生成
+        // モックデータ生成（新フォーマット）
         for (int i = 0; i < fillInBlankCount; i++) {
             fillInBlankQuestions.add(Question.builder()
-                .sentence("I _____ to the store yesterday")
+                .sourceFragment("I went to the store yesterday")
+                .targetSentenceFull("I went to the store yesterday")
+                .sentenceWithBlank("I _____ to the store yesterday")
                 .blankWord("went")
                 .difficulty(2)
                 .explanation("過去形の不規則動詞")
-                .skillFocus("grammar")
                 .translationJa("私は昨日店に行きました")
                 .build());
         }
 
         for (int i = 0; i < listeningCount; i++) {
             listeningQuestions.add(Question.builder()
-                .sentence("She is singing beautifully")
+                .sourceFragment("She is singing beautifully")
+                .targetSentenceFull("She is singing beautifully")
                 .blankWord("beautifully")
                 .difficulty(3)
                 .explanation("副詞の使用")
-                .skillFocus("vocabulary")
                 .translationJa("彼女は美しく歌っています")
                 .build());
         }

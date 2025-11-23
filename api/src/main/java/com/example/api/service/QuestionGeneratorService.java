@@ -321,26 +321,26 @@ public class QuestionGeneratorService {
             newQuestion.setArtist(artist);
 
             // デバッグログ: 値が正しく取得できているか確認
-            logger.debug("Setting question text: sentence='{}', blankWord='{}'",
-                claudeQuestion.getSentence(), claudeQuestion.getBlankWord());
+            logger.debug("Setting question - sentenceWithBlank='{}', targetSentenceFull='{}', blankWord='{}'",
+                claudeQuestion.getSentenceWithBlank(), claudeQuestion.getTargetSentenceFull(), claudeQuestion.getBlankWord());
 
-            newQuestion.setText(claudeQuestion.getSentence());
+            // text: fill_in_blankの場合はsentenceWithBlank、listeningの場合はtargetSentenceFull
+            String textValue = "fill_in_blank".equals(questionFormat) && claudeQuestion.getSentenceWithBlank() != null
+                ? claudeQuestion.getSentenceWithBlank()
+                : claudeQuestion.getTargetSentenceFull();
+            newQuestion.setText(textValue);
             newQuestion.setAnswer(claudeQuestion.getBlankWord());
 
-            // completeSentence: 空欄を埋めた完全な文を生成
-            String completeSentence;
-            if (claudeQuestion.getSentence().contains("_____")) {
-                // fill_in_blank問題の場合: 空欄を埋める
-                completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
-            } else {
-                // listening問題の場合: sentenceがすでに完全な文
-                completeSentence = claudeQuestion.getSentence();
-            }
+            // completeSentence: 常にtargetSentenceFull（空欄がない完全な文）
+            String completeSentence = claudeQuestion.getTargetSentenceFull();
             newQuestion.setCompleteSentence(completeSentence);
 
             newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
             newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
-            newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
+            // skillFocus: 新フォーマットでは存在しない場合がある（後方互換性）
+            if (claudeQuestion.getSkillFocus() != null && !claudeQuestion.getSkillFocus().isEmpty()) {
+                newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
+            }
             newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
             newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
 
@@ -362,26 +362,26 @@ public class QuestionGeneratorService {
         newQuestion.setArtist(artist);
 
         // デバッグログ: 値が正しく取得できているか確認
-        logger.debug("Setting question text: sentence='{}', blankWord='{}'",
-            claudeQuestion.getSentence(), claudeQuestion.getBlankWord());
+        logger.debug("Setting question - sentenceWithBlank='{}', targetSentenceFull='{}', blankWord='{}'",
+            claudeQuestion.getSentenceWithBlank(), claudeQuestion.getTargetSentenceFull(), claudeQuestion.getBlankWord());
 
-        newQuestion.setText(claudeQuestion.getSentence());
+        // text: fill_in_blankの場合はsentenceWithBlank、listeningの場合はtargetSentenceFull
+        String textValue = "fill_in_blank".equals(questionFormat) && claudeQuestion.getSentenceWithBlank() != null
+            ? claudeQuestion.getSentenceWithBlank()
+            : claudeQuestion.getTargetSentenceFull();
+        newQuestion.setText(textValue);
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
 
-        // completeSentence: 空欄を埋めた完全な文を生成
-        String completeSentence;
-        if (claudeQuestion.getSentence().contains("_____")) {
-            // fill_in_blank問題の場合: 空欄を埋める
-            completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
-        } else {
-            // listening問題の場合: sentenceがすでに完全な文
-            completeSentence = claudeQuestion.getSentence();
-        }
+        // completeSentence: 常にtargetSentenceFull（空欄がない完全な文）
+        String completeSentence = claudeQuestion.getTargetSentenceFull();
         newQuestion.setCompleteSentence(completeSentence);
 
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
         newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
-        newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
+        // skillFocus: 新フォーマットでは存在しない場合がある（後方互換性）
+        if (claudeQuestion.getSkillFocus() != null && !claudeQuestion.getSkillFocus().isEmpty()) {
+            newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
+        }
         newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
         newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
 
