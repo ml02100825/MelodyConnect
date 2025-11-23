@@ -254,6 +254,8 @@ public class GeminiApiClientImpl implements GeminiApiClient {
             .blankWord(node.path("blankWord").asText())
             .difficulty(node.path("difficulty").asInt(3))
             .explanation(node.path("explanation").asText())
+            .skillFocus(node.path("skillFocus").asText())
+            .translationJa(node.path("translationJa").asText())
             .build();
     }
 
@@ -271,6 +273,8 @@ public class GeminiApiClientImpl implements GeminiApiClient {
                 .blankWord("went")
                 .difficulty(2)
                 .explanation("過去形の不規則動詞")
+                .skillFocus("grammar")
+                .translationJa("私は昨日店に行きました")
                 .build());
         }
 
@@ -280,6 +284,8 @@ public class GeminiApiClientImpl implements GeminiApiClient {
                 .blankWord("beautifully")
                 .difficulty(3)
                 .explanation("副詞の使用")
+                .skillFocus("vocabulary")
+                .translationJa("彼女は美しく歌っています")
                 .build());
         }
 
