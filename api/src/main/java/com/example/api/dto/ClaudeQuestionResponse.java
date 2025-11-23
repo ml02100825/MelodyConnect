@@ -40,27 +40,32 @@ public class ClaudeQuestionResponse {
         private String sourceFragment;
 
         /**
-         * ターゲット言語での完全な文
+         * 問題文（fill_in_blankの場合は空欄入り、listeningの場合は完全な文）
+         * Questionエンティティのtextフィールドに対応
          */
-        private String targetSentenceFull;
-
-        /**
-         * 空欄を含む文（fill_in_blankの場合のみ）
-         */
-        private String sentenceWithBlank;
+        private String text;
 
         /**
          * 正解（空欄部分の単語）
+         * Questionエンティティのanswerフィールドに対応
          */
-        private String blankWord;
+        private String answer;
+
+        /**
+         * 完全な文（空欄がない状態の文）
+         * QuestionエンティティのcompleteSentenceフィールドに対応
+         */
+        private String completeSentence;
 
         /**
          * 難易度 (1-5)
+         * QuestionエンティティのdifficultyLevelフィールドに対応
          */
-        private Integer difficulty;
+        private Integer difficultyLevel;
 
         /**
          * 日本語訳
+         * QuestionエンティティのtranslationJaフィールドに対応
          */
         private String translationJa;
 
@@ -71,13 +76,50 @@ public class ClaudeQuestionResponse {
 
         /**
          * 音声URL（リスニング問題用）
+         * QuestionエンティティのaudioUrlフィールドに対応
          */
         private String audioUrl;
 
-        // 後方互換性のため、sentenceプロパティを提供
+        // === 後方互換性のためのDeprecatedフィールド ===
+
+        /**
+         * @deprecated textフィールドを使用してください
+         */
         @Deprecated
         public String getSentence() {
-            return sentenceWithBlank != null ? sentenceWithBlank : targetSentenceFull;
+            return text;
+        }
+
+        /**
+         * @deprecated textフィールドを使用してください
+         */
+        @Deprecated
+        public String getSentenceWithBlank() {
+            return text;
+        }
+
+        /**
+         * @deprecated completeSentenceフィールドを使用してください
+         */
+        @Deprecated
+        public String getTargetSentenceFull() {
+            return completeSentence;
+        }
+
+        /**
+         * @deprecated answerフィールドを使用してください
+         */
+        @Deprecated
+        public String getBlankWord() {
+            return answer;
+        }
+
+        /**
+         * @deprecated difficultyLevelフィールドを使用してください
+         */
+        @Deprecated
+        public Integer getDifficulty() {
+            return difficultyLevel;
         }
 
         /**

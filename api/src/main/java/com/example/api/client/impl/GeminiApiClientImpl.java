@@ -132,20 +132,21 @@ OUTPUT FORMAT (JSON ONLY):
   "fillInBlank": [
     {
       "sourceFragment": "Original fragment from the lyrics (any language)",
-      "targetSentenceFull": "Your translation into the TARGET LANGUAGE",
-      "sentenceWithBlank": "Target sentence with _____ replacing one word",
-      "blankWord": "The removed word in the TARGET LANGUAGE",
-      "difficulty": 1-5,
-      "translationJa": "Natural Japanese translation of targetSentenceFull",
+      "text": "Target sentence with _____ replacing one word",
+      "answer": "The removed word in the TARGET LANGUAGE",
+      "completeSentence": "Complete sentence without blank in the TARGET LANGUAGE",
+      "difficultyLevel": 1-5,
+      "translationJa": "Natural Japanese translation of completeSentence",
       "explanation": "Japanese explanation of why this word/grammar is important"
     }
   ],
   "listening": [
     {
       "sourceFragment": "Original fragment from the lyrics (any language)",
-      "targetSentenceFull": "Your translation into the TARGET LANGUAGE",
-      "difficulty": 1-5,
-      "translationJa": "Natural Japanese translation of targetSentenceFull",
+      "text": "Your translation into the TARGET LANGUAGE",
+      "completeSentence": "Same as text for listening questions",
+      "difficultyLevel": 1-5,
+      "translationJa": "Natural Japanese translation",
       "explanation": "Japanese explanation of why this sentence is valuable for listening",
       "audioUrl": ""
     }
@@ -295,16 +296,38 @@ IMPORTANT:
 
     /**
      * 個別の問題をパース
+     * 新旧両方のフォーマットに対応
      */
     private Question parseQuestion(JsonNode node) {
-        return Question.builder()
-            .sentence(node.path("sentence").asText())
-            .blankWord(node.path("blankWord").asText())
-            .difficulty(node.path("difficulty").asInt(3))
-            .explanation(node.path("explanation").asText())
-            .skillFocus(node.path("skillFocus").asText())
-            .translationJa(node.path("translationJa").asText())
-            .build();
+        // 新フォーマット（エンティティフィールド名準拠）のフィールドをチェック
+        boolean isNewFormat = node.has("text") || node.has("completeSentence") || node.has("difficultyLevel");
+
+        if (isNewFormat) {
+            // 新フォーマット: エンティティのフィールド名に準拠
+            return Question.builder()
+                .sourceFragment(node.path("sourceFragment").asText())
+                .text(node.path("text").asText())
+                .answer(node.path("answer").asText())
+                .completeSentence(node.path("completeSentence").asText())
+                .difficultyLevel(node.path("difficultyLevel").asInt(3))
+                .translationJa(node.path("translationJa").asText())
+                .explanation(node.path("explanation").asText())
+                .audioUrl(node.path("audioUrl").asText())
+                .build();
+        } else {
+            // 旧フォーマット（後方互換性）
+            // 旧フィールド名を新フィールド名にマッピング
+            String sentence = node.path("sentence").asText();
+            return Question.builder()
+                .text(sentence)
+                .completeSentence(sentence)
+                .answer(node.path("blankWord").asText())
+                .difficultyLevel(node.path("difficulty").asInt(3))
+                .explanation(node.path("explanation").asText())
+                .skillFocus(node.path("skillFocus").asText())
+                .translationJa(node.path("translationJa").asText())
+                .build();
+        }
     }
 
     /**
@@ -314,25 +337,26 @@ IMPORTANT:
         List<Question> fillInBlankQuestions = new ArrayList<>();
         List<Question> listeningQuestions = new ArrayList<>();
 
-        // モックデータ生成
+        // モックデータ生成（エンティティフィールド名準拠）
         for (int i = 0; i < fillInBlankCount; i++) {
             fillInBlankQuestions.add(Question.builder()
-                .sentence("I _____ to the store yesterday")
-                .blankWord("went")
-                .difficulty(2)
+                .sourceFragment("I went to the store yesterday")
+                .text("I _____ to the store yesterday")
+                .answer("went")
+                .completeSentence("I went to the store yesterday")
+                .difficultyLevel(2)
                 .explanation("過去形の不規則動詞")
-                .skillFocus("grammar")
                 .translationJa("私は昨日店に行きました")
                 .build());
         }
 
         for (int i = 0; i < listeningCount; i++) {
             listeningQuestions.add(Question.builder()
-                .sentence("She is singing beautifully")
-                .blankWord("beautifully")
-                .difficulty(3)
+                .sourceFragment("She is singing beautifully")
+                .text("She is singing beautifully")
+                .completeSentence("She is singing beautifully")
+                .difficultyLevel(3)
                 .explanation("副詞の使用")
-                .skillFocus("vocabulary")
                 .translationJa("彼女は美しく歌っています")
                 .build());
         }

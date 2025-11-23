@@ -321,22 +321,15 @@ public class QuestionGeneratorService {
             newQuestion.setArtist(artist);
 
             // デバッグログ: 値が正しく取得できているか確認
-            logger.debug("Setting question - sentenceWithBlank='{}', targetSentenceFull='{}', blankWord='{}'",
-                claudeQuestion.getSentenceWithBlank(), claudeQuestion.getTargetSentenceFull(), claudeQuestion.getBlankWord());
+            logger.debug("Setting question - text='{}', answer='{}', completeSentence='{}'",
+                claudeQuestion.getText(), claudeQuestion.getAnswer(), claudeQuestion.getCompleteSentence());
 
-            // text: fill_in_blankの場合はsentenceWithBlank、listeningの場合はtargetSentenceFull
-            String textValue = "fill_in_blank".equals(questionFormat) && claudeQuestion.getSentenceWithBlank() != null
-                ? claudeQuestion.getSentenceWithBlank()
-                : claudeQuestion.getTargetSentenceFull();
-            newQuestion.setText(textValue);
-            newQuestion.setAnswer(claudeQuestion.getBlankWord());
-
-            // completeSentence: 常にtargetSentenceFull（空欄がない完全な文）
-            String completeSentence = claudeQuestion.getTargetSentenceFull();
-            newQuestion.setCompleteSentence(completeSentence);
-
+            // エンティティのフィールド名に直接マッピング
+            newQuestion.setText(claudeQuestion.getText());
+            newQuestion.setAnswer(claudeQuestion.getAnswer());
+            newQuestion.setCompleteSentence(claudeQuestion.getCompleteSentence());
             newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
-            newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
+            newQuestion.setDifficultyLevel(claudeQuestion.getDifficultyLevel());
             // skillFocus: 新フォーマットでは存在しない場合がある（後方互換性）
             if (claudeQuestion.getSkillFocus() != null && !claudeQuestion.getSkillFocus().isEmpty()) {
                 newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
@@ -346,7 +339,7 @@ public class QuestionGeneratorService {
 
             // audioUrl: リスニング問題の場合のみTTSで音声を生成
             if ("listening".equals(questionFormat)) {
-                String audioUrl = textToSpeechClient.generateSpeech(completeSentence, targetLanguage);
+                String audioUrl = textToSpeechClient.generateSpeech(claudeQuestion.getCompleteSentence(), targetLanguage);
                 newQuestion.setAudioUrl(audioUrl);
                 logger.debug("音声URL生成完了: audioUrl={}", audioUrl);
             }
@@ -362,22 +355,15 @@ public class QuestionGeneratorService {
         newQuestion.setArtist(artist);
 
         // デバッグログ: 値が正しく取得できているか確認
-        logger.debug("Setting question - sentenceWithBlank='{}', targetSentenceFull='{}', blankWord='{}'",
-            claudeQuestion.getSentenceWithBlank(), claudeQuestion.getTargetSentenceFull(), claudeQuestion.getBlankWord());
+        logger.debug("Setting question - text='{}', answer='{}', completeSentence='{}'",
+            claudeQuestion.getText(), claudeQuestion.getAnswer(), claudeQuestion.getCompleteSentence());
 
-        // text: fill_in_blankの場合はsentenceWithBlank、listeningの場合はtargetSentenceFull
-        String textValue = "fill_in_blank".equals(questionFormat) && claudeQuestion.getSentenceWithBlank() != null
-            ? claudeQuestion.getSentenceWithBlank()
-            : claudeQuestion.getTargetSentenceFull();
-        newQuestion.setText(textValue);
-        newQuestion.setAnswer(claudeQuestion.getBlankWord());
-
-        // completeSentence: 常にtargetSentenceFull（空欄がない完全な文）
-        String completeSentence = claudeQuestion.getTargetSentenceFull();
-        newQuestion.setCompleteSentence(completeSentence);
-
+        // エンティティのフィールド名に直接マッピング
+        newQuestion.setText(claudeQuestion.getText());
+        newQuestion.setAnswer(claudeQuestion.getAnswer());
+        newQuestion.setCompleteSentence(claudeQuestion.getCompleteSentence());
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
-        newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
+        newQuestion.setDifficultyLevel(claudeQuestion.getDifficultyLevel());
         // skillFocus: 新フォーマットでは存在しない場合がある（後方互換性）
         if (claudeQuestion.getSkillFocus() != null && !claudeQuestion.getSkillFocus().isEmpty()) {
             newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
@@ -387,7 +373,7 @@ public class QuestionGeneratorService {
 
         // audioUrl: リスニング問題の場合のみTTSで音声を生成
         if ("listening".equals(questionFormat)) {
-            String audioUrl = textToSpeechClient.generateSpeech(completeSentence, targetLanguage);
+            String audioUrl = textToSpeechClient.generateSpeech(claudeQuestion.getCompleteSentence(), targetLanguage);
             newQuestion.setAudioUrl(audioUrl);
             logger.debug("音声URL生成完了: audioUrl={}", audioUrl);
         }
