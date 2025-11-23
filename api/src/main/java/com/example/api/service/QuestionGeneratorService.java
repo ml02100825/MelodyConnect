@@ -87,6 +87,10 @@ public class QuestionGeneratorService {
 
             // 3. ユーザーの学習言語を取得（問題生成とデータ保存に使用）
             String targetLanguage = request.getTargetLanguage() != null ? request.getTargetLanguage() : "en";
+            logger.info("=== TARGET LANGUAGE CHECK ===");
+            logger.info("Request targetLanguage: {}", request.getTargetLanguage());
+            logger.info("Resolved targetLanguage: {}", targetLanguage);
+            logger.info("============================");
 
             // 4. Gemini APIで問題を生成（ユーザーの学習言語で生成）
             ClaudeQuestionResponse claudeResponse = geminiApiClient.generateQuestions(

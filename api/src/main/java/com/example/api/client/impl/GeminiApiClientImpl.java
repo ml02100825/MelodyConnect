@@ -79,10 +79,17 @@ public class GeminiApiClientImpl implements GeminiApiClient {
     private String buildPrompt(String lyrics, String language, int fillInBlankCount, int listeningCount) {
         String languageName = getLanguageName(language);
 
+        logger.info("=== PROMPT BUILDING CHECK ===");
+        logger.info("Input language code: {}", language);
+        logger.info("Resolved language name: {}", languageName);
+        logger.info("Fill-in-blank count: {}", fillInBlankCount);
+        logger.info("Listening count: {}", listeningCount);
+        logger.info("============================");
+
         return String.format("""
             You are an expert language learning content creator and translator.
 
-The TARGET LANGUAGE is: {{targetLanguage}}.
+The TARGET LANGUAGE is: %s.
 The LEARNER NATIVE LANGUAGE is: Japanese.
 
 Your tasks:
@@ -99,11 +106,11 @@ IMPORTANT ABOUT LANGUAGES:
 - Do NOT mix multiple languages in a single field.
 
 ORIGINAL SONG LYRICS (may contain multiple languages):
-{{lyricsOriginal}}
+%s
 
 REQUIREMENTS:
 
-1. Generate {{numFill}} fill-in-the-blank questions:
+1. Generate %d fill-in-the-blank questions:
    - Step A: Choose a short, meaningful fragment from the original lyrics (sourceFragment).
    - Step B: Translate that fragment into a complete sentence in the TARGET LANGUAGE (targetSentenceFull).
    - Step C: Choose one meaningful word (verb, noun, adjective, adverb) and replace it with "_____" in sentenceWithBlank.
@@ -112,7 +119,7 @@ REQUIREMENTS:
    - Assign difficulty from 1 (beginner) to 5 (advanced) based on word frequency and complexity in the TARGET LANGUAGE.
    - Provide translationJa as a natural Japanese translation of targetSentenceFull.
 
-2. Generate {{numListening}} listening comprehension questions:
+2. Generate %d listening comprehension questions:
    - Step A: Choose a complete, meaningful fragment from the original lyrics (sourceFragment).
    - Step B: Translate it into a complete sentence in the TARGET LANGUAGE (targetSentenceFull).
    - Prefer sentences with clear grammar and, when possible, idioms or interesting expressions in the TARGET LANGUAGE.
