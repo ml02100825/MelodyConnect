@@ -3,6 +3,7 @@ package com.example.api.service;
 import com.example.api.client.GeminiApiClient;
 import com.example.api.client.GeniusApiClient;
 import com.example.api.client.SpotifyApiClient;
+import com.example.api.client.TextToSpeechClient;
 import com.example.api.client.WordnikApiClient;
 import com.example.api.dto.*;
 import com.example.api.entity.*;
@@ -53,6 +54,9 @@ public class QuestionGeneratorService {
 
     @Autowired
     private VocabularyRepository vocabularyRepository;
+
+    @Autowired
+    private TextToSpeechClient textToSpeechClient;
 
     /**
      * 問題を生成
@@ -315,19 +319,37 @@ public class QuestionGeneratorService {
             // Artist is set via the song's artist_id - fetch from repository if needed
             Artist artist = artistRepository.findById(savedSong.getAritst_id().intValue()).orElse(null);
             newQuestion.setArtist(artist);
-            newQuestion.setText(claudeQuestion.getSentence());
+
+            // デバッグログ: 値が正しく取得できているか確認
+            logger.debug("Setting question - sentenceWithBlank='{}', targetSentenceFull='{}', blankWord='{}'",
+                claudeQuestion.getSentenceWithBlank(), claudeQuestion.getTargetSentenceFull(), claudeQuestion.getBlankWord());
+
+            // text: fill_in_blankの場合はsentenceWithBlank、listeningの場合はtargetSentenceFull
+            String textValue = "fill_in_blank".equals(questionFormat) && claudeQuestion.getSentenceWithBlank() != null
+                ? claudeQuestion.getSentenceWithBlank()
+                : claudeQuestion.getTargetSentenceFull();
+            newQuestion.setText(textValue);
             newQuestion.setAnswer(claudeQuestion.getBlankWord());
 
-            // completeSentence: 空欄を埋めた完全な文を生成
-            String completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
+            // completeSentence: 常にtargetSentenceFull（空欄がない完全な文）
+            String completeSentence = claudeQuestion.getTargetSentenceFull();
             newQuestion.setCompleteSentence(completeSentence);
 
             newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
             newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
-            newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
+            // skillFocus: 新フォーマットでは存在しない場合がある（後方互換性）
+            if (claudeQuestion.getSkillFocus() != null && !claudeQuestion.getSkillFocus().isEmpty()) {
+                newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
+            }
             newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
             newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
-            newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+
+            // audioUrl: リスニング問題の場合のみTTSで音声を生成
+            if ("listening".equals(questionFormat)) {
+                String audioUrl = textToSpeechClient.generateSpeech(completeSentence, targetLanguage);
+                newQuestion.setAudioUrl(audioUrl);
+                logger.debug("音声URL生成完了: audioUrl={}", audioUrl);
+            }
 
             return questionRepository.save(newQuestion);
         }
@@ -338,19 +360,37 @@ public class QuestionGeneratorService {
         // Artist is set via the song's artist_id - fetch from repository if needed
         Artist artist = artistRepository.findById(song.getAritst_id().intValue()).orElse(null);
         newQuestion.setArtist(artist);
-        newQuestion.setText(claudeQuestion.getSentence());
+
+        // デバッグログ: 値が正しく取得できているか確認
+        logger.debug("Setting question - sentenceWithBlank='{}', targetSentenceFull='{}', blankWord='{}'",
+            claudeQuestion.getSentenceWithBlank(), claudeQuestion.getTargetSentenceFull(), claudeQuestion.getBlankWord());
+
+        // text: fill_in_blankの場合はsentenceWithBlank、listeningの場合はtargetSentenceFull
+        String textValue = "fill_in_blank".equals(questionFormat) && claudeQuestion.getSentenceWithBlank() != null
+            ? claudeQuestion.getSentenceWithBlank()
+            : claudeQuestion.getTargetSentenceFull();
+        newQuestion.setText(textValue);
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
 
-        // completeSentence: 空欄を埋めた完全な文を生成
-        String completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
+        // completeSentence: 常にtargetSentenceFull（空欄がない完全な文）
+        String completeSentence = claudeQuestion.getTargetSentenceFull();
         newQuestion.setCompleteSentence(completeSentence);
 
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
         newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
-        newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
+        // skillFocus: 新フォーマットでは存在しない場合がある（後方互換性）
+        if (claudeQuestion.getSkillFocus() != null && !claudeQuestion.getSkillFocus().isEmpty()) {
+            newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
+        }
         newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
         newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
-        newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+
+        // audioUrl: リスニング問題の場合のみTTSで音声を生成
+        if ("listening".equals(questionFormat)) {
+            String audioUrl = textToSpeechClient.generateSpeech(completeSentence, targetLanguage);
+            newQuestion.setAudioUrl(audioUrl);
+            logger.debug("音声URL生成完了: audioUrl={}", audioUrl);
+        }
 
         return questionRepository.save(newQuestion);
     }
