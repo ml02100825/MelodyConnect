@@ -77,7 +77,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
      * プロンプトを構築
      */
     private String buildPrompt(String lyrics, String language, int fillInBlankCount, int listeningCount) {
-        String languageName = "en".equals(language) ? "English" : "Korean";
+        String languageName = getLanguageName(language);
 
         return String.format("""
             You are an expert language learning content creator and translator.
@@ -160,6 +160,32 @@ IMPORTANT:
 - Each question must be unique and focus on a different language aspect.
 
             """, languageName, lyrics, fillInBlankCount, listeningCount);
+    }
+
+    /**
+     * 言語コードから英語の言語名を取得
+     *
+     * @param language 言語コード（例: "en", "ko", "es"）
+     * @return 英語の言語名（例: "English", "Korean", "Spanish"）
+     */
+    private String getLanguageName(String language) {
+        if (language == null) {
+            return "English";
+        }
+
+        return switch (language.toLowerCase()) {
+            case "en" -> "English";
+            case "ko" -> "Korean";
+            case "ja" -> "Japanese";
+            case "zh" -> "Chinese";
+            case "es" -> "Spanish";
+            case "fr" -> "French";
+            case "de" -> "German";
+            case "pt" -> "Portuguese";
+            case "it" -> "Italian";
+            case "ru" -> "Russian";
+            default -> "English"; // デフォルトは英語
+        };
     }
 
     /**
@@ -276,6 +302,8 @@ IMPORTANT:
             .blankWord(node.path("blankWord").asText())
             .difficulty(node.path("difficulty").asInt(3))
             .explanation(node.path("explanation").asText())
+            .skillFocus(node.path("skillFocus").asText())
+            .translationJa(node.path("translationJa").asText())
             .build();
     }
 
@@ -293,6 +321,8 @@ IMPORTANT:
                 .blankWord("went")
                 .difficulty(2)
                 .explanation("過去形の不規則動詞")
+                .skillFocus("grammar")
+                .translationJa("私は昨日店に行きました")
                 .build());
         }
 
@@ -302,6 +332,8 @@ IMPORTANT:
                 .blankWord("beautifully")
                 .difficulty(3)
                 .explanation("副詞の使用")
+                .skillFocus("vocabulary")
+                .translationJa("彼女は美しく歌っています")
                 .build());
         }
 
