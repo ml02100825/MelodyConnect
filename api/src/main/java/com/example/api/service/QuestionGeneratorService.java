@@ -81,24 +81,24 @@ public class QuestionGeneratorService {
 
             logger.info("歌詞取得完了: length={}", lyrics.length());
 
-            // 3. Gemini APIで問題を生成
-            String language = selectedSong.getLanguage() != null ? selectedSong.getLanguage() : "en";
+            // 3. ユーザーの学習言語を取得（問題生成とデータ保存に使用）
+            String targetLanguage = request.getTargetLanguage() != null ? request.getTargetLanguage() : "en";
+
+            // 4. Gemini APIで問題を生成（ユーザーの学習言語で生成）
             ClaudeQuestionResponse claudeResponse = geminiApiClient.generateQuestions(
                 lyrics,
-                language,
+                targetLanguage,
                 request.getFillInBlankCount(),
                 request.getListeningCount()
             );
 
-            logger.info("Gemini APIから問題生成完了: fillInBlank={}, listening={}",
+            logger.info("Gemini APIから問題生成完了: language={}, fillInBlank={}, listening={}",
+                targetLanguage,
                 claudeResponse.getFillInBlank().size(),
                 claudeResponse.getListening().size());
 
-            // 4. 問題を保存し、単語情報を取得
+            // 5. 問題を保存し、単語情報を取得
             List<QuestionGenerationResponse.GeneratedQuestionDto> generatedQuestions = new ArrayList<>();
-
-            // ユーザーの学習言語を取得（問題の言語として使用）
-            String targetLanguage = request.getTargetLanguage() != null ? request.getTargetLanguage() : "en";
 
             // 虫食い問題を保存
             for (ClaudeQuestionResponse.Question q : claudeResponse.getFillInBlank()) {
@@ -118,7 +118,7 @@ public class QuestionGeneratorService {
 
             logger.info("問題保存完了: total={}", generatedQuestions.size());
 
-            // 5. レスポンスを構築
+            // 6. レスポンスを構築
             return QuestionGenerationResponse.builder()
                 .questions(generatedQuestions)
                 .songInfo(buildSongInfo(selectedSong))
