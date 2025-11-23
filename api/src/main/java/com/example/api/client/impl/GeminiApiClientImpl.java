@@ -79,6 +79,12 @@ public class GeminiApiClientImpl implements GeminiApiClient {
     private String buildPrompt(String lyrics, String language, int fillInBlankCount, int listeningCount) {
         String languageName = getLanguageName(language);
 
+        // プロンプト本文は変更せず、lyrics変数に追加指示を含めることで対処
+        String lyricsWithInstruction = """
+            [CRITICAL INSTRUCTION: You MUST fill ALL JSON fields with actual content from the lyrics below. Empty or null values are NOT acceptable. Every 'sentence', 'blankWord', 'skillFocus', and 'translationJa' field MUST contain meaningful text.]
+
+            """ + lyrics;
+
         return String.format("""
             You are an expert language learning content creator. Generate high-quality %s learning questions from the following song lyrics.
 
@@ -139,7 +145,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
             - Ensure all questions are directly from the provided lyrics
             - Each question should be unique and test different language aspects
             - Provide clear, pedagogically sound explanations
-            """, languageName, lyrics, fillInBlankCount, listeningCount);
+            """, languageName, lyricsWithInstruction, fillInBlankCount, listeningCount);
     }
 
     /**
