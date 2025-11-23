@@ -77,7 +77,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
      * プロンプトを構築
      */
     private String buildPrompt(String lyrics, String language, int fillInBlankCount, int listeningCount) {
-        String languageName = "en".equals(language) ? "English" : "Korean";
+        String languageName = getLanguageName(language);
 
         return String.format("""
             You are an expert language learning content creator. Generate high-quality %s learning questions from the following song lyrics.
@@ -138,6 +138,32 @@ public class GeminiApiClientImpl implements GeminiApiClient {
             - Each question should be unique and test different language aspects
             - Provide clear, pedagogically sound explanations
             """, languageName, lyrics, fillInBlankCount, listeningCount);
+    }
+
+    /**
+     * 言語コードから英語の言語名を取得
+     *
+     * @param language 言語コード（例: "en", "ko", "es"）
+     * @return 英語の言語名（例: "English", "Korean", "Spanish"）
+     */
+    private String getLanguageName(String language) {
+        if (language == null) {
+            return "English";
+        }
+
+        return switch (language.toLowerCase()) {
+            case "en" -> "English";
+            case "ko" -> "Korean";
+            case "ja" -> "Japanese";
+            case "zh" -> "Chinese";
+            case "es" -> "Spanish";
+            case "fr" -> "French";
+            case "de" -> "German";
+            case "pt" -> "Portuguese";
+            case "it" -> "Italian";
+            case "ru" -> "Russian";
+            default -> "English"; // デフォルトは英語
+        };
     }
 
     /**
