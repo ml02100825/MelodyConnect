@@ -317,9 +317,17 @@ public class QuestionGeneratorService {
             newQuestion.setArtist(artist);
             newQuestion.setText(claudeQuestion.getSentence());
             newQuestion.setAnswer(claudeQuestion.getBlankWord());
+
+            // completeSentence: 空欄を埋めた完全な文を生成
+            String completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
+            newQuestion.setCompleteSentence(completeSentence);
+
             newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
             newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
+            newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
             newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
+            newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
+            newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
 
             return questionRepository.save(newQuestion);
         }
@@ -332,9 +340,17 @@ public class QuestionGeneratorService {
         newQuestion.setArtist(artist);
         newQuestion.setText(claudeQuestion.getSentence());
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
+
+        // completeSentence: 空欄を埋めた完全な文を生成
+        String completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
+        newQuestion.setCompleteSentence(completeSentence);
+
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
         newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
+        newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
         newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
+        newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
+        newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
 
         return questionRepository.save(newQuestion);
     }
@@ -389,9 +405,13 @@ public class QuestionGeneratorService {
             .questionId(question.getQuestionId())
             .text(question.getText())
             .answer(question.getAnswer())
+            .completeSentence(question.getCompleteSentence())
             .questionFormat(question.getQuestionFormat().getValue())
             .difficultyLevel(question.getDifficultyLevel())
+            .skillFocus(question.getSkillFocus())
             .language(question.getLanguage())
+            .translationJa(question.getTranslationJa())
+            .audioUrl(question.getAudioUrl())
             .build();
     }
 

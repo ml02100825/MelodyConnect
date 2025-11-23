@@ -55,6 +55,16 @@ public class ClaudeQuestionResponse {
         private String explanation;
 
         /**
+         * 学習焦点 (vocabulary, grammar, collocation, idiom等)
+         */
+        private String skillFocus;
+
+        /**
+         * 和訳
+         */
+        private String translationJa;
+
+        /**
          * 音声URL（リスニング問題用）
          * TODO: TTS実装後に追加
          */

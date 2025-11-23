@@ -57,9 +57,13 @@ public class QuestionGenerationResponse {
         private Integer questionId;
         private String text;
         private String answer;
+        private String completeSentence;
         private String questionFormat;
         private Integer difficultyLevel;
+        private String skillFocus;
         private String language;
+        private String translationJa;
+        private String audioUrl;
     }
 
     /**

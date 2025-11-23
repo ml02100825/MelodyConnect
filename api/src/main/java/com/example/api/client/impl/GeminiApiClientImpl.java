@@ -114,7 +114,9 @@ public class GeminiApiClientImpl implements GeminiApiClient {
                   "sentence": "The sentence with _____ replacing the word",
                   "blankWord": "the word that was removed",
                   "difficulty": 1-5,
-                  "explanation": "Brief explanation of why this word/grammar point is important"
+                  "explanation": "Brief explanation of why this word/grammar point is important",
+                  "skillFocus": "vocabulary|grammar|collocation|idiom",
+                  "translationJa": "Japanese translation of the complete sentence"
                 }
               ],
               "listening": [
@@ -122,7 +124,9 @@ public class GeminiApiClientImpl implements GeminiApiClient {
                   "sentence": "The complete sentence from lyrics",
                   "blankWord": "key word or phrase to focus on",
                   "difficulty": 1-5,
-                  "explanation": "What makes this sentence valuable for listening practice"
+                  "explanation": "What makes this sentence valuable for listening practice",
+                  "skillFocus": "vocabulary|grammar|collocation|idiom",
+                  "translationJa": "Japanese translation of the sentence"
                 }
               ]
             }
