@@ -3,6 +3,7 @@ package com.example.api.service;
 import com.example.api.client.GeminiApiClient;
 import com.example.api.client.GeniusApiClient;
 import com.example.api.client.SpotifyApiClient;
+import com.example.api.client.TextToSpeechClient;
 import com.example.api.client.WordnikApiClient;
 import com.example.api.dto.*;
 import com.example.api.entity.*;
@@ -53,6 +54,9 @@ public class QuestionGeneratorService {
 
     @Autowired
     private VocabularyRepository vocabularyRepository;
+
+    @Autowired
+    private TextToSpeechClient textToSpeechClient;
 
     /**
      * 問題を生成
@@ -315,6 +319,11 @@ public class QuestionGeneratorService {
             // Artist is set via the song's artist_id - fetch from repository if needed
             Artist artist = artistRepository.findById(savedSong.getAritst_id().intValue()).orElse(null);
             newQuestion.setArtist(artist);
+
+            // デバッグログ: 値が正しく取得できているか確認
+            logger.debug("Setting question text: sentence='{}', blankWord='{}'",
+                claudeQuestion.getSentence(), claudeQuestion.getBlankWord());
+
             newQuestion.setText(claudeQuestion.getSentence());
             newQuestion.setAnswer(claudeQuestion.getBlankWord());
 
@@ -335,11 +344,11 @@ public class QuestionGeneratorService {
             newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
             newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
 
-            // audioUrl: リスニング問題の場合のみ設定（現状はGemini APIからの値を使用、将来的にはTTS生成）
+            // audioUrl: リスニング問題の場合のみTTSで音声を生成
             if ("listening".equals(questionFormat)) {
-                // TODO: 将来的にTTSサービス（Google TTS, Amazon Polly等）で音声を生成してURLを設定
-                // 現状はGemini APIから返される値（おそらくnull）をそのまま使用
-                newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+                String audioUrl = textToSpeechClient.generateSpeech(completeSentence, targetLanguage);
+                newQuestion.setAudioUrl(audioUrl);
+                logger.debug("音声URL生成完了: audioUrl={}", audioUrl);
             }
 
             return questionRepository.save(newQuestion);
@@ -351,6 +360,11 @@ public class QuestionGeneratorService {
         // Artist is set via the song's artist_id - fetch from repository if needed
         Artist artist = artistRepository.findById(song.getAritst_id().intValue()).orElse(null);
         newQuestion.setArtist(artist);
+
+        // デバッグログ: 値が正しく取得できているか確認
+        logger.debug("Setting question text: sentence='{}', blankWord='{}'",
+            claudeQuestion.getSentence(), claudeQuestion.getBlankWord());
+
         newQuestion.setText(claudeQuestion.getSentence());
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
 
@@ -371,11 +385,11 @@ public class QuestionGeneratorService {
         newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
         newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
 
-        // audioUrl: リスニング問題の場合のみ設定（現状はGemini APIからの値を使用、将来的にはTTS生成）
+        // audioUrl: リスニング問題の場合のみTTSで音声を生成
         if ("listening".equals(questionFormat)) {
-            // TODO: 将来的にTTSサービス（Google TTS, Amazon Polly等）で音声を生成してURLを設定
-            // 現状はGemini APIから返される値（おそらくnull）をそのまま使用
-            newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+            String audioUrl = textToSpeechClient.generateSpeech(completeSentence, targetLanguage);
+            newQuestion.setAudioUrl(audioUrl);
+            logger.debug("音声URL生成完了: audioUrl={}", audioUrl);
         }
 
         return questionRepository.save(newQuestion);
