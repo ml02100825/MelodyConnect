@@ -301,10 +301,24 @@ public class QuestionGeneratorService {
             }
 
             logger.debug("Songを保存します: songName={}", song.getSongname());
-            song = songRepository.save(song);
-            logger.debug("Song保存完了: songId={}", song.getSong_id());
+            Song savedSong = songRepository.save(song);
+            logger.debug("Song保存完了: songId={}", savedSong.getSong_id());
+
+            Question newQuestion = new Question();
+            newQuestion.setSong(savedSong);
+            // Artist is set via the song's artist_id - fetch from repository if needed
+            Artist artist = artistRepository.findById(savedSong.getAritst_id().intValue()).orElse(null);
+            newQuestion.setArtist(artist);
+            newQuestion.setText(claudeQuestion.getSentence());
+            newQuestion.setAnswer(claudeQuestion.getBlankWord());
+            newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
+            newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
+            newQuestion.setLanguage(savedSong.getLanguage());
+
+            return questionRepository.save(newQuestion);
         }
 
+        // Songがすでに保存されている場合
         Question newQuestion = new Question();
         newQuestion.setSong(song);
         // Artist is set via the song's artist_id - fetch from repository if needed
