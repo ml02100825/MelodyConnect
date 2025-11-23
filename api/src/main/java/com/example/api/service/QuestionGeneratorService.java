@@ -202,7 +202,7 @@ public class QuestionGeneratorService {
 
     /**
      * 歌詞を取得
-     * Geniusで複数候補を試行し、失敗した場合はMusixmatchにフォールバック
+     * Geniusで複数候補を試行
      * 歌詞取得成功時、GeniusSongIdと検出された言語をSongに設定
      */
     private String fetchLyrics(Song song) {
@@ -247,27 +247,8 @@ public class QuestionGeneratorService {
             logger.warn("Genius Song IDから歌詞を取得できませんでした");
         }
 
-        // 3. Musixmatchにフォールバック
-        if (song.getSongname() != null && song.getTempArtistName() != null) {
-            logger.info("Musixmatchから歌詞を取得します: artist={}, song={}",
-                song.getTempArtistName(), song.getSongname());
-
-            lyrics = musixmatchApiClient.getLyrics(song.getTempArtistName(), song.getSongname());
-
-            if (lyrics != null && !lyrics.isEmpty()) {
-                logger.info("Musixmatchから歌詞を取得しました");
-                // Musixmatchから取得した場合も言語を検出
-                if (song.getLanguage() == null) {
-                    song.setLanguage(detectLanguageSimple(lyrics));
-                }
-                return lyrics;
-            }
-
-            logger.warn("Musixmatchからも歌詞を取得できませんでした");
-        }
-
-        // 4. どちらからも取得できなかった
-        logger.error("どの歌詞APIからも歌詞を取得できませんでした: songName={}", song.getSongname());
+        // 3. どの方法でも取得できなかった
+        logger.error("歌詞を取得できませんでした: songName={}", song.getSongname());
         return null;
     }
 
