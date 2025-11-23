@@ -97,20 +97,21 @@ public class QuestionGeneratorService {
             // 4. 問題を保存し、単語情報を取得
             List<QuestionGenerationResponse.GeneratedQuestionDto> generatedQuestions = new ArrayList<>();
 
+            // ユーザーの学習言語を取得（問題の言語として使用）
+            String targetLanguage = request.getTargetLanguage() != null ? request.getTargetLanguage() : "en";
+
             // 虫食い問題を保存
             for (ClaudeQuestionResponse.Question q : claudeResponse.getFillInBlank()) {
-                Question savedQuestion = saveQuestion(selectedSong, q, "fill_in_blank");
+                Question savedQuestion = saveQuestion(selectedSong, q, "fill_in_blank", targetLanguage);
                 generatedQuestions.add(convertToDto(savedQuestion));
 
                 // 虫食い問題の場合は、全ての空欄単語の情報を保存
-                // ユーザーの学習言語を設定（指定されていない場合は"en"）
-                String targetLang = request.getTargetLanguage() != null ? request.getTargetLanguage() : "en";
-                saveVocabulary(q.getBlankWord(), targetLang);
+                saveVocabulary(q.getBlankWord(), targetLanguage);
             }
 
             // リスニング問題を保存
             for (ClaudeQuestionResponse.Question q : claudeResponse.getListening()) {
-                Question savedQuestion = saveQuestion(selectedSong, q, "listening");
+                Question savedQuestion = saveQuestion(selectedSong, q, "listening", targetLanguage);
                 generatedQuestions.add(convertToDto(savedQuestion));
                 // リスニング問題の単語情報は、ユーザーが間違えた時に保存（ここでは保存しない）
             }
@@ -274,8 +275,13 @@ public class QuestionGeneratorService {
 
     /**
      * 問題を保存
+     *
+     * @param song 楽曲エンティティ
+     * @param claudeQuestion Gemini APIから取得した問題データ
+     * @param questionFormat 問題形式（"fill_in_blank" or "listening"）
+     * @param targetLanguage ユーザーの学習言語（問題の言語として使用）
      */
-    private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat) {
+    private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, String questionFormat, String targetLanguage) {
         // Songがまだ保存されていない場合は先に保存
         if (song.getSong_id() == null) {
             // Artistを作成/検索
@@ -313,7 +319,7 @@ public class QuestionGeneratorService {
             newQuestion.setAnswer(claudeQuestion.getBlankWord());
             newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
             newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
-            newQuestion.setLanguage(savedSong.getLanguage());
+            newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
 
             return questionRepository.save(newQuestion);
         }
@@ -328,7 +334,7 @@ public class QuestionGeneratorService {
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
         newQuestion.setDifficultyLevel(claudeQuestion.getDifficulty());
-        newQuestion.setLanguage(song.getLanguage());
+        newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
 
         return questionRepository.save(newQuestion);
     }
