@@ -80,63 +80,85 @@ public class GeminiApiClientImpl implements GeminiApiClient {
         String languageName = "en".equals(language) ? "English" : "Korean";
 
         return String.format("""
-            You are an expert language learning content creator. Generate high-quality %s learning questions from the following song lyrics.
+            You are an expert language learning content creator and translator.
 
-            **LYRICS:**
-            %s
+The TARGET LANGUAGE is: {{targetLanguage}}.
+The LEARNER NATIVE LANGUAGE is: Japanese.
 
-            **REQUIREMENTS:**
+Your tasks:
 
-            1. Generate %d fill-in-the-blank questions:
-               - Select meaningful words (verbs, nouns, adjectives, adverbs) that are pedagogically valuable
-               - Avoid articles (a, an, the) and simple pronouns
-               - Ensure each blank tests different language skills (vocabulary, grammar, collocations)
-               - Vary difficulty levels from 1 (beginner) to 5 (advanced)
-               - Consider word frequency and complexity for difficulty assignment
+1) Select short fragments (phrases or sentences) from the ORIGINAL SONG LYRICS.
+2) For each selected fragment, translate it into the TARGET LANGUAGE.
+3) Based on your TARGET LANGUAGE translations, create fill-in-the-blank and listening questions.
 
-            2. Generate %d listening comprehension questions:
-               - Choose complete, meaningful sentences from the lyrics
-               - Select sentences with clear grammatical structures
-               - Include sentences with idioms, phrasal verbs, or interesting expressions when possible
-               - Vary difficulty based on sentence complexity, length, and vocabulary
+IMPORTANT ABOUT LANGUAGES:
+- "sourceFragment" must always be copied directly from the original lyrics (do NOT modify its language).
+- "targetSentenceFull", "sentenceWithBlank", "blankWord" must always be in the TARGET LANGUAGE.
+- "translationJa" must always be a natural Japanese translation of "targetSentenceFull".
+- "explanation" must be written in natural Japanese.
+- Do NOT mix multiple languages in a single field.
 
-            **DIFFICULTY LEVEL GUIDELINES:**
-            - Level 1: Common words (top 1000), simple grammar
-            - Level 2: Intermediate words (top 3000), basic tenses
-            - Level 3: Advanced vocabulary, complex tenses
-            - Level 4: Idioms, phrasal verbs, nuanced meanings
-            - Level 5: Literary expressions, rare vocabulary, complex structures
+ORIGINAL SONG LYRICS (may contain multiple languages):
+{{lyricsOriginal}}
 
-            **OUTPUT FORMAT (JSON):**
-            {
-              "fillInBlank": [
-                {
-                  "sentence": "The sentence with _____ replacing the word",
-                  "blankWord": "the word that was removed",
-                  "difficulty": 1-5,
-                  "explanation": "Brief explanation of why this word/grammar point is important",
-                  "skillFocus": "vocabulary|grammar|collocation|idiom",
-                  "translationJa": "Japanese translation of the complete sentence"
-                }
-              ],
-              "listening": [
-                {
-                  "sentence": "The complete sentence from lyrics",
-                  "blankWord": "key word or phrase to focus on",
-                  "difficulty": 1-5,
-                  "explanation": "What makes this sentence valuable for listening practice",
-                  "skillFocus": "vocabulary|grammar|collocation|idiom",
-                  "translationJa": "Japanese translation of the sentence"
-                }
-              ]
-            }
+REQUIREMENTS:
 
-            **IMPORTANT:**
-            - Return ONLY valid JSON, no additional text or markdown formatting
-            - Do not wrap the JSON in code blocks
-            - Ensure all questions are directly from the provided lyrics
-            - Each question should be unique and test different language aspects
-            - Provide clear, pedagogically sound explanations
+1. Generate {{numFill}} fill-in-the-blank questions:
+   - Step A: Choose a short, meaningful fragment from the original lyrics (sourceFragment).
+   - Step B: Translate that fragment into a complete sentence in the TARGET LANGUAGE (targetSentenceFull).
+   - Step C: Choose one meaningful word (verb, noun, adjective, adverb) and replace it with "_____" in sentenceWithBlank.
+   - Avoid articles (a, an, the) and simple pronouns as blanks.
+   - Each question should focus on a different aspect (vocabulary, grammar, collocations).
+   - Assign difficulty from 1 (beginner) to 5 (advanced) based on word frequency and complexity in the TARGET LANGUAGE.
+   - Provide translationJa as a natural Japanese translation of targetSentenceFull.
+
+2. Generate {{numListening}} listening comprehension questions:
+   - Step A: Choose a complete, meaningful fragment from the original lyrics (sourceFragment).
+   - Step B: Translate it into a complete sentence in the TARGET LANGUAGE (targetSentenceFull).
+   - Prefer sentences with clear grammar and, when possible, idioms or interesting expressions in the TARGET LANGUAGE.
+   - Assign difficulty from 1 to 5 based on sentence length, structure, and vocabulary.
+   - Provide translationJa as a natural Japanese translation of targetSentenceFull.
+   - Set audioUrl to an empty string "" (the backend system will fill in an actual S3 URL later).
+
+DIFFICULTY LEVEL GUIDELINES (for the TARGET LANGUAGE):
+- Level 1: Very common words (top 1000), simple grammar.
+- Level 2: Intermediate words (top 3000), basic tenses.
+- Level 3: Advanced vocabulary, more complex tenses.
+- Level 4: Idioms, phrasal verbs, nuanced meanings.
+- Level 5: Literary expressions, rare vocabulary, complex structures.
+
+OUTPUT FORMAT (JSON ONLY):
+{
+  "fillInBlank": [
+    {
+      "sourceFragment": "Original fragment from the lyrics (any language)",
+      "targetSentenceFull": "Your translation into the TARGET LANGUAGE",
+      "sentenceWithBlank": "Target sentence with _____ replacing one word",
+      "blankWord": "The removed word in the TARGET LANGUAGE",
+      "difficulty": 1-5,
+      "translationJa": "Natural Japanese translation of targetSentenceFull",
+      "explanation": "Japanese explanation of why this word/grammar is important"
+    }
+  ],
+  "listening": [
+    {
+      "sourceFragment": "Original fragment from the lyrics (any language)",
+      "targetSentenceFull": "Your translation into the TARGET LANGUAGE",
+      "difficulty": 1-5,
+      "translationJa": "Natural Japanese translation of targetSentenceFull",
+      "explanation": "Japanese explanation of why this sentence is valuable for listening",
+      "audioUrl": ""
+    }
+  ]
+}
+
+IMPORTANT:
+- Return ONLY valid JSON, with no extra text or markdown.
+- Do NOT wrap the JSON in code blocks.
+- Do NOT invent new lyrics: every sourceFragment must appear exactly in the provided lyrics.
+- Keep your translations faithful to the original meaning but natural in the TARGET LANGUAGE.
+- Each question must be unique and focus on a different language aspect.
+
             """, languageName, lyrics, fillInBlankCount, listeningCount);
     }
 
