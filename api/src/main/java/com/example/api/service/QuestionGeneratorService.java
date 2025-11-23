@@ -319,7 +319,14 @@ public class QuestionGeneratorService {
             newQuestion.setAnswer(claudeQuestion.getBlankWord());
 
             // completeSentence: 空欄を埋めた完全な文を生成
-            String completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
+            String completeSentence;
+            if (claudeQuestion.getSentence().contains("_____")) {
+                // fill_in_blank問題の場合: 空欄を埋める
+                completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
+            } else {
+                // listening問題の場合: sentenceがすでに完全な文
+                completeSentence = claudeQuestion.getSentence();
+            }
             newQuestion.setCompleteSentence(completeSentence);
 
             newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
@@ -327,7 +334,13 @@ public class QuestionGeneratorService {
             newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
             newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
             newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
-            newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+
+            // audioUrl: リスニング問題の場合のみ設定（現状はGemini APIからの値を使用、将来的にはTTS生成）
+            if ("listening".equals(questionFormat)) {
+                // TODO: 将来的にTTSサービス（Google TTS, Amazon Polly等）で音声を生成してURLを設定
+                // 現状はGemini APIから返される値（おそらくnull）をそのまま使用
+                newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+            }
 
             return questionRepository.save(newQuestion);
         }
@@ -342,7 +355,14 @@ public class QuestionGeneratorService {
         newQuestion.setAnswer(claudeQuestion.getBlankWord());
 
         // completeSentence: 空欄を埋めた完全な文を生成
-        String completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
+        String completeSentence;
+        if (claudeQuestion.getSentence().contains("_____")) {
+            // fill_in_blank問題の場合: 空欄を埋める
+            completeSentence = claudeQuestion.getSentence().replace("_____", claudeQuestion.getBlankWord());
+        } else {
+            // listening問題の場合: sentenceがすでに完全な文
+            completeSentence = claudeQuestion.getSentence();
+        }
         newQuestion.setCompleteSentence(completeSentence);
 
         newQuestion.setQuestionFormat(com.example.api.enums.QuestionFormat.fromValue(questionFormat));
@@ -350,7 +370,13 @@ public class QuestionGeneratorService {
         newQuestion.setSkillFocus(claudeQuestion.getSkillFocus());
         newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
         newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
-        newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+
+        // audioUrl: リスニング問題の場合のみ設定（現状はGemini APIからの値を使用、将来的にはTTS生成）
+        if ("listening".equals(questionFormat)) {
+            // TODO: 将来的にTTSサービス（Google TTS, Amazon Polly等）で音声を生成してURLを設定
+            // 現状はGemini APIから返される値（おそらくnull）をそのまま使用
+            newQuestion.setAudioUrl(claudeQuestion.getAudioUrl());
+        }
 
         return questionRepository.save(newQuestion);
     }

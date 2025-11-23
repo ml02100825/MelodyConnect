@@ -116,7 +116,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
                   "difficulty": 1-5,
                   "explanation": "Brief explanation of why this word/grammar point is important",
                   "skillFocus": "vocabulary|grammar|collocation|idiom",
-                  "translationJa": "Japanese translation of the complete sentence"
+                  "translationJa": "Japanese translation of the complete sentence (with blank filled)"
                 }
               ],
               "listening": [
@@ -130,6 +130,8 @@ public class GeminiApiClientImpl implements GeminiApiClient {
                 }
               ]
             }
+
+            **NOTE:** Audio URLs for listening questions will be generated separately via TTS service.
 
             **IMPORTANT:**
             - Return ONLY valid JSON, no additional text or markdown formatting
