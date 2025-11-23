@@ -38,6 +38,11 @@ public class WordnikApiClientImpl implements WordnikApiClient {
 
     @Override
     public WordnikWordInfo getWordInfo(String word) {
+        logger.info("=== WORDNIK API REQUEST ===");
+        logger.info("Word: {}", word);
+        logger.info("API Key configured: {}", (apiKey != null && !apiKey.isEmpty()));
+        logger.info("==========================");
+
         if (apiKey == null || apiKey.isEmpty()) {
             logger.warn("Wordnik APIキーが設定されていません。モックデータを返します。");
             return createMockWordInfo(word);
@@ -53,6 +58,14 @@ public class WordnikApiClientImpl implements WordnikApiClient {
             String[] exampleData = getExamples(word);
             String audioUrl = getAudioUrl(word);
 
+            logger.info("=== WORDNIK API RESPONSE ===");
+            logger.info("Definition: {}", definition);
+            logger.info("Pronunciation: {}", pronunciation);
+            logger.info("Part of Speech: {}", partOfSpeech);
+            logger.info("Example: {}", exampleData[0]);
+            logger.info("Audio URL: {}", audioUrl);
+            logger.info("============================");
+
             return WordnikWordInfo.builder()
                 .word(word)
                 .meaningJa(definition)  // TODO: 翻訳APIを使って日本語に変換
@@ -64,7 +77,8 @@ public class WordnikApiClientImpl implements WordnikApiClient {
                 .build();
 
         } catch (WebClientResponseException e) {
-            logger.error("Wordnik API呼び出しエラー: status={}, word={}", e.getStatusCode(), word);
+            logger.error("Wordnik API呼び出しエラー: status={}, word={}, message={}",
+                e.getStatusCode(), word, e.getMessage());
             return createMockWordInfo(word);
         } catch (Exception e) {
             logger.error("単語情報の取得中にエラーが発生しました: word={}", word, e);

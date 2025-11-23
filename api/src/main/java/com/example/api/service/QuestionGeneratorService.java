@@ -393,18 +393,40 @@ public class QuestionGeneratorService {
      * @param language ユーザーの学習言語（例: "en", "ja", "ko"）
      */
     private void saveVocabulary(String word, String language) {
+        logger.info("=== VOCABULARY SAVE REQUEST ===");
+        logger.info("Word: {}", word);
+        logger.info("Language: {}", language);
+
         // すでに存在する場合はスキップ
         if (vocabularyRepository.existsByWord(word)) {
-            logger.debug("単語は既に存在します: word={}", word);
+            logger.info("単語は既に存在します - スキップ: word={}", word);
+            logger.info("===============================");
             return;
         }
 
         try {
             WordnikWordInfo wordInfo = wordnikApiClient.getWordInfo(word);
 
+            logger.info("WordInfo received:");
+            logger.info("  - word: {}", wordInfo != null ? wordInfo.getWord() : "null");
+            logger.info("  - meaningJa: {}", wordInfo != null ? wordInfo.getMeaningJa() : "null");
+            logger.info("  - pronunciation: {}", wordInfo != null ? wordInfo.getPronunciation() : "null");
+            logger.info("  - partOfSpeech: {}", wordInfo != null ? wordInfo.getPartOfSpeech() : "null");
+
             // モックデータ（APIキーなし）の場合はスキップ
             if (wordInfo == null || wordInfo.getMeaningJa() == null) {
-                logger.debug("Wordnik APIが利用できないため単語保存をスキップ: word={}", word);
+                logger.warn("Wordnik APIが利用できないため単語保存をスキップ: word={}", word);
+                logger.info("===============================");
+                return;
+            }
+
+            // モックデータのメッセージが含まれている場合もスキップ
+            if (wordInfo.getMeaningJa().contains("辞書情報を取得できませんでした") ||
+                wordInfo.getMeaningJa().equals("No definition available") ||
+                wordInfo.getMeaningJa().equals("Definition not available")) {
+                logger.warn("有効な定義が取得できなかったため単語保存をスキップ: word={}, meaning={}",
+                    word, wordInfo.getMeaningJa());
+                logger.info("===============================");
                 return;
             }
 
@@ -420,10 +442,12 @@ public class QuestionGeneratorService {
                 .build();
 
             vocabularyRepository.save(vocab);
-            logger.debug("単語情報を保存しました: word={}, language={}", word, language);
+            logger.info("✓ 単語情報を保存しました: word={}, language={}", word, language);
+            logger.info("===============================");
 
         } catch (Exception e) {
-            logger.warn("単語情報の保存に失敗しました: word={}, error={}", word, e.getMessage());
+            logger.error("単語情報の保存に失敗しました: word={}, error={}", word, e.getMessage(), e);
+            logger.info("===============================");
         }
     }
 
