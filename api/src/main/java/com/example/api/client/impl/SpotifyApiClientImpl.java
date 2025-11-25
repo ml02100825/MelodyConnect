@@ -8,30 +8,35 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import com.example.api.repository.*;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Spotify API Client の実装
  * Client Credentials Flow による認証と楽曲検索機能を提供
+ * アーティストの全曲取得機能を含む
  */
 @Component
 @Primary
 public class SpotifyApiClientImpl implements SpotifyApiClient {
+    
+    @Autowired
+    private SongRepository songRepository;
 
     private static final Logger logger = LoggerFactory.getLogger(SpotifyApiClientImpl.class);
     private static final String SPOTIFY_AUTH_URL = "https://accounts.spotify.com/api/token";
     private static final String SPOTIFY_API_URL = "https://api.spotify.com/v1";
+    private static final int MAX_ALBUMS_PER_REQUEST = 50;
+    private static final int MAX_TRACKS_PER_REQUEST = 50;
 
     private final WebClient authClient;
     private final WebClient apiClient;
@@ -107,6 +112,159 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     }
 
     @Override
+    public List<Song> getAllSongsByArtist(String spotifyArtistId) {
+        if (spotifyArtistId == null || spotifyArtistId.isEmpty()) {
+            logger.warn("SpotifyアーティストIDが指定されていません");
+            return Collections.emptyList();
+        }
+
+        String token = getAccessToken();
+        if (token == null) {
+            logger.warn("トークンが取得できないため処理を中断します");
+            return Collections.emptyList();
+        }
+
+        List<Song> allSongs = new ArrayList<>();
+        Set<String> seenTrackIds = new HashSet<>();
+
+        try {
+            logger.info("=== アーティストの全曲取得開始 ===");
+            logger.info("Spotify Artist ID: {}", spotifyArtistId);
+
+            // ステップ1: アーティストの全アルバムを取得
+            List<String> albumIds = getAllAlbumIds(spotifyArtistId, token);
+            logger.info("取得したアルバム数: {}", albumIds.size());
+
+            // ステップ2: 各アルバムから全トラックを取得
+            int totalTracks = 0;
+            for (String albumId : albumIds) {
+                List<Song> tracksFromAlbum = getTracksFromAlbum(albumId, spotifyArtistId, token);
+                
+                // 重複チェック（コンピレーションアルバムなどで同じ曲が複数回出る場合がある）
+                for (Song song : tracksFromAlbum) {
+                    if (!seenTrackIds.contains(song.getSpotify_track_id())) {
+                        allSongs.add(song);
+                        seenTrackIds.add(song.getSpotify_track_id());
+                        totalTracks++;
+                    }
+                }
+
+                // 進捗ログ
+                if (totalTracks % 50 == 0) {
+                    logger.info("取得進捗: {}曲", totalTracks);
+                }
+            }
+
+            logger.info("=== 全曲取得完了 ===");
+            logger.info("合計楽曲数: {}", allSongs.size());
+            return allSongs;
+
+        } catch (Exception e) {
+            logger.error("アーティスト {} の全曲取得に失敗しました", spotifyArtistId, e);
+            return allSongs; // 部分的に取得できた曲は返す
+        }
+    }
+
+    /**
+     * アーティストの全アルバムIDを取得
+     */
+    private List<String> getAllAlbumIds(String artistId, String token) throws Exception {
+        List<String> albumIds = new ArrayList<>();
+        String nextUrl = null;
+        int currentOffset = 0;
+
+        do {
+            // ラムダ式内で使うためにfinal変数を作成
+            final int offset = currentOffset;
+            
+            String response = apiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/artists/" + artistId + "/albums")
+                    .queryParam("include_groups", "album,single")  // アルバムとシングルを取得
+                    .queryParam("market", "JP")
+                    .queryParam("limit", MAX_ALBUMS_PER_REQUEST)
+                    .queryParam("offset", offset)
+                    .build())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode items = jsonNode.path("items");
+
+            if (items.isArray()) {
+                for (JsonNode album : items) {
+                    String albumId = album.path("id").asText();
+                    if (albumId != null && !albumId.isEmpty()) {
+                        albumIds.add(albumId);
+                    }
+                }
+            }
+
+            // 次のページがあるかチェック
+            nextUrl = jsonNode.path("next").asText(null);
+            currentOffset += MAX_ALBUMS_PER_REQUEST;
+
+        } while (nextUrl != null && !nextUrl.isEmpty());
+
+        return albumIds;
+    }
+
+    /**
+     * アルバムから全トラックを取得
+     * ページネーション対応（50曲以上のアルバムに対応）
+     */
+    private List<Song> getTracksFromAlbum(String albumId, String artistId, String token) {
+        List<Song> songs = new ArrayList<>();
+        int currentOffset = 0;
+        boolean hasMore = true;
+
+        try {
+            while (hasMore) {
+                // ラムダ式内で使うためにfinal変数を作成
+                final int offset = currentOffset;
+                
+                String response = apiClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                        .path("/albums/" + albumId + "/tracks")
+                        .queryParam("market", "JP")
+                        .queryParam("limit", MAX_TRACKS_PER_REQUEST)
+                        .queryParam("offset", offset)
+                        .build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+                JsonNode jsonNode = objectMapper.readTree(response);
+                JsonNode items = jsonNode.path("items");
+
+                if (items.isArray()) {
+                    for (JsonNode track : items) {
+                        Song song = parseTrackToSong(track);
+                        if (song != null) {
+                            songs.add(song);
+                        }
+                    }
+                    
+                    // 次のページがあるかチェック
+                    String nextUrl = jsonNode.path("next").asText(null);
+                    hasMore = (nextUrl != null && !nextUrl.isEmpty());
+                    currentOffset += MAX_TRACKS_PER_REQUEST;
+                } else {
+                    hasMore = false;
+                }
+            }
+
+        } catch (Exception e) {
+            logger.warn("アルバム {} からのトラック取得に失敗: {}", albumId, e.getMessage());
+        }
+
+        return songs;
+    }
+
+    @Override
     public Song getRandomSongByArtist(Integer artistId) {
         // TODO: artistIdからSpotifyのアーティストIDにマッピングが必要
         // 現時点ではランダム検索にフォールバック
@@ -128,7 +286,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
 
         try {
-            // アーティストのトップトラックを取得
+            // アーティストのトップトラックを取得してランダムに1曲返す
             String response = apiClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/artists/" + spotifyArtistId + "/top-tracks")
@@ -426,21 +584,18 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         song.setSpotify_track_id(trackNode.path("id").asText());
 
         // アーティスト情報
-        String artistName = null;
         String artistApiId = null;
         JsonNode artists = trackNode.path("artists");
         if (artists.isArray() && artists.size() > 0) {
-            artistName = artists.get(0).path("name").asText();
             artistApiId = artists.get(0).path("id").asText();
             // アーティスト情報を一時フィールドに保存
-            song.setTempArtistName(artistName);
             song.setTempArtistApiId(artistApiId);
             // Note: artist_idは後で設定される
             song.setAritst_id(0L); // プレースホルダー
         }
 
         // ジャンルはトラックレベルでは取得できないため、デフォルト設定
-        song.setGenre("pop");
+        song.setGenre(null);
         // 言語はSpotify APIから取得できないため、nullに設定（歌詞取得時に判定）
         song.setLanguage(null);
 
@@ -448,7 +603,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         // （SpotifyApiClientで事前に検索すると、間違ったIDを設定してしまう可能性があるため）
         song.setGenius_song_id(null);
 
-        logger.info("Spotify楽曲を取得: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
+        logger.debug("Spotify楽曲をパース: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
         return song;
     }
 

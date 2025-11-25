@@ -52,10 +52,17 @@ public class Artist {
 
     /**
      * アーティストAPIID
-     * AppleMusicで使用されるID
+     * SpotifyAPIで使用されるID
      */
     @Column(name = "artist_api_id", length = 50)
     private String artistApiId;
+
+        /**
+     * アーティストの楽曲を最後に同期した日時
+     * nullの場合は未同期
+     */
+    @Column(name = "last_synced_at")
+    private LocalDateTime lastSyncedAt;
 
     /**
      * エンティティ保存前に自動的に追加日時を設定

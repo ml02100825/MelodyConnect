@@ -60,7 +60,6 @@ public class QuestionGenerationResponse {
         private String completeSentence;
         private String questionFormat;
         private Integer difficultyLevel;
-        private String skillFocus;
         private String language;
         private String translationJa;
         private String audioUrl;

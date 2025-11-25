@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * Gemini API Client の実装
- * Google Gemini APIを使用して歌詞から問題を生成します
+ * Google Gemini APIを使用して歌詞から問題を生成し、翻訳を行います
  */
 @Component
 @Primary
@@ -73,8 +73,35 @@ public class GeminiApiClientImpl implements GeminiApiClient {
         }
     }
 
+    @Override
+    public String translateToJapanese(String text, String sourceLanguage) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            logger.warn("Gemini APIキーが設定されていません。翻訳をスキップします。");
+            return "(翻訳できませんでした)";
+        }
+
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        try {
+            logger.debug("日本語への翻訳を実行中: sourceLanguage={}, text={}", sourceLanguage, text);
+
+            String prompt = buildTranslationPrompt(text, sourceLanguage);
+            String responseText = callGeminiApi(prompt);
+            String translation = extractTranslation(responseText);
+
+            logger.debug("翻訳完了: {} -> {}", text, translation);
+            return translation;
+
+        } catch (Exception e) {
+            logger.error("翻訳中にエラーが発生しました: text={}", text, e);
+            return "(翻訳エラー)";
+        }
+    }
+
     /**
-     * プロンプトを構築
+     * 問題生成用のプロンプトを構築
      */
     private String buildPrompt(String lyrics, String language, int fillInBlankCount, int listeningCount) {
         String languageName = getLanguageName(language);
@@ -171,6 +198,26 @@ IMPORTANT:
     }
 
     /**
+     * 翻訳用のプロンプトを構築
+     */
+    private String buildTranslationPrompt(String text, String sourceLanguage) {
+        return String.format("""
+            Translate the following %s text to natural Japanese.
+            
+            Rules:
+            - Provide ONLY the Japanese translation
+            - Do NOT include explanations, alternatives, or the original text
+            - Make it natural and appropriate for language learners
+            - Keep the translation concise and clear
+            
+            Text to translate:
+            %s
+            
+            Japanese translation:
+            """, sourceLanguage, text);
+    }
+
+    /**
      * 言語コードから英語の言語名を取得
      *
      * @param language 言語コード（例: "en", "ko", "es"）
@@ -228,7 +275,7 @@ IMPORTANT:
     }
 
     /**
-     * Gemini APIのレスポンスをパース
+     * Gemini APIのレスポンスから問題をパース
      */
     private ClaudeQuestionResponse parseResponse(String responseText) {
         try {
@@ -277,6 +324,40 @@ IMPORTANT:
         } catch (Exception e) {
             logger.error("レスポンスのパースに失敗しました: {}", responseText, e);
             throw new RuntimeException("レスポンスの解析に失敗しました", e);
+        }
+    }
+
+    /**
+     * 翻訳レスポンスから翻訳テキストを抽出
+     */
+    private String extractTranslation(String responseText) {
+        try {
+            JsonNode rootNode = objectMapper.readTree(responseText);
+            String translation = rootNode
+                .path("candidates").get(0)
+                .path("content")
+                .path("parts").get(0)
+                .path("text").asText().trim();
+
+            // マークダウンや余計な説明を除去
+            // 複数行がある場合は最初の行のみ使用
+            if (translation.contains("\n")) {
+                translation = translation.split("\n")[0].trim();
+            }
+
+            // "Japanese translation:" などのプレフィックスを除去
+            if (translation.toLowerCase().contains("translation:")) {
+                int colonIndex = translation.indexOf(":");
+                if (colonIndex > 0 && colonIndex < translation.length() - 1) {
+                    translation = translation.substring(colonIndex + 1).trim();
+                }
+            }
+
+            return translation;
+
+        } catch (Exception e) {
+            logger.error("翻訳レスポンスのパース失敗", e);
+            return "(翻訳取得失敗)";
         }
     }
 
@@ -331,7 +412,6 @@ IMPORTANT:
                 .answer(node.path("blankWord").asText())
                 .difficultyLevel(node.path("difficulty").asInt(3))
                 .explanation(node.path("explanation").asText())
-                .skillFocus(node.path("skillFocus").asText())
                 .translationJa(node.path("translationJa").asText())
                 .build();
         }

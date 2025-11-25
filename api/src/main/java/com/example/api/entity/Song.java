@@ -38,10 +38,6 @@ public class Song {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime created_at;
 
-    // Transient fields for temporary artist information (not persisted to DB)
-    @Transient
-    private String tempArtistName;
-
     @Transient
     private String tempArtistApiId;
 
@@ -117,19 +113,9 @@ public class Song {
         this.created_at = created_at;
     }
 
-    public String getTempArtistName() {
-        return tempArtistName;
-    }
 
-    public void setTempArtistName(String tempArtistName) {
-        this.tempArtistName = tempArtistName;
-    }
 
-    public String getTempArtistApiId() {
-        return tempArtistApiId;
-    }
 
-    public void setTempArtistApiId(String tempArtistApiId) {
-        this.tempArtistApiId = tempArtistApiId;
-    }
+
+
 }

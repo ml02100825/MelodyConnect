@@ -81,13 +81,6 @@ public class Question {
     private Integer difficultyLevel;
 
     /**
-     * 学習焦点
-     * vocabulary, grammar, collocation, idiom等
-     */
-    @Column(name = "skill_focus", length = 50)
-    private String skillFocus;
-
-    /**
      * 言語
      */
     @Column(name = "language", length = 20)

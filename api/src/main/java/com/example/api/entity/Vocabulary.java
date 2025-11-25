@@ -15,6 +15,8 @@ public class Vocabulary {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    
+        
     @Column(name = "vocab_id", nullable = false)
     private Integer vocab_id;
 
@@ -48,4 +50,11 @@ public class Vocabulary {
 
     @Column(name = "updated_at")
     private LocalDateTime updated_at;
+
+    @PrePersist
+    protected void onCreate() {
+        if (created_at == null) {
+            created_at = LocalDateTime.now();
+        }
+    }
 }
