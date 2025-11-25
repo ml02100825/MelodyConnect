@@ -14,7 +14,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   bool isSubscribed = false;
 
   bool get _hasPaymentMethod => PaymentMethodManager.paymentMethods.isNotEmpty;
-  Map<String, dynamic>? get _primaryPaymentMethod => _hasPaymentMethod ? PaymentMethodManager.paymentMethods.first : null;
+  Map<String, dynamic>? _selectedPaymentMethod;
+  
+  @override
+  void initState() {
+    super.initState();
+    _selectedPaymentMethod = _hasPaymentMethod ? PaymentMethodManager.paymentMethods.first : null;
+  }
+  
+  Map<String, dynamic>? get _primaryPaymentMethod => _selectedPaymentMethod;
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +195,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () => _navigateToPaymentManagement(),
+                        onPressed: () => _showPaymentMethodSelector(),
                         child: const Text('変更', style: TextStyle(color: Colors.blue)),
                       ),
                     ],
@@ -320,7 +328,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         MaterialPageRoute(builder: (context) => const AddPaymentMethodScreen()),
       );
       if (result == true) {
-        setState(() {});
+        setState(() {
+          _selectedPaymentMethod = PaymentMethodManager.paymentMethods.last;
+        });
         _showSubscribeDialog();
       }
     }
@@ -331,7 +341,67 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       context,
       MaterialPageRoute(builder: (context) => const PaymentManagementScreen()),
     );
-    setState(() {});
+    setState(() {
+      // 支払い方法が削除された場合の対応
+      if (_hasPaymentMethod) {
+        _selectedPaymentMethod = PaymentMethodManager.paymentMethods.first;
+      } else {
+        _selectedPaymentMethod = null;
+      }
+    });
+  }
+  
+  void _showPaymentMethodSelector() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('支払い方法を選択', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            ...PaymentMethodManager.paymentMethods.map((method) {
+              final isSelected = _selectedPaymentMethod == method;
+              return ListTile(
+                leading: Icon(method['icon'] ?? Icons.credit_card, color: method['color'] ?? Colors.blue),
+                title: Text('${method['brand']} •••• ${method['last4']}'),
+                trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : null,
+                onTap: () {
+                  setState(() {
+                    _selectedPaymentMethod = method;
+                  });
+                  Navigator.pop(context);
+                },
+              );
+            }),
+            const SizedBox(height: 8),
+            Divider(color: Colors.grey[300]),
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
+              title: const Text('新しい支払い方法を追加', style: TextStyle(color: Colors.blue)),
+              onTap: () async {
+                Navigator.pop(context);
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AddPaymentMethodScreen()),
+                );
+                if (result == true) {
+                  setState(() {
+                    _selectedPaymentMethod = PaymentMethodManager.paymentMethods.last;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showSubscribeDialog() {
@@ -345,7 +415,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('ConnectPlusを¥500/月で購入しますか？'),
+            const Text('ConnectPlusを¥500/月で購入しますか?'),
             const SizedBox(height: 12),
             if (pm != null)
               Container(
@@ -398,7 +468,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('解約確認'),
         content: const Text(
-          'ConnectPlusを解約しますか？\n\n解約すると特典が利用できなくなります。',
+          'ConnectPlusを解約しますか?\n\n解約すると特典が利用できなくなります。',
         ),
         actions: [
           TextButton(

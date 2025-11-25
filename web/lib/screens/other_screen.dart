@@ -5,7 +5,7 @@ import 'volume_settings_screen.dart';
 import 'contact_screen.dart';
 import 'language_settings_screen.dart';
 import 'privacy_settings_screen.dart';
-import 'purchase_screen.dart';
+import 'subscription_screen.dart';
 import 'payment_management_screen.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
