@@ -214,7 +214,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     elevation: 2,
                   ),
                   child: Text(
-                    _hasPaymentMethod ? '¥500/月で登録する' : '支払い方法を登録して購読',
+                    _hasPaymentMethod ? '¥500/月で登録する' : '支払い方法を登録して購入',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
