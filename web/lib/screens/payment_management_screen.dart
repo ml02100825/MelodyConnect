@@ -2,19 +2,7 @@ import 'package:flutter/material.dart';
 
 // 支払い方法のデータを管理するクラス
 class PaymentMethodManager {
-  static final List<Map<String, dynamic>> _paymentMethods = [
-    {
-      'brand': 'VISA',
-      'last4': '3124',
-      'type': 'Visa',
-      'icon': Icons.credit_card,
-      'color': Colors.blue,
-      'cardNumber': '1234123412341234',
-      'expiry': '12/25',
-      'cvv': '123',
-      'country': '日本',
-    },
-  ];
+  static final List<Map<String, dynamic>> _paymentMethods = [];
 
   static List<Map<String, dynamic>> get paymentMethods => List.from(_paymentMethods);
 
