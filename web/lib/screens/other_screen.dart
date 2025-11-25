@@ -4,7 +4,8 @@ import 'my_profile.dart';
 import 'volume_settings_screen.dart';
 import 'contact_screen.dart';
 import 'language_settings_screen.dart';
-import 'subscription_screen.dart';
+import 'privacy_settings_screen.dart';
+import 'purchase_screen.dart';
 import 'payment_management_screen.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
@@ -150,7 +151,12 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.lock,
               label: 'プライバシー設定',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
