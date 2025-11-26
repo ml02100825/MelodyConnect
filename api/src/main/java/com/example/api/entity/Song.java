@@ -32,14 +32,8 @@ public class Song {
     @Column(name = "language", length = 10)
     private String language;
 
-    @Column(name = "genre", length = 50)
-    private String genre;
-
     @Column(name = "created_at", nullable = false)
     private LocalDateTime created_at;
-
-    @Transient
-    private String tempArtistApiId;
 
     @PrePersist
     void onCreate() {
@@ -97,13 +91,6 @@ public class Song {
         this.language = language;
     }
 
-    public String getGenre() {
-        return genre;
-    }
-
-    public void setGenre(String genre) {
-        this.genre = genre;
-    }
 
     public LocalDateTime getCreated_at() {
         return created_at;

@@ -1,6 +1,7 @@
 package com.example.api.service;
 
 import com.example.api.dto.*;
+import com.example.api.entity.Artist;
 import com.example.api.entity.LHistory;
 import com.example.api.entity.Question;
 import com.example.api.entity.Song;
@@ -8,8 +9,9 @@ import com.example.api.repository.LHistoryRepository;
 import com.example.api.repository.LikeArtistRepository;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.SongRepository;
+import com.example.api.repository.ArtistRepository;
 import com.example.api.client.SpotifyApiClient;
-import com.example.api.client.TtsApiClient;
+
 import com.example.api.entity.LikeArtist;
 import com.example.api.enums.QuestionFormat;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -46,6 +48,8 @@ public class QuizService {
 
     @Autowired
     private LikeArtistRepository likeArtistRepository;
+    @Autowired
+    private ArtistRepository artistRepository;
 
     @Autowired
     private SpotifyApiClient spotifyApiClient;
@@ -59,8 +63,19 @@ public class QuizService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
-    private TtsApiClient ttsApiClient;
+        /**
+     * Songからアーティスト名を取得するヘルパーメソッド
+     * aritst_idを使ってArtistエンティティから取得
+     */
+    private String getArtistNameFromSong(Song song) {
+        if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
+            return null;
+        }
+        
+        return artistRepository.findById(song.getAritst_id().intValue())
+            .map(Artist::getArtistName)
+            .orElse(null);
+    }
 
     /**
      * クイズを開始
@@ -113,11 +128,12 @@ public class QuizService {
 
             QuizStartResponse.SongInfo songInfo = null;
             if (selectedSong != null) {
+                String artistName = getArtistNameFromSong(selectedSong);
+  
                 songInfo = QuizStartResponse.SongInfo.builder()
                     .songId(selectedSong.getSong_id())
                     .songName(selectedSong.getSongname())
-                    .artistName("Unknown") // TODO: アーティスト名を取得するロジックを実装
-                    .genre(selectedSong.getGenre())
+                    .artistName(artistName) // TODO:
                     .build();
             }
 
@@ -387,58 +403,25 @@ public class QuizService {
      * questionエンティティをQuizQuestionDTOに変換
      */
     private QuizStartResponse.QuizQuestion convertToQuizQuestion(Question q) {
-        String audioUrl = null;
 
-        // リスニング問題の場合は音声を生成
-        if (QuestionFormat.LISTENING.equals(q.getQuestionFormat())) {
-            audioUrl = generateAudioForQuestion(q);
-        }
+     
+        
 
         return QuizStartResponse.QuizQuestion.builder()
             .questionId(q.getQuestionId())
             .text(q.getText())
             .questionFormat(q.getQuestionFormat().getValue())
             .difficultyLevel(q.getDifficultyLevel())
-            .audioUrl(audioUrl)
+            .audioUrl(q.getAudioUrl())
             .language(q.getLanguage())
+
             .build();
     }
 
-    /**
-     * 問題用の音声を生成
-     */
-    private String generateAudioForQuestion(Question question) {
-        try {
-            String ttsLanguageCode = mapLanguageToTtsCode(question.getLanguage());
-            // リスニング問題では答えを読み上げる（聞き取って書く形式）
-            String textToSpeak = question.getAnswer();
 
-            logger.debug("TTS音声生成: questionId={}, language={}, text={}",
-                question.getQuestionId(), ttsLanguageCode, textToSpeak);
-
-            return ttsApiClient.generateAudio(textToSpeak, ttsLanguageCode);
-        } catch (Exception e) {
-            logger.error("音声生成に失敗しました: questionId={}", question.getQuestionId(), e);
-            return null;
-        }
-    }
 
     /**
      * 言語名をTTS言語コードに変換
      */
-    private String mapLanguageToTtsCode(String language) {
-        if (language == null) {
-            return "en-US";
-        }
-        switch (language.toUpperCase()) {
-            case "ENGLISH":
-                return "en-US";
-            case "KOREAN":
-                return "ko-KR";
-            case "JAPANESE":
-                return "ja-JP";
-            default:
-                return "en-US";
-        }
-    }
+   
 }

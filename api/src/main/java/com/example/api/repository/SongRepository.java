@@ -27,8 +27,10 @@ public interface SongRepository extends JpaRepository<Song, Long> {
       /**
      * Spotify Track IDで検索
      */
-    @Query("SELECT s FROM Song s WHERE s.spotify_track_id = ?1")
-    Boolean exitsBySpotifyTrackId(String spotifyTrackId);
+    @Query("SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END " +
+       "FROM Song s WHERE s.spotify_track_id = ?1")
+    boolean existsBySpotifyTrackId(String spotifyTrackId);
+
 
     /**
      * アーティストIDでランダムな楽曲を取得
@@ -48,5 +50,7 @@ public interface SongRepository extends JpaRepository<Song, Long> {
     @Query(value = "SELECT * FROM song ORDER BY RAND() LIMIT 1", nativeQuery = true)
     Optional<Song> findRandom();
 
-    boolean existsBySpotifyTrackId(String spotify_track_id);
+    
+
+    
 }

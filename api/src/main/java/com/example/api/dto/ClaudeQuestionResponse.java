@@ -122,11 +122,5 @@ public class ClaudeQuestionResponse {
             return difficultyLevel;
         }
 
-        /**
-         * 学習焦点 (vocabulary, grammar, collocation, idiom等) - 旧フォーマット用
-         * @deprecated 新しいフォーマットでは使用されません
-         */
-        @Deprecated
-        private String skillFocus;
     }
 }

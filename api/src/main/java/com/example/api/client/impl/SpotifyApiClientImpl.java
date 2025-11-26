@@ -3,6 +3,7 @@ package com.example.api.client.impl;
 import com.example.api.client.GeniusApiClient;
 import com.example.api.client.SpotifyApiClient;
 import com.example.api.dto.SpotifyArtistDto;
+import com.example.api.entity.Artist;
 import com.example.api.entity.Song;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +32,9 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     
     @Autowired
     private SongRepository songRepository;
+
+    @Autowired
+    private ArtistRepository artistRepository;
 
     private static final Logger logger = LoggerFactory.getLogger(SpotifyApiClientImpl.class);
     private static final String SPOTIFY_AUTH_URL = "https://accounts.spotify.com/api/token";
@@ -575,6 +579,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
     /**
      * SpotifyのトラックJSONをSongエンティティに変換
+     * アーティストが存在しない場合は先にDBに保存する
      */
     private Song parseTrackToSong(JsonNode trackNode) {
         Song song = new Song();
@@ -583,24 +588,35 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         song.setSongname(songName);
         song.setSpotify_track_id(trackNode.path("id").asText());
 
-        // アーティスト情報
-        String artistApiId = null;
+        // アーティスト情報を取得してDBに保存
         JsonNode artists = trackNode.path("artists");
         if (artists.isArray() && artists.size() > 0) {
-            artistApiId = artists.get(0).path("id").asText();
-            // アーティスト情報を一時フィールドに保存
-            song.setTempArtistApiId(artistApiId);
-            // Note: artist_idは後で設定される
-            song.setAritst_id(0L); // プレースホルダー
+            String artistApiId = artists.get(0).path("id").asText();
+            String artistName = artists.get(0).path("name").asText();
+
+            // ArtistをartistApiIdで検索、存在しなければ新規作成
+            Artist artist = artistRepository.findByArtistApiId(artistApiId)
+                .orElseGet(() -> {
+                    Artist newArtist = new Artist();
+                    newArtist.setArtistName(artistName);
+                    newArtist.setArtistApiId(artistApiId);
+                    newArtist.setGenreId(1); // デフォルトのジャンルID
+                    logger.info("新規アーティストを作成: name={}, apiId={}", artistName, artistApiId);
+                    return artistRepository.save(newArtist);
+                });
+
+            song.setAritst_id(artist.getArtistId().longValue());
+            logger.debug("Songにアーティストを設定: artistId={}, artistName={}", artist.getArtistId(), artist.getArtistName());
+        } else {
+            // アーティスト情報がない場合はデフォルト値
+            logger.warn("トラックにアーティスト情報がありません: {}", songName);
+            song.setAritst_id(1L);
         }
 
-        // ジャンルはトラックレベルでは取得できないため、デフォルト設定
-        song.setGenre(null);
         // 言語はSpotify APIから取得できないため、nullに設定（歌詞取得時に判定）
         song.setLanguage(null);
 
         // Genius Song IDは問題生成時に動的に検索するため、ここでは設定しない
-        // （SpotifyApiClientで事前に検索すると、間違ったIDを設定してしまう可能性があるため）
         song.setGenius_song_id(null);
 
         logger.debug("Spotify楽曲をパース: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
@@ -615,7 +631,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         song.setSongname("Mock Song - " + System.currentTimeMillis());
         song.setSpotify_track_id("mock_" + System.currentTimeMillis());
         song.setGenius_song_id(null);  // 歌詞取得時に設定
-        song.setGenre(genre);
         song.setLanguage(null);  // 歌詞取得時に判定
         song.setAritst_id(1L);
         return song;

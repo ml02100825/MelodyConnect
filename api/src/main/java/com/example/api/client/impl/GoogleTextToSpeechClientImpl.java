@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,8 +64,9 @@ public class GoogleTextToSpeechClientImpl implements TextToSpeechClient {
                 "input", Map.of("text", text),
                 "voice", Map.of(
                     "languageCode", languageCode,
-                    "name", voiceName,
-                    "ssmlGender", "NEUTRAL"
+                    "name", voiceName
+             
+                 
                 ),
                 "audioConfig", Map.of(
                     "audioEncoding", "MP3",
@@ -96,10 +98,15 @@ public class GoogleTextToSpeechClientImpl implements TextToSpeechClient {
             logger.info("音声生成完了: url={}", audioUrl);
             return audioUrl;
 
-        } catch (Exception e) {
-            logger.error("音声生成中にエラーが発生しました: text={}", text, e);
-            return null;
-        }
+        } catch (WebClientResponseException  e) {
+                logger.error("TTS API エラー: status={}, body={}", 
+                    e.getStatusCode(), 
+                    e.getResponseBodyAsString());
+                return null;
+            }catch (Exception e) {
+        logger.error("音声生成中にエラーが発生しました", e);
+        return null;
+    }
     }
 
     /**
