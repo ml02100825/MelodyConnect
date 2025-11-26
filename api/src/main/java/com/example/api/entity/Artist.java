@@ -32,11 +32,6 @@ public class Artist {
     @Column(name = "artist_name", length = 50)
     private String artistName;
 
-    /**
-     * ジャンルID（外部キー）
-     */
-    @Column(name = "genre_id", nullable = false)
-    private Integer genreId;
 
     /**
      * 画像URL

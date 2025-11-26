@@ -37,6 +37,9 @@ public class QuizService {
     private static final Logger logger = LoggerFactory.getLogger(QuizService.class);
     private static final int QUESTION_THRESHOLD = 50;
 
+    /** ★ 追加: ランダム選択用 */
+    private final Random random = new Random();
+
     @Autowired
     private QuestionRepository questionRepository;
 
@@ -261,13 +264,31 @@ public class QuizService {
     }
 
     /**
+     * ★ 変更 ★
      * ジャンルから楽曲を選択
+     * 
+     * SpotifyApiClient.getRandomSongsByGenre()がList<Song>を返すようになったため、
+     * その中から1曲をランダムに選択して返す。
+     * 
+     * @param genreName ジャンル名
+     * @return 選択された1曲
      */
     private Song selectSongByGenre(String genreName) {
         logger.debug("ジャンルから楽曲を選択: genre={}", genreName);
 
-        return songRepository.findRandomByGenre(genreName)
-            .orElseGet(() -> spotifyApiClient.getRandomSongByGenre(genreName));
+        // SpotifyApiClientから最大5曲を取得
+        List<Song> songs = spotifyApiClient.getRandomSongsByGenre(genreName);
+
+        if (songs == null || songs.isEmpty()) {
+            logger.warn("ジャンル '{}' から楽曲を取得できませんでした。ランダム選曲にフォールバックします。", genreName);
+            return songRepository.findRandom().orElse(null);
+        }
+
+        // リストからランダムに1曲選択
+        Song selectedSong = songs.get(random.nextInt(songs.size()));
+        logger.info("ジャンル '{}' から楽曲を選択: {} (全{}曲から)", genreName, selectedSong.getSongname(), songs.size());
+
+        return selectedSong;
     }
 
     /**

@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
  * 問題生成サービス
@@ -30,6 +31,9 @@ import java.util.List;
 public class QuestionGeneratorService {
 
     private static final Logger logger = LoggerFactory.getLogger(QuestionGeneratorService.class);
+
+    /** ★ 追加: ランダム選択用 */
+    private final Random random = new Random();
 
     @Autowired
     private GeminiApiClient geminiApiClient;
@@ -335,13 +339,36 @@ public class QuestionGeneratorService {
     }
 
     /**
+     * ★ 変更 ★
      * ジャンルから楽曲を選択
+     * 
+     * SpotifyApiClient.getRandomSongsByGenre()がList<Song>を返すようになったため、
+     * その中から1曲をランダムに選択して返す。
+     * 
+     * 処理フロー:
+     * 1. SpotifyApiClientから最大5曲を取得
+     * 2. リストが空でなければ、その中からランダムに1曲選択
+     * 3. リストが空の場合は、ランダム選曲にフォールバック
+     * 
+     * @param genreName ジャンル名
+     * @return 選択された1曲
      */
     private Song selectArtistByGenre(String genreName) {
         logger.debug("ジャンルから楽曲を選択: genre={}", genreName);
 
-        return songRepository.findRandomByGenre(genreName)
-            .orElseGet(() -> spotifyApiClient.getRandomSongByGenre(genreName));
+        // SpotifyApiClientから最大5曲を取得
+        List<Song> songs = spotifyApiClient.getRandomSongsByGenre(genreName);
+
+        if (songs == null || songs.isEmpty()) {
+            logger.warn("ジャンル '{}' から楽曲を取得できませんでした。ランダム選曲にフォールバックします。", genreName);
+            return selectRandomSong();
+        }
+
+        // リストからランダムに1曲選択
+        Song selectedSong = songs.get(random.nextInt(songs.size()));
+        logger.info("ジャンル '{}' から楽曲を選択: {} (全{}曲から)", genreName, selectedSong.getSongname(), songs.size());
+
+        return selectedSong;
     }
 
     /**

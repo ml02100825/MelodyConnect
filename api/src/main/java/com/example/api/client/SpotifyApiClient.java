@@ -46,12 +46,19 @@ public interface SpotifyApiClient {
     List<Song> getAllSongsByArtist(String spotifyArtistId);
 
     /**
-     * ジャンル名からランダムな楽曲を取得
+     * ★ 変更 ★
+     * ジャンル名からランダムな楽曲を取得（5曲）
+     * 
+     * 処理フロー:
+     * 1. ジャンル名でArtistを絞り込み、ランダムに1人選択
+     * 2. そのアーティストの楽曲をSongテーブルから取得
+     * 3. Songテーブルに曲がなければSpotify APIから取得して保存
+     * 4. ランダムに5曲返却
      *
      * @param genreName ジャンル名
-     * @return 楽曲情報
+     * @return 楽曲リスト（最大5曲）
      */
-    Song getRandomSongByGenre(String genreName);
+    List<Song> getRandomSongsByGenre(String genreName);
 
     /**
      * 完全ランダムで楽曲を取得

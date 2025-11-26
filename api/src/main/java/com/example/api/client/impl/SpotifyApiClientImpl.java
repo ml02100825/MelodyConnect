@@ -4,7 +4,14 @@ import com.example.api.client.GeniusApiClient;
 import com.example.api.client.SpotifyApiClient;
 import com.example.api.dto.SpotifyArtistDto;
 import com.example.api.entity.Artist;
+import com.example.api.entity.ArtistGenre;
+import com.example.api.entity.Genre;
 import com.example.api.entity.Song;
+import com.example.api.repository.ArtistGenreRepository;
+import com.example.api.repository.ArtistRepository;
+import com.example.api.repository.GenreRepository;
+import com.example.api.repository.SongRepository;
+import com.example.api.service.ArtistSyncService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -16,7 +23,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
-import com.example.api.repository.*;
 
 import java.time.Instant;
 import java.util.*;
@@ -36,11 +42,28 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     @Autowired
     private ArtistRepository artistRepository;
 
+    @Autowired
+    private GenreRepository genreRepository;
+
+    @Autowired
+    private ArtistGenreRepository artistGenreRepository;
+
+    // ArtistSyncServiceを遅延注入（循環依存を回避）
+    private ArtistSyncService artistSyncService;
+
+    @Autowired
+    public void setArtistSyncService(ArtistSyncService artistSyncService) {
+        this.artistSyncService = artistSyncService;
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(SpotifyApiClientImpl.class);
     private static final String SPOTIFY_AUTH_URL = "https://accounts.spotify.com/api/token";
     private static final String SPOTIFY_API_URL = "https://api.spotify.com/v1";
     private static final int MAX_ALBUMS_PER_REQUEST = 50;
     private static final int MAX_TRACKS_PER_REQUEST = 50;
+    
+    /** ジャンル検索で返却する楽曲数 */
+    private static final int GENRE_SEARCH_SONG_LIMIT = 5;
 
     private final WebClient authClient;
     private final WebClient apiClient;
@@ -59,7 +82,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     // GeniusApiClientを遅延注入（循環依存を回避）
     private GeniusApiClient geniusApiClient;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public void setGeniusApiClient(GeniusApiClient geniusApiClient) {
         this.geniusApiClient = geniusApiClient;
     }
@@ -178,13 +201,12 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         int currentOffset = 0;
 
         do {
-            // ラムダ式内で使うためにfinal変数を作成
             final int offset = currentOffset;
             
             String response = apiClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/artists/" + artistId + "/albums")
-                    .queryParam("include_groups", "album,single")  // アルバムとシングルを取得
+                    .queryParam("include_groups", "album,single")
                     .queryParam("market", "JP")
                     .queryParam("limit", MAX_ALBUMS_PER_REQUEST)
                     .queryParam("offset", offset)
@@ -206,7 +228,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                 }
             }
 
-            // 次のページがあるかチェック
             nextUrl = jsonNode.path("next").asText(null);
             currentOffset += MAX_ALBUMS_PER_REQUEST;
 
@@ -217,7 +238,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
     /**
      * アルバムから全トラックを取得
-     * ページネーション対応（50曲以上のアルバムに対応）
      */
     private List<Song> getTracksFromAlbum(String albumId, String artistId, String token) {
         List<Song> songs = new ArrayList<>();
@@ -226,7 +246,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
         try {
             while (hasMore) {
-                // ラムダ式内で使うためにfinal変数を作成
                 final int offset = currentOffset;
                 
                 String response = apiClient.get()
@@ -252,7 +271,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                         }
                     }
                     
-                    // 次のページがあるかチェック
                     String nextUrl = jsonNode.path("next").asText(null);
                     hasMore = (nextUrl != null && !nextUrl.isEmpty());
                     currentOffset += MAX_TRACKS_PER_REQUEST;
@@ -270,8 +288,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
     @Override
     public Song getRandomSongByArtist(Integer artistId) {
-        // TODO: artistIdからSpotifyのアーティストIDにマッピングが必要
-        // 現時点ではランダム検索にフォールバック
         logger.info("アーティストID {} から楽曲を検索", artistId);
         return getRandomSong();
     }
@@ -290,7 +306,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
 
         try {
-            // アーティストのトップトラックを取得してランダムに1曲返す
             String response = apiClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/artists/" + spotifyArtistId + "/top-tracks")
@@ -305,7 +320,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
             JsonNode tracks = jsonNode.path("tracks");
 
             if (tracks.isArray() && tracks.size() > 0) {
-                // ランダムにトラックを選択
                 int randomIndex = random.nextInt(tracks.size());
                 Song song = parseTrackToSong(tracks.get(randomIndex));
                 logger.info("アーティスト {} の楽曲を取得: {}", spotifyArtistId, song.getSongname());
@@ -321,21 +335,172 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
     }
 
+    /**
+     * ★ 新仕様 ★
+     * ジャンル名からランダムな楽曲を取得（5曲）
+     * 
+     * 処理フロー:
+     * 1. ジャンル名でArtistGenreを検索し、ランダムに1人のアーティストを選択
+     * 2. そのアーティストの楽曲をSongテーブルから検索
+     * 3. Songテーブルに曲がなければ、ArtistSyncServiceで同期してからDB取得
+     * 4. ランダムに最大5曲を返却
+     *
+     * @param genreName ジャンル名
+     * @return 楽曲リスト（最大5曲）
+     */
     @Override
-    public Song getRandomSongByGenre(String genreName) {
-        String token = getAccessToken();
-        if (token == null) {
-            logger.warn("トークンが取得できないためモックデータを返します");
-            return createMockSong(genreName);
+    public List<Song> getRandomSongsByGenre(String genreName) {
+        logger.info("=== ジャンルから楽曲を取得開始 ===");
+        logger.info("ジャンル名: {}", genreName);
+
+        try {
+            // ステップ1: ジャンル名でアーティストをランダムに1人取得
+            Artist selectedArtist = findRandomArtistByGenre(genreName);
+            
+            if (selectedArtist == null) {
+                logger.warn("ジャンル '{}' に該当するアーティストが見つかりませんでした", genreName);
+                // フォールバック: Spotify APIで検索（従来の動作）
+                return getRandomSongsFromSpotifyByGenre(genreName);
+            }
+
+            logger.info("選択されたアーティスト: id={}, name={}", 
+                selectedArtist.getArtistId(), selectedArtist.getArtistName());
+
+            // ステップ2: Songテーブルからそのアーティストの曲数をチェック
+            long songCount = songRepository.countByArtistId(selectedArtist.getArtistId().longValue());
+            logger.info("DBに存在する楽曲数: {}", songCount);
+
+            // ステップ3: 曲がなければSpotify APIから同期
+            if (songCount == 0) {
+                logger.info("楽曲がないため、Spotify APIから同期します");
+                syncArtistSongsFromSpotify(selectedArtist);
+                
+                // 同期後に再カウント
+                songCount = songRepository.countByArtistId(selectedArtist.getArtistId().longValue());
+                logger.info("同期後の楽曲数: {}", songCount);
+                
+                if (songCount == 0) {
+                    logger.warn("同期後も楽曲が見つかりませんでした");
+                    return getRandomSongsFromSpotifyByGenre(genreName);
+                }
+            }
+
+            // ステップ4: DBからランダムに5曲取得
+            List<Song> songs = songRepository.findRandomSongsByArtist(
+                selectedArtist.getArtistId().longValue(), 
+                GENRE_SEARCH_SONG_LIMIT
+            );
+
+            logger.info("=== ジャンルから楽曲を取得完了 ===");
+            logger.info("取得曲数: {}", songs.size());
+
+            return songs;
+
+        } catch (Exception e) {
+            logger.error("ジャンル '{}' からの楽曲取得に失敗しました", genreName, e);
+            return getRandomSongsFromSpotifyByGenre(genreName);
+        }
+    }
+
+    /**
+     * ジャンル名からランダムにアーティストを1人取得
+     * 
+     * 検索優先順位:
+     * 1. 完全一致検索
+     * 2. 部分一致検索（前方・後方にワイルドカード）
+     */
+    private Artist findRandomArtistByGenre(String genreName) {
+        // 1. 完全一致で検索
+        Optional<ArtistGenre> exactMatch = artistGenreRepository.findRandomByGenreName(genreName);
+        if (exactMatch.isPresent()) {
+            logger.debug("ジャンル完全一致でアーティストを発見: {}", genreName);
+            return exactMatch.get().getArtist();
+        }
+
+        // 2. 部分一致で検索（例: "pop" → "%pop%" で j-pop, k-pop なども対象）
+        String likePattern = "%" + genreName + "%";
+        Optional<ArtistGenre> likeMatch = artistGenreRepository.findRandomByGenreNameLike(likePattern);
+        if (likeMatch.isPresent()) {
+            logger.debug("ジャンル部分一致でアーティストを発見: pattern={}", likePattern);
+            return likeMatch.get().getArtist();
+        }
+
+        logger.debug("ジャンル '{}' に該当するアーティストが見つかりませんでした", genreName);
+        return null;
+    }
+
+    /**
+     * ArtistSyncServiceを使用してアーティストの楽曲を同期
+     */
+    private void syncArtistSongsFromSpotify(Artist artist) {
+        if (artistSyncService == null) {
+            logger.warn("ArtistSyncServiceが利用できません");
+            return;
         }
 
         try {
-            // ジャンルで検索
-            String query = "genre:" + genreName;
-            return searchAndSelectRandom(query, token);
+            logger.info("アーティスト '{}' の楽曲を同期中...", artist.getArtistName());
+            int syncedCount = artistSyncService.syncArtistSongs(artist.getArtistId());
+            logger.info("同期完了: {}曲を保存", syncedCount);
         } catch (Exception e) {
-            logger.error("ジャンル {} での検索に失敗しました", genreName, e);
-            return createMockSong(genreName);
+            logger.error("楽曲同期に失敗: artistId={}", artist.getArtistId(), e);
+        }
+    }
+
+    /**
+     * フォールバック: Spotify APIから直接ジャンルで検索（従来の動作）
+     * DBにジャンルに該当するアーティストがない場合に使用
+     */
+    private List<Song> getRandomSongsFromSpotifyByGenre(String genreName) {
+        logger.info("フォールバック: Spotify APIでジャンル '{}' を検索", genreName);
+        
+        String token = getAccessToken();
+        if (token == null) {
+            logger.warn("トークンが取得できないためモックデータを返します");
+            return Collections.singletonList(createMockSong(genreName));
+        }
+
+        try {
+            String query = "genre:" + genreName;
+            int offset = random.nextInt(100);
+
+            String response = apiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/search")
+                    .queryParam("q", query)
+                    .queryParam("type", "track")
+                    .queryParam("limit", GENRE_SEARCH_SONG_LIMIT)
+                    .queryParam("offset", offset)
+                    .build())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode tracks = jsonNode.path("tracks").path("items");
+
+            List<Song> songs = new ArrayList<>();
+            if (tracks.isArray()) {
+                for (JsonNode track : tracks) {
+                    Song song = parseTrackToSong(track);
+                    if (song != null) {
+                        songs.add(song);
+                    }
+                }
+            }
+
+            if (songs.isEmpty()) {
+                logger.warn("Spotify APIでも楽曲が見つかりませんでした");
+                return Collections.singletonList(createMockSong(genreName));
+            }
+
+            logger.info("Spotify APIから{}曲を取得", songs.size());
+            return songs;
+
+        } catch (Exception e) {
+            logger.error("Spotify APIでのジャンル検索に失敗: {}", genreName, e);
+            return Collections.singletonList(createMockSong(genreName));
         }
     }
 
@@ -348,7 +513,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
 
         try {
-            // ランダムな文字で検索（より多様な結果を得るため）
             String[] randomQueries = {"a", "e", "i", "o", "u", "love", "life", "heart", "dream", "night"};
             String query = randomQueries[random.nextInt(randomQueries.length)];
             return searchAndSelectRandom(query, token);
@@ -440,15 +604,11 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
     }
 
-    /**
-     * SpotifyのアーティストJSONをDTOに変換
-     */
     private SpotifyArtistDto parseArtistNode(JsonNode artistNode) {
         try {
             String imageUrl = null;
             JsonNode images = artistNode.path("images");
             if (images.isArray() && images.size() > 0) {
-                // 最初の画像（通常は最大サイズ）を使用
                 imageUrl = images.get(0).path("url").asText();
             }
 
@@ -473,9 +633,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
     }
 
-    /**
-     * モックアーティストデータを作成
-     */
     private List<SpotifyArtistDto> createMockArtists(String query) {
         List<SpotifyArtistDto> mockList = new ArrayList<>();
         mockList.add(SpotifyArtistDto.builder()
@@ -497,7 +654,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
 
         List<SpotifyArtistDto> allArtists = new ArrayList<>();
-        // 様々なジャンルから人気アーティストを取得
         String[] genres = {"pop", "rock", "hip-hop", "r-n-b", "k-pop", "j-pop", "latin", "electronic", "country", "jazz"};
 
         try {
@@ -526,8 +682,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                         if (allArtists.size() >= limit) break;
 
                         SpotifyArtistDto dto = parseArtistNode(artistNode);
-                        if (dto != null && dto.getPopularity() >= 50) { // 人気度50以上
-                            // 重複チェック
+                        if (dto != null && dto.getPopularity() >= 50) {
                             boolean isDuplicate = allArtists.stream()
                                 .anyMatch(a -> a.getSpotifyId().equals(dto.getSpotifyId()));
                             if (!isDuplicate) {
@@ -547,11 +702,8 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
     }
 
-    /**
-     * 検索してランダムに1曲選択
-     */
     private Song searchAndSelectRandom(String query, String token) throws Exception {
-        int offset = random.nextInt(100); // ランダムなオフセット
+        int offset = random.nextInt(100);
 
         String response = apiClient.get()
             .uri(uriBuilder -> uriBuilder
@@ -600,7 +752,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                     Artist newArtist = new Artist();
                     newArtist.setArtistName(artistName);
                     newArtist.setArtistApiId(artistApiId);
-                    newArtist.setGenreId(1); // デフォルトのジャンルID
+                
                     logger.info("新規アーティストを作成: name={}, apiId={}", artistName, artistApiId);
                     return artistRepository.save(newArtist);
                 });
@@ -608,30 +760,23 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
             song.setAritst_id(artist.getArtistId().longValue());
             logger.debug("Songにアーティストを設定: artistId={}, artistName={}", artist.getArtistId(), artist.getArtistName());
         } else {
-            // アーティスト情報がない場合はデフォルト値
             logger.warn("トラックにアーティスト情報がありません: {}", songName);
             song.setAritst_id(1L);
         }
 
-        // 言語はSpotify APIから取得できないため、nullに設定（歌詞取得時に判定）
         song.setLanguage(null);
-
-        // Genius Song IDは問題生成時に動的に検索するため、ここでは設定しない
         song.setGenius_song_id(null);
 
         logger.debug("Spotify楽曲をパース: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
         return song;
     }
 
-    /**
-     * モック楽曲データを作成
-     */
     private Song createMockSong(String genre) {
         Song song = new Song();
         song.setSongname("Mock Song - " + System.currentTimeMillis());
         song.setSpotify_track_id("mock_" + System.currentTimeMillis());
-        song.setGenius_song_id(null);  // 歌詞取得時に設定
-        song.setLanguage(null);  // 歌詞取得時に判定
+        song.setGenius_song_id(null);
+        song.setLanguage(null);
         song.setAritst_id(1L);
         return song;
     }

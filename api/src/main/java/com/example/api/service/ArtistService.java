@@ -96,7 +96,7 @@ public class ArtistService {
                 .map(genre -> genre.getId().intValue())
                 .orElse(1);
         }
-        artist.setGenreId(genreId);
+   
 
         Artist savedArtist = artistRepository.save(artist);
         logger.info("新しいアーティストを作成しました: name={}, spotifyId={}",
