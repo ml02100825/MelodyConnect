@@ -40,8 +40,4 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
      */
     Optional<Artist> findFirstByOrderByLastSyncedAtDesc();
 
-    /**
-     * ジャンルIDでアーティストを検索
-     */
-    List<Artist> findByGenreId(Integer genreId);
 }

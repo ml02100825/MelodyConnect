@@ -44,7 +44,7 @@ public class Question {
     /**
      * 問題文（穴埋めの場合は空欄「_____」を含む）
      */
-    @Column(name = "text", length = 100, nullable = false)
+    @Column(name = "text", length = 500, nullable = false)
     private String text;
 
     /**

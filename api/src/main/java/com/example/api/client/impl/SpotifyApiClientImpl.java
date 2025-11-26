@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -52,6 +53,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     private ArtistSyncService artistSyncService;
 
     @Autowired
+    @Lazy
     public void setArtistSyncService(ArtistSyncService artistSyncService) {
         this.artistSyncService = artistSyncService;
     }
@@ -752,7 +754,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                     Artist newArtist = new Artist();
                     newArtist.setArtistName(artistName);
                     newArtist.setArtistApiId(artistApiId);
-                
                     logger.info("新規アーティストを作成: name={}, apiId={}", artistName, artistApiId);
                     return artistRepository.save(newArtist);
                 });
