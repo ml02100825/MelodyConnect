@@ -104,14 +104,6 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.black),
-            onPressed: () {
-              // 単語追加画面へ
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
