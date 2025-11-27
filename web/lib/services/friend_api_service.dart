@@ -59,7 +59,7 @@ class FriendApiService {
     }
   }
 
-  /// フレンド申請を承認
+  /// フレンド申請を承認（friendId ベース）
   Future<void> acceptFriendRequest(
       int userId, int friendId, String accessToken) async {
     try {
@@ -88,14 +88,14 @@ class FriendApiService {
       int userId, int otherUserId, String accessToken) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/accept'), // 例: /api/friends/accept みたいな想定
+        Uri.parse('$baseUrl/accept'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
         body: jsonEncode({
           'loginUserId': userId,
-          'otherUserId': otherUserId, // サーバーのDTOのフィールド名に合わせる
+          'otherUserId': otherUserId,
         }),
       );
 
@@ -111,7 +111,7 @@ class FriendApiService {
     }
   }
 
-  /// フレンド申請を拒否
+  /// フレンド申請を拒否（friendId ベース）
   Future<void> rejectFriendRequest(
       int userId, int friendId, String accessToken) async {
     try {
@@ -121,6 +121,34 @@ class FriendApiService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
+      );
+
+      if (response.statusCode != 200) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'フレンド申請の拒否に失敗しました');
+      }
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('ネットワークエラーが発生しました');
+    }
+  }
+
+  /// フレンド申請を拒否（相手ユーザーIDベース）
+  Future<void> rejectFriendRequestById(
+      int userId, int otherUserId, String accessToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/reject'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({
+          'loginUserId': userId,
+          'otherUserId': otherUserId,
+        }),
       );
 
       if (response.statusCode != 200) {

@@ -87,7 +87,7 @@ public class FriendService {
             userHigh = requester;
         }
 
-        // 既存の関係をチェック
+        // 既存の関係をチェック（エンティティベース）
         Optional<Friend> existingFriend = friendRepository.findByUserLowAndUserHigh(userLow, userHigh);
         if (existingFriend.isPresent()) {
             Friend friend = existingFriend.get();
@@ -112,7 +112,7 @@ public class FriendService {
     }
 
     /**
-     * フレンド申請を承認
+     * フレンド申請を承認（フレンドレコードIDベース）
      * @param userId 承認者ID
      * @param friendId フレンドレコードID
      * @throws IllegalArgumentException 無効な操作の場合
@@ -144,7 +144,7 @@ public class FriendService {
     }
 
     /**
-     * フレンド申請を拒否
+     * フレンド申請を拒否（フレンドレコードIDベース）
      * @param userId 拒否者ID
      * @param friendId フレンドレコードID
      * @throws IllegalArgumentException 無効な操作の場合
@@ -193,20 +193,24 @@ public class FriendService {
     }
 
     /**
-     * フレンド一覧を取得
-     * @param userId ユーザーID, userId2 　ユーザーID２
-     * @return フレンド
+     * フレンド申請を承認（ログインユーザーID & 相手ユーザーIDベース：リアルタイム用）
+     * @param loginUserId ログインユーザーID
+     * @param otherUserId 相手ユーザーID
      */
-     @Transactional
+    @Transactional
     public void acceptFriendRequestbyId(Long loginUserId, Long otherUserId) {
 
         Long low  = Math.min(loginUserId, otherUserId);
         Long high = Math.max(loginUserId, otherUserId);
 
+        // ★ ここがポイント：IDベースのメソッドを使用
         Friend friend = friendRepository
-            .getByUserLowAndUserHigh(low, high);
-   // 自分宛ての申請かチェック
-        boolean isRecipient = (friend.getUserLow().getId().equals(loginUserId) || friend.getUserHigh().getId().equals(loginUserId))
+                .findByUserLow_IdAndUserHigh_Id(low, high)
+                .orElseThrow(() -> new IllegalArgumentException("フレンド申請が見つかりません"));
+
+        // 自分宛ての申請かチェック
+        boolean isRecipient = (friend.getUserLow().getId().equals(loginUserId)
+                            || friend.getUserHigh().getId().equals(loginUserId))
                 && !friend.getRequester().getId().equals(loginUserId);
 
         if (!isRecipient) {
@@ -223,6 +227,37 @@ public class FriendService {
         friendRepository.save(friend);
     }
 
+    /**
+     * フレンド申請を拒否（ログインユーザーID & 相手ユーザーIDベース：リアルタイム用）
+     * @param loginUserId ログインユーザーID
+     * @param otherUserId 相手ユーザーID
+     */
+    @Transactional
+    public void rejectFriendRequestById(Long loginUserId, Long otherUserId) {
+
+        Long low  = Math.min(loginUserId, otherUserId);
+        Long high = Math.max(loginUserId, otherUserId);
+
+        Friend friend = friendRepository
+                .findByUserLow_IdAndUserHigh_Id(low, high)
+                .orElseThrow(() -> new IllegalArgumentException("フレンド申請が見つかりません"));
+
+        // 自分宛ての申請かチェック
+        boolean isRecipient = (friend.getUserLow().getId().equals(loginUserId)
+                            || friend.getUserHigh().getId().equals(loginUserId))
+                && !friend.getRequester().getId().equals(loginUserId);
+
+        if (!isRecipient) {
+            throw new IllegalArgumentException("この申請を拒否する権限がありません");
+        }
+
+        if (friend.getFriendFlag()) {
+            throw new IllegalArgumentException("既にフレンドになっています");
+        }
+
+        // レコードを削除（＝申請を拒否）
+        friendRepository.delete(friend);
+    }
 
     /**
      * フレンド一覧を取得

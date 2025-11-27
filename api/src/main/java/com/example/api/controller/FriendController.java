@@ -3,8 +3,6 @@ package com.example.api.controller;
 import com.example.api.dto.*;
 import com.example.api.service.FriendService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +18,6 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/friend")
-
 public class FriendController {
 
     @Autowired
@@ -53,7 +50,7 @@ public class FriendController {
      */
     @PostMapping("/{userId}/request")
     public ResponseEntity<?> sendFriendRequest(@PathVariable Long userId,
-                                                @Valid @RequestBody FriendRequestDto request) {
+                                               @Valid @RequestBody FriendRequestDto request) {
         try {
             friendService.sendFriendRequest(userId, request.getTargetUserUuid());
             Map<String, String> response = new HashMap<>();
@@ -69,14 +66,14 @@ public class FriendController {
     }
 
     /**
-     * フレンド申請を承認
+     * フレンド申請を承認（friendIdベース）
      * @param userId ユーザーID
      * @param friendId フレンドレコードID
      * @return 成功メッセージ
      */
     @PostMapping("/{userId}/accept/{friendId}")
     public ResponseEntity<?> acceptFriendRequest(@PathVariable Long userId,
-                                                  @PathVariable Long friendId) {
+                                                 @PathVariable Long friendId) {
         try {
             friendService.acceptFriendRequest(userId, friendId);
             Map<String, String> response = new HashMap<>();
@@ -90,27 +87,46 @@ public class FriendController {
                     .body(createErrorResponse("フレンド申請承認中にエラーが発生しました"));
         }
     }
-       @PostMapping("/accept")
+
+    /**
+     * フレンド申請を承認（相手ユーザーIDベース：リアルタイム用）
+     */
+    @PostMapping("/accept")
     public ResponseEntity<Void> acceptFriend(
-         @Valid @RequestBody FriendAcceptRequestDto request) {
+            @Valid @RequestBody FriendAcceptRequestDto request) {
 
         Long loginUserId = request.getLoginUserId();
         Long otherUserId = request.getOtherUserId();
 
-        friendService.acceptFriendRequest(loginUserId, otherUserId);
+        friendService.acceptFriendRequestbyId(loginUserId, otherUserId);
 
         return ResponseEntity.ok().build();
     }
 
     /**
-     * フレンド申請を拒否
+     * フレンド申請を拒否（相手ユーザーIDベース：リアルタイム用）
+     */
+    @PostMapping("/reject")
+    public ResponseEntity<Void> rejectFriend(
+            @Valid @RequestBody FriendAcceptRequestDto request) {
+
+        Long loginUserId = request.getLoginUserId();
+        Long otherUserId = request.getOtherUserId();
+
+        friendService.rejectFriendRequestById(loginUserId, otherUserId);
+
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * フレンド申請を拒否（friendIdベース）
      * @param userId ユーザーID
      * @param friendId フレンドレコードID
      * @return 成功メッセージ
      */
     @PostMapping("/{userId}/reject/{friendId}")
     public ResponseEntity<?> rejectFriendRequest(@PathVariable Long userId,
-                                                  @PathVariable Long friendId) {
+                                                 @PathVariable Long friendId) {
         try {
             friendService.rejectFriendRequest(userId, friendId);
             Map<String, String> response = new HashMap<>();
@@ -171,7 +187,7 @@ public class FriendController {
      */
     @GetMapping("/{userId}/profile/{friendUserId}")
     public ResponseEntity<?> getFriendProfile(@PathVariable Long userId,
-                                               @PathVariable Long friendUserId) {
+                                              @PathVariable Long friendUserId) {
         try {
             FriendProfileResponse profile = friendService.getFriendProfile(userId, friendUserId);
             return ResponseEntity.ok(profile);
@@ -192,7 +208,7 @@ public class FriendController {
      */
     @DeleteMapping("/{userId}/delete/{friendId}")
     public ResponseEntity<?> deleteFriend(@PathVariable Long userId,
-                                           @PathVariable Long friendId) {
+                                          @PathVariable Long friendId) {
         try {
             friendService.deleteFriend(userId, friendId);
             Map<String, String> response = new HashMap<>();

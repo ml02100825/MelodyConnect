@@ -277,18 +277,19 @@ class _FriendNotificationOverlayState extends State<FriendNotificationOverlay> {
       final userId = await _tokenStorage.getUserId();
 
       if (accessToken != null && userId != null) {
-        // friendIdが通知に含まれていないため、申請一覧から取得する必要がある
-        // この場合は承認せずに閉じる（申請画面で承認）
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('フレンドが追加されました。'),
             backgroundColor: Colors.blue,
           ),
         );
-        final requesterid = _currentNotification!['requesterId'];
+        final requesterId = _currentNotification!['requesterId'];
 
         await _friendApiService.acceptFriendRequestbyId(
-            userId, requesterid, accessToken);
+          userId,
+          requesterId,
+          accessToken,
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -304,14 +305,39 @@ class _FriendNotificationOverlayState extends State<FriendNotificationOverlay> {
     });
   }
 
-  void _handleDecline() {
-    // 拒否の場合も申請画面で行う
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('フレンド申請画面から拒否してください'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+  /// リアルタイム拒否
+  Future<void> _handleDecline() async {
+    if (_currentNotification == null) return;
+
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      final userId = await _tokenStorage.getUserId();
+
+      if (accessToken != null && userId != null) {
+        final otherUserId = _currentNotification!['requesterId'];
+
+        await _friendApiService.rejectFriendRequestById(
+          userId,
+          otherUserId,
+          accessToken,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('フレンド申請を拒否しました。'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+
     setState(() {
       _currentNotification = null;
     });

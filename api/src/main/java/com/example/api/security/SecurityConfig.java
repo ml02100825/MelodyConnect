@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -26,9 +27,18 @@ public class SecurityConfig {
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     /**
+     * Securityフィルタの対象外にするパス設定
+     * ここに指定したパスは Spring Security 自体を通らない
+     */
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return (web) -> web.ignoring()
+                // アップロード画像は完全にセキュリティの外に出す
+                .requestMatchers("/uploads/**");
+    }
+
+    /**
      * CORS設定
-     * Spring Security用のCORS設定を行います
-     * @return CorsConfigurationSource
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -45,9 +55,6 @@ public class SecurityConfig {
 
     /**
      * セキュリティフィルターチェーンの設定
-     * @param http HttpSecurityオブジェクト
-     * @return SecurityFilterChain
-     * @throws Exception 設定エラー
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -66,22 +73,40 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // CORSプリフライトリクエストを許可
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        // 認証不要のエンドポイント
+
+                        // 認証不要のエンドポイント（認証API）
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/refresh").permitAll()
+
+                        // ファイルアップロードAPI
                         .requestMatchers("/api/upload/**").permitAll()
+
+                        // 画像本体（実際は webSecurityCustomizer で ignore 済み）
                         .requestMatchers("/uploads/**").permitAll()
-                        .requestMatchers("/audio/**").permitAll() // TTS音声ファイル
-                        .requestMatchers("/ws/**").permitAll() // WebSocketエンドポイント
-                        .requestMatchers("/app/**").permitAll() // STOMP送信先
-                        .requestMatchers("/topic/**").permitAll() // STOMPブロードキャスト
-                        .requestMatchers("/queue/**").permitAll() // STOMPキュー
+
+                        // TTS音声ファイル
+                        .requestMatchers("/audio/**").permitAll()
+
+                        // WebSocket関連
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/app/**").permitAll()
+                        .requestMatchers("/topic/**").permitAll()
+                        .requestMatchers("/queue/**").permitAll()
+
+                        // その他公開エンドポイント
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/hello").permitAll()
                         .requestMatchers("/samples/**").permitAll()
-                        .requestMatchers("/api/dev/**").permitAll() // 開発用エンドポイント
-                        // その他のエンドポイントは認証が必要
+                        .requestMatchers("/api/dev/**").permitAll()
+
+                        // ★ デバッグ用：フレンド承認APIはいったん誰でもOK（403切り分け用）
+                        .requestMatchers("/api/friend/accept").permitAll()
+
+                        // それ以外の friend API は認証必須
+                        .requestMatchers("/api/friend/**").authenticated()
+
+                        // その他は全部認証必須
                         .anyRequest().authenticated()
                 )
 

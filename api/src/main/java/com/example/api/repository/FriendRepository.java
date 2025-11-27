@@ -18,12 +18,18 @@ import java.util.Optional;
 public interface FriendRepository extends JpaRepository<Friend, Long> {
 
     /**
-     * 2人のユーザー間のフレンド関係を検索（ID順序を考慮）
+     * 2人のユーザー間のフレンド関係を検索（ID順序を考慮） - エンティティ版
      * @param userLow ID小のユーザー
      * @param userHigh ID大のユーザー
      * @return フレンド関係（存在する場合）
      */
     Optional<Friend> findByUserLowAndUserHigh(User userLow, User userHigh);
+
+    /**
+     * 2人のユーザー間のフレンド関係を検索（ID順序を考慮） - ID版
+     * userLow.id / userHigh.id を直接指定して検索したいとき用
+     */
+    Optional<Friend> findByUserLow_IdAndUserHigh_Id(Long userLowId, Long userHighId);
 
     /**
      * ユーザーのフレンド一覧を取得（friend_flag = true）
@@ -50,18 +56,12 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     List<Friend> findSentRequestsByUser(@Param("user") User user);
 
     /**
-     * 2人のユーザー間に既存のフレンド関係があるか確認
-     * @param userLow ID小のユーザー
-     * @param userHigh ID大のユーザー
-     * @return 存在する場合true
+     * 2人のユーザー間に既存のフレンド関係があるか確認（エンティティ版）
      */
     boolean existsByUserLowAndUserHigh(User userLow, User userHigh);
 
     /**
-     * 2人のユーザー間に既存のフレンド関係があるか確認
-     * @param userLow ID小のユーザー
-     * @param userHigh ID大のユーザー
-     * @return 存在する場合Friendエンティティ
+     * 2人のユーザー間に既存のフレンド関係があるか確認（ID版）
      */
-   Friend getByUserLowAndUserHigh( Long userLow,Long userHigh);
+    boolean existsByUserLow_IdAndUserHigh_Id(Long userLowId, Long userHighId);
 }
