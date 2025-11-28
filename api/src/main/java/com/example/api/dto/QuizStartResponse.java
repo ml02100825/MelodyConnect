@@ -40,6 +40,10 @@ public class QuizStartResponse {
      * メッセージ
      */
     private String message;
+     /**
+     * user正解答案
+     */
+    private String user_answer;
        
      /**
      * 正解答案

@@ -47,6 +47,25 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   void initState() {
     super.initState();
     _loadAccessToken();
+    // ★ デバッグ: 問題データを確認
+    _debugPrintQuestions();
+  }
+
+  /// ★ 追加: デバッグ用 - 問題データをログ出力
+  void _debugPrintQuestions() {
+    debugPrint('=== Quiz Questions Debug ===');
+    debugPrint('Total questions: ${widget.questions.length}');
+    for (int i = 0; i < widget.questions.length; i++) {
+      final q = widget.questions[i];
+      debugPrint('Question $i:');
+      debugPrint('  - questionId: ${q.questionId}');
+      debugPrint('  - text: ${q.text}');
+      debugPrint('  - questionFormat: "${q.questionFormat}"');
+      debugPrint('  - answer: "${q.answer}"');
+      debugPrint('  - audioUrl: ${q.audioUrl}');
+      debugPrint('  - difficultyLevel: ${q.difficultyLevel}');
+    }
+    debugPrint('============================');
   }
 
   Future<void> _loadAccessToken() async {
@@ -65,7 +84,14 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
 
   QuizQuestion get _currentQuestion => widget.questions[_currentIndex];
   bool get _isLastQuestion => _currentIndex == widget.questions.length - 1;
-  bool get _isListening => _currentQuestion.questionFormat == 'listening';
+  
+  /// ★ 修正: リスニング問題の判定を改善
+  /// "listening" の他に、大文字小文字の違いや空白も考慮
+  bool get _isListening {
+    final format = _currentQuestion.questionFormat.toLowerCase().trim();
+    debugPrint('_isListening check: format="$format", result=${format == 'listening'}');
+    return format == 'listening';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -158,6 +184,15 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
             style: TextStyle(
               color: _isListening ? Colors.blue : Colors.green,
               fontWeight: FontWeight.bold,
+            ),
+          ),
+          // ★ デバッグ用: 実際のquestionFormat値を表示
+          const SizedBox(width: 8),
+          Text(
+            '(${_currentQuestion.questionFormat})',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey.shade600,
             ),
           ),
         ],
@@ -262,13 +297,44 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            // ★ 修正: 不正解の場合に正解を表示
             if (!_isCorrect) ...[
               const Text('正解:', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Text(
+                  _correctAnswer.isNotEmpty ? _correctAnswer : '(正解データなし)',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 8),
               Text(
-                _correctAnswer,
-                style: const TextStyle(fontSize: 18),
-                textAlign: TextAlign.center,
+                'あなたの回答: ${_answerController.text}',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+            // ★ 追加: 正解の場合もフィードバック
+            if (_isCorrect) ...[
+              const SizedBox(height: 8),
+              Text(
+                'あなたの回答: ${_answerController.text}',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
               ),
             ],
           ],
@@ -371,8 +437,19 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     // ★ 修正: answerフィールドから正解を取得
     _correctAnswer = _currentQuestion.answer ?? '';
     
+    // ★ デバッグログ
+    debugPrint('=== Answer Check ===');
+    debugPrint('User answer: "$userAnswer"');
+    debugPrint('Correct answer (raw): "${_currentQuestion.answer}"');
+    debugPrint('Correct answer (used): "$_correctAnswer"');
+    debugPrint('Normalized user: "${_normalizeAnswer(userAnswer)}"');
+    debugPrint('Normalized correct: "${_normalizeAnswer(_correctAnswer)}"');
+    
     // ★ 修正: 正解判定（大文字小文字を無視して比較）
     _isCorrect = _normalizeAnswer(userAnswer) == _normalizeAnswer(_correctAnswer);
+    
+    debugPrint('Is correct: $_isCorrect');
+    debugPrint('====================');
 
     _answers.add(AnswerResult(
       questionId: _currentQuestion.questionId,
@@ -392,7 +469,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         .toLowerCase()
         .trim()
         .replaceAll(RegExp(r'\s+'), ' ')  // 複数の空白を1つに
-       .replaceAll(RegExp(r"[.,!?']+"), '');
+        .replaceAll(RegExp("[.,!?'\"]+"), '');
 
   }
 
