@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * Gemini API Client の実装
- * Google Gemini APIを使用して歌詞から問題を生成します
+ * Google Gemini APIを使用して歌詞から問題を生成し、翻訳を行います
  */
 @Component
 @Primary
@@ -73,67 +73,174 @@ public class GeminiApiClientImpl implements GeminiApiClient {
         }
     }
 
+    @Override
+    public String translateToJapanese(String text, String sourceLanguage) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            logger.warn("Gemini APIキーが設定されていません。翻訳をスキップします。");
+            return "(翻訳できませんでした)";
+        }
+
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        try {
+            logger.debug("日本語への翻訳を実行中: sourceLanguage={}, text={}", sourceLanguage, text);
+
+            String prompt = buildTranslationPrompt(text, sourceLanguage);
+            String responseText = callGeminiApi(prompt);
+            String translation = extractTranslation(responseText);
+
+            logger.debug("翻訳完了: {} -> {}", text, translation);
+            return translation;
+
+        } catch (Exception e) {
+            logger.error("翻訳中にエラーが発生しました: text={}", text, e);
+            return "(翻訳エラー)";
+        }
+    }
+
     /**
-     * プロンプトを構築
+     * 問題生成用のプロンプトを構築
      */
     private String buildPrompt(String lyrics, String language, int fillInBlankCount, int listeningCount) {
-        String languageName = "en".equals(language) ? "English" : "Korean";
+        String languageName = getLanguageName(language);
+
+        logger.info("=== PROMPT BUILDING CHECK ===");
+        logger.info("Input language code: {}", language);
+        logger.info("Resolved language name: {}", languageName);
+        logger.info("Fill-in-blank count: {}", fillInBlankCount);
+        logger.info("Listening count: {}", listeningCount);
+        logger.info("============================");
 
         return String.format("""
-            You are an expert language learning content creator. Generate high-quality %s learning questions from the following song lyrics.
+            You are an expert language learning content creator and translator.
 
-            **LYRICS:**
-            %s
+The TARGET LANGUAGE is: %s.
+The LEARNER NATIVE LANGUAGE is: Japanese.
 
-            **REQUIREMENTS:**
+Your tasks:
 
-            1. Generate %d fill-in-the-blank questions:
-               - Select meaningful words (verbs, nouns, adjectives, adverbs) that are pedagogically valuable
-               - Avoid articles (a, an, the) and simple pronouns
-               - Ensure each blank tests different language skills (vocabulary, grammar, collocations)
-               - Vary difficulty levels from 1 (beginner) to 5 (advanced)
-               - Consider word frequency and complexity for difficulty assignment
+1) Select short fragments (phrases or sentences) from the ORIGINAL SONG LYRICS.
+2) For each selected fragment, translate it into the TARGET LANGUAGE.
+3) Based on your TARGET LANGUAGE translations, create fill-in-the-blank and listening questions.
 
-            2. Generate %d listening comprehension questions:
-               - Choose complete, meaningful sentences from the lyrics
-               - Select sentences with clear grammatical structures
-               - Include sentences with idioms, phrasal verbs, or interesting expressions when possible
-               - Vary difficulty based on sentence complexity, length, and vocabulary
+IMPORTANT ABOUT LANGUAGES:
+- "sourceFragment" must always be copied directly from the original lyrics (do NOT modify its language).
+- "targetSentenceFull", "sentenceWithBlank", "blankWord" must always be in the TARGET LANGUAGE.
+- "translationJa" must always be a natural Japanese translation of "targetSentenceFull".
+- "explanation" must be written in natural Japanese.
+- Do NOT mix multiple languages in a single field.
 
-            **DIFFICULTY LEVEL GUIDELINES:**
-            - Level 1: Common words (top 1000), simple grammar
-            - Level 2: Intermediate words (top 3000), basic tenses
-            - Level 3: Advanced vocabulary, complex tenses
-            - Level 4: Idioms, phrasal verbs, nuanced meanings
-            - Level 5: Literary expressions, rare vocabulary, complex structures
+ORIGINAL SONG LYRICS (may contain multiple languages):
+%s
 
-            **OUTPUT FORMAT (JSON):**
-            {
-              "fillInBlank": [
-                {
-                  "sentence": "The sentence with _____ replacing the word",
-                  "blankWord": "the word that was removed",
-                  "difficulty": 1-5,
-                  "explanation": "Brief explanation of why this word/grammar point is important"
-                }
-              ],
-              "listening": [
-                {
-                  "sentence": "The complete sentence from lyrics",
-                  "blankWord": "key word or phrase to focus on",
-                  "difficulty": 1-5,
-                  "explanation": "What makes this sentence valuable for listening practice"
-                }
-              ]
-            }
+REQUIREMENTS:
 
-            **IMPORTANT:**
-            - Return ONLY valid JSON, no additional text or markdown formatting
-            - Do not wrap the JSON in code blocks
-            - Ensure all questions are directly from the provided lyrics
-            - Each question should be unique and test different language aspects
-            - Provide clear, pedagogically sound explanations
+1. Generate %d fill-in-the-blank questions:
+   - Step A: Choose a short, meaningful fragment from the original lyrics (sourceFragment).
+   - Step B: Translate that fragment into a complete sentence in the TARGET LANGUAGE (targetSentenceFull).
+   - Step C: Choose one meaningful word (verb, noun, adjective, adverb) and replace it with "_____" in sentenceWithBlank.
+   - Avoid articles (a, an, the) and simple pronouns as blanks.
+   - Each question should focus on a different aspect (vocabulary, grammar, collocations).
+   - Assign difficulty from 1 (beginner) to 5 (advanced) based on word frequency and complexity in the TARGET LANGUAGE.
+   - Provide translationJa as a natural Japanese translation of targetSentenceFull.
+
+2. Generate %d listening comprehension questions:
+   - Step A: Choose a complete, meaningful fragment from the original lyrics (sourceFragment).
+   - Step B: Translate it into a complete sentence in the TARGET LANGUAGE (targetSentenceFull).
+   - Prefer sentences with clear grammar and, when possible, idioms or interesting expressions in the TARGET LANGUAGE.
+   - Assign difficulty from 1 to 5 based on sentence length, structure, and vocabulary.
+   - Provide translationJa as a natural Japanese translation of targetSentenceFull.
+   - Set audioUrl to an empty string "" (the backend system will fill in an actual S3 URL later).
+
+DIFFICULTY LEVEL GUIDELINES (for the TARGET LANGUAGE):
+- Level 1: Very common words (top 1000), simple grammar.
+- Level 2: Intermediate words (top 3000), basic tenses.
+- Level 3: Advanced vocabulary, more complex tenses.
+- Level 4: Idioms, phrasal verbs, nuanced meanings.
+- Level 5: Literary expressions, rare vocabulary, complex structures.
+
+OUTPUT FORMAT (JSON ONLY):
+{
+  "fillInBlank": [
+    {
+      "sourceFragment": "Original fragment from the lyrics (any language)",
+      "text": "Target sentence with _____ replacing one word",
+      "answer": "The removed word in the TARGET LANGUAGE",
+      "completeSentence": "Complete sentence without blank in the TARGET LANGUAGE",
+      "difficultyLevel": 1-5,
+      "translationJa": "Natural Japanese translation of completeSentence",
+      "explanation": "Japanese explanation of why this word/grammar is important"
+    }
+  ],
+  "listening": [
+    {
+      "sourceFragment": "Original fragment from the lyrics (any language)",
+      "text": "Your translation into the TARGET LANGUAGE",
+      "completeSentence": "Same as text for listening questions",
+      "difficultyLevel": 1-5,
+      "translationJa": "Natural Japanese translation",
+      "explanation": "Japanese explanation of why this sentence is valuable for listening",
+      "audioUrl": ""
+    }
+  ]
+}
+
+IMPORTANT:
+- Return ONLY valid JSON, with no extra text or markdown.
+- Do NOT wrap the JSON in code blocks.
+- Do NOT invent new lyrics: every sourceFragment must appear exactly in the provided lyrics.
+- Keep your translations faithful to the original meaning but natural in the TARGET LANGUAGE.
+- Each question must be unique and focus on a different language aspect.
+
             """, languageName, lyrics, fillInBlankCount, listeningCount);
+    }
+
+    /**
+     * 翻訳用のプロンプトを構築
+     */
+    private String buildTranslationPrompt(String text, String sourceLanguage) {
+        return String.format("""
+            Translate the following %s text to natural Japanese.
+            
+            Rules:
+            - Provide ONLY the Japanese translation
+            - Do NOT include explanations, alternatives, or the original text
+            - Make it natural and appropriate for language learners
+            - Keep the translation concise and clear
+            
+            Text to translate:
+            %s
+            
+            Japanese translation:
+            """, sourceLanguage, text);
+    }
+
+    /**
+     * 言語コードから英語の言語名を取得
+     *
+     * @param language 言語コード（例: "en", "ko", "es"）
+     * @return 英語の言語名（例: "English", "Korean", "Spanish"）
+     */
+    private String getLanguageName(String language) {
+        if (language == null) {
+            return "English";
+        }
+
+        return switch (language.toLowerCase()) {
+            case "en" -> "English";
+            case "ko" -> "Korean";
+            case "ja" -> "Japanese";
+            case "zh" -> "Chinese";
+            case "es" -> "Spanish";
+            case "fr" -> "French";
+            case "de" -> "German";
+            case "pt" -> "Portuguese";
+            case "it" -> "Italian";
+            case "ru" -> "Russian";
+            default -> "English"; // デフォルトは英語
+        };
     }
 
     /**
@@ -168,7 +275,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
     }
 
     /**
-     * Gemini APIのレスポンスをパース
+     * Gemini APIのレスポンスから問題をパース
      */
     private ClaudeQuestionResponse parseResponse(String responseText) {
         try {
@@ -221,6 +328,40 @@ public class GeminiApiClientImpl implements GeminiApiClient {
     }
 
     /**
+     * 翻訳レスポンスから翻訳テキストを抽出
+     */
+    private String extractTranslation(String responseText) {
+        try {
+            JsonNode rootNode = objectMapper.readTree(responseText);
+            String translation = rootNode
+                .path("candidates").get(0)
+                .path("content")
+                .path("parts").get(0)
+                .path("text").asText().trim();
+
+            // マークダウンや余計な説明を除去
+            // 複数行がある場合は最初の行のみ使用
+            if (translation.contains("\n")) {
+                translation = translation.split("\n")[0].trim();
+            }
+
+            // "Japanese translation:" などのプレフィックスを除去
+            if (translation.toLowerCase().contains("translation:")) {
+                int colonIndex = translation.indexOf(":");
+                if (colonIndex > 0 && colonIndex < translation.length() - 1) {
+                    translation = translation.substring(colonIndex + 1).trim();
+                }
+            }
+
+            return translation;
+
+        } catch (Exception e) {
+            logger.error("翻訳レスポンスのパース失敗", e);
+            return "(翻訳取得失敗)";
+        }
+    }
+
+    /**
      * レスポンスからJSON部分を抽出
      */
     private String extractJson(String text) {
@@ -243,14 +384,37 @@ public class GeminiApiClientImpl implements GeminiApiClient {
 
     /**
      * 個別の問題をパース
+     * 新旧両方のフォーマットに対応
      */
     private Question parseQuestion(JsonNode node) {
-        return Question.builder()
-            .sentence(node.path("sentence").asText())
-            .blankWord(node.path("blankWord").asText())
-            .difficulty(node.path("difficulty").asInt(3))
-            .explanation(node.path("explanation").asText())
-            .build();
+        // 新フォーマット（エンティティフィールド名準拠）のフィールドをチェック
+        boolean isNewFormat = node.has("text") || node.has("completeSentence") || node.has("difficultyLevel");
+
+        if (isNewFormat) {
+            // 新フォーマット: エンティティのフィールド名に準拠
+            return Question.builder()
+                .sourceFragment(node.path("sourceFragment").asText())
+                .text(node.path("text").asText())
+                .answer(node.path("answer").asText())
+                .completeSentence(node.path("completeSentence").asText())
+                .difficultyLevel(node.path("difficultyLevel").asInt(3))
+                .translationJa(node.path("translationJa").asText())
+                .explanation(node.path("explanation").asText())
+                .audioUrl(node.path("audioUrl").asText())
+                .build();
+        } else {
+            // 旧フォーマット（後方互換性）
+            // 旧フィールド名を新フィールド名にマッピング
+            String sentence = node.path("sentence").asText();
+            return Question.builder()
+                .text(sentence)
+                .completeSentence(sentence)
+                .answer(node.path("blankWord").asText())
+                .difficultyLevel(node.path("difficulty").asInt(3))
+                .explanation(node.path("explanation").asText())
+                .translationJa(node.path("translationJa").asText())
+                .build();
+        }
     }
 
     /**
@@ -260,22 +424,27 @@ public class GeminiApiClientImpl implements GeminiApiClient {
         List<Question> fillInBlankQuestions = new ArrayList<>();
         List<Question> listeningQuestions = new ArrayList<>();
 
-        // モックデータ生成
+        // モックデータ生成（エンティティフィールド名準拠）
         for (int i = 0; i < fillInBlankCount; i++) {
             fillInBlankQuestions.add(Question.builder()
-                .sentence("I _____ to the store yesterday")
-                .blankWord("went")
-                .difficulty(2)
+                .sourceFragment("I went to the store yesterday")
+                .text("I _____ to the store yesterday")
+                .answer("went")
+                .completeSentence("I went to the store yesterday")
+                .difficultyLevel(2)
                 .explanation("過去形の不規則動詞")
+                .translationJa("私は昨日店に行きました")
                 .build());
         }
 
         for (int i = 0; i < listeningCount; i++) {
             listeningQuestions.add(Question.builder()
-                .sentence("She is singing beautifully")
-                .blankWord("beautifully")
-                .difficulty(3)
+                .sourceFragment("She is singing beautifully")
+                .text("She is singing beautifully")
+                .completeSentence("She is singing beautifully")
+                .difficultyLevel(3)
                 .explanation("副詞の使用")
+                .translationJa("彼女は美しく歌っています")
                 .build());
         }
 

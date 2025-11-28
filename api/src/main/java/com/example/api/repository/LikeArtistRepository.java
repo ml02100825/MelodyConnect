@@ -24,7 +24,10 @@ public interface LikeArtistRepository extends JpaRepository<LikeArtist, Long> {
      * ユーザーIDとアーティストIDで検索
      */
     @Query("SELECT l FROM LikeArtist l WHERE l.user.id = ?1 AND l.artist.artistId = ?2")
-    Optional<LikeArtist> findByUserIdAndArtistId(Long userId, Integer artistId);
+    Optional<LikeArtist> findByUserIdAndArtistId(Long userId, Long artistId);
+    @Query("SELECT CASE WHEN COUNT(l) > 0 THEN true ELSE false END " +
+       "FROM LikeArtist l WHERE l.user.id = ?1 AND l.artist.artistId = ?2")
+    Boolean  existsByUserIdAndArtistId(Long userId, Long artistId);
 
     /**
      * ユーザーのお気に入りアーティストからランダムに1つ取得

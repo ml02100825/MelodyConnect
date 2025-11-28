@@ -68,6 +68,7 @@ class QuizQuestion {
   final int difficultyLevel;
   final String? audioUrl;
   final String? language;
+  final String? answer;  // ★ 追加: 正解
 
   QuizQuestion({
     required this.questionId,
@@ -76,6 +77,7 @@ class QuizQuestion {
     required this.difficultyLevel,
     this.audioUrl,
     this.language,
+    this.answer,  // ★ 追加
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
@@ -86,6 +88,7 @@ class QuizQuestion {
       difficultyLevel: json['difficultyLevel'] ?? 1,
       audioUrl: json['audioUrl'],
       language: json['language'],
+      answer: json['answer'],  // ★ 追加
     );
   }
 }

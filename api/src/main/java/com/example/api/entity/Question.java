@@ -42,16 +42,22 @@ public class Question {
     private Artist artist;
 
     /**
-     * 問題文
+     * 問題文（穴埋めの場合は空欄「_____」を含む）
      */
-    @Column(name = "text", length = 100, nullable = false)
+    @Column(name = "text", length = 500, nullable = false)
     private String text;
 
     /**
-     * 答え
+     * 答え（空欄に入る単語）
      */
     @Column(name = "answer", length = 100, nullable = false)
     private String answer;
+
+    /**
+     * 完全な文（穴埋め問題の場合、空欄が埋まった状態の文）
+     */
+    @Column(name = "complete_sentence", length = 200)
+    private String completeSentence;
 
     /**
      * 追加日時
@@ -81,12 +87,42 @@ public class Question {
     private String language;
 
     /**
+     * 和訳
+     */
+    @Column(name = "translation_ja", length = 500)
+    private String translationJa;
+
+    /**
+     * 音声URL (S3想定)
+     */
+    @Column(name = "audio_url", length = 500)
+    private String audioUrl;
+
+    /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    /**
      * エンティティ保存前に自動的に追加日時を設定
      */
     @PrePersist
     protected void onCreate() {
         if (addingAt == null) {
             addingAt = LocalDateTime.now();
+        }
+        if (isActive == null) {
+            isActive = true;
+        }
+        if (isDeleted == null) {
+            isDeleted = false;
         }
     }
 }

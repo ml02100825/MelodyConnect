@@ -1,5 +1,6 @@
 package com.example.api.client.impl;
 
+import com.example.api.client.GeminiApiClient;
 import com.example.api.client.WordnikApiClient;
 import com.example.api.dto.WordnikWordInfo;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,7 +15,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 /**
  * Wordnik API Client の実装
- * 単語の定義、発音、例文などの情報を取得します
+ * 単語の定義、発音、例文などの情報を取得し、Gemini APIで日本語翻訳します
  */
 @Component
 @Primary
@@ -25,12 +26,17 @@ public class WordnikApiClientImpl implements WordnikApiClient {
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
+    private final GeminiApiClient geminiApiClient;
 
     @Value("${wordnik.api.key:}")
     private String apiKey;
 
-    public WordnikApiClientImpl(ObjectMapper objectMapper) {
+    public WordnikApiClientImpl(
+        ObjectMapper objectMapper,
+        GeminiApiClient geminiApiClient
+    ) {
         this.objectMapper = objectMapper;
+        this.geminiApiClient = geminiApiClient;
         this.webClient = WebClient.builder()
             .baseUrl(WORDNIK_API_BASE_URL)
             .build();
@@ -38,6 +44,11 @@ public class WordnikApiClientImpl implements WordnikApiClient {
 
     @Override
     public WordnikWordInfo getWordInfo(String word) {
+        logger.info("=== WORDNIK API REQUEST ===");
+        logger.info("Word: {}", word);
+        logger.info("API Key configured: {}", (apiKey != null && !apiKey.isEmpty()));
+        logger.info("==========================");
+
         if (apiKey == null || apiKey.isEmpty()) {
             logger.warn("Wordnik APIキーが設定されていません。モックデータを返します。");
             return createMockWordInfo(word);
@@ -46,25 +57,47 @@ public class WordnikApiClientImpl implements WordnikApiClient {
         try {
             logger.info("Wordnikから単語情報を取得中: word={}", word);
 
-            // 複数のエンドポイントから情報を取得
-            String definition = getDefinitions(word);
+            // 効率化: 定義と品詞を1回のリクエストで取得
+            DefinitionInfo defInfo = getDefinitionAndPartOfSpeech(word);
             String pronunciation = getPronunciation(word);
-            String partOfSpeech = getPartOfSpeech(word);
             String[] exampleData = getExamples(word);
             String audioUrl = getAudioUrl(word);
 
+            // Gemini APIで日本語翻訳
+            String meaningJa = "";
+            String exampleTranslate = "";
+            
+            if (!defInfo.definition.isEmpty() && !defInfo.definition.equals("No definition available")) {
+                meaningJa = geminiApiClient.translateToJapanese(defInfo.definition, "English");
+            }
+            
+            if (!exampleData[0].isEmpty()) {
+                exampleTranslate = geminiApiClient.translateToJapanese(exampleData[0], "English");
+            }
+
+            logger.info("=== WORDNIK API RESPONSE ===");
+            logger.info("Definition: {}", defInfo.definition);
+            logger.info("Meaning (JA): {}", meaningJa);
+            logger.info("Pronunciation: {}", pronunciation);
+            logger.info("Part of Speech: {}", defInfo.partOfSpeech);
+            logger.info("Example: {}", exampleData[0]);
+            logger.info("Example (JA): {}", exampleTranslate);
+            logger.info("Audio URL: {}", audioUrl);
+            logger.info("============================");
+
             return WordnikWordInfo.builder()
                 .word(word)
-                .meaningJa(definition)  // TODO: 翻訳APIを使って日本語に変換
+                .meaningJa(meaningJa)
                 .pronunciation(pronunciation)
-                .partOfSpeech(partOfSpeech)
+                .partOfSpeech(defInfo.partOfSpeech)
                 .exampleSentence(exampleData[0])
-                .exampleTranslate(exampleData[1])  // TODO: 翻訳APIを使って日本語に変換
+                .exampleTranslate(exampleTranslate)
                 .audioUrl(audioUrl)
                 .build();
 
         } catch (WebClientResponseException e) {
-            logger.error("Wordnik API呼び出しエラー: status={}, word={}", e.getStatusCode(), word);
+            logger.error("Wordnik API呼び出しエラー: status={}, word={}, message={}",
+                e.getStatusCode(), word, e.getMessage());
             return createMockWordInfo(word);
         } catch (Exception e) {
             logger.error("単語情報の取得中にエラーが発生しました: word={}", word, e);
@@ -73,10 +106,11 @@ public class WordnikApiClientImpl implements WordnikApiClient {
     }
 
     /**
-     * 単語の定義を取得
+     * 定義と品詞を同時に取得（効率化: 1回のAPIコールで両方取得）
      */
-    private String getDefinitions(String word) {
+    private DefinitionInfo getDefinitionAndPartOfSpeech(String word) {
         try {
+            logger.debug("Calling /word.json/{}/definitions", word);
             String response = webClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/word.json/{word}/definitions")
@@ -89,15 +123,30 @@ public class WordnikApiClientImpl implements WordnikApiClient {
                 .bodyToMono(String.class)
                 .block();
 
+            logger.debug("Definitions response: {}", response);
             JsonNode definitions = objectMapper.readTree(response);
+            
             if (definitions.isArray() && definitions.size() > 0) {
-                return definitions.get(0).path("text").asText("No definition available");
+                JsonNode firstDef = definitions.get(0);
+                String definition = firstDef.path("text").asText("No definition available");
+                String partOfSpeech = firstDef.path("partOfSpeech").asText("unknown");
+                
+                logger.debug("Definition extracted: {}", definition);
+                logger.debug("Part of speech extracted: {}", partOfSpeech);
+                
+                return new DefinitionInfo(definition, partOfSpeech);
             }
-            return "No definition available";
+            
+            logger.warn("No definitions found in response for word: {}", word);
+            return new DefinitionInfo("No definition available", "unknown");
 
+        } catch (WebClientResponseException e) {
+            logger.error("定義と品詞の取得に失敗 (HTTP {}): word={}, message={}",
+                e.getStatusCode(), word, e.getMessage());
+            return new DefinitionInfo("Definition not available", "unknown");
         } catch (Exception e) {
-            logger.warn("定義の取得に失敗: word={}", word);
-            return "Definition not available";
+            logger.error("定義と品詞の取得に失敗: word={}", word, e);
+            return new DefinitionInfo("Definition not available", "unknown");
         }
     }
 
@@ -106,6 +155,7 @@ public class WordnikApiClientImpl implements WordnikApiClient {
      */
     private String getPronunciation(String word) {
         try {
+            logger.debug("Calling /word.json/{}/pronunciations", word);
             String response = webClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/word.json/{word}/pronunciations")
@@ -116,51 +166,35 @@ public class WordnikApiClientImpl implements WordnikApiClient {
                 .bodyToMono(String.class)
                 .block();
 
+            logger.debug("Pronunciations response: {}", response);
             JsonNode pronunciations = objectMapper.readTree(response);
+            
             if (pronunciations.isArray() && pronunciations.size() > 0) {
-                return pronunciations.get(0).path("raw").asText("");
+                String pronunciation = pronunciations.get(0).path("raw").asText("");
+                logger.debug("Pronunciation extracted: {}", pronunciation);
+                return pronunciation;
             }
+            
+            logger.debug("No pronunciations found for word: {}", word);
             return "";
 
-        } catch (Exception e) {
-            logger.warn("発音の取得に失敗: word={}", word);
+        } catch (WebClientResponseException e) {
+            logger.error("発音の取得に失敗 (HTTP {}): word={}, message={}",
+                e.getStatusCode(), word, e.getMessage());
             return "";
-        }
-    }
-
-    /**
-     * 品詞を取得
-     */
-    private String getPartOfSpeech(String word) {
-        try {
-            String response = webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                    .path("/word.json/{word}/definitions")
-                    .queryParam("api_key", apiKey)
-                    .queryParam("limit", 1)
-                    .build(word))
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
-
-            JsonNode definitions = objectMapper.readTree(response);
-            if (definitions.isArray() && definitions.size() > 0) {
-                return definitions.get(0).path("partOfSpeech").asText("unknown");
-            }
-            return "unknown";
-
         } catch (Exception e) {
-            logger.warn("品詞の取得に失敗: word={}", word);
-            return "unknown";
+            logger.error("発音の取得に失敗: word={}", word, e);
+            return "";
         }
     }
 
     /**
      * 例文を取得
-     * @return [例文, 翻訳] の配列
+     * @return [例文, 翻訳] の配列（翻訳は後でGeminiで実行）
      */
     private String[] getExamples(String word) {
         try {
+            logger.debug("Calling /word.json/{}/examples", word);
             String response = webClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/word.json/{word}/examples")
@@ -171,18 +205,26 @@ public class WordnikApiClientImpl implements WordnikApiClient {
                 .bodyToMono(String.class)
                 .block();
 
+            logger.debug("Examples response: {}", response);
             JsonNode examplesResponse = objectMapper.readTree(response);
             JsonNode examples = examplesResponse.path("examples");
 
             if (examples.isArray() && examples.size() > 0) {
                 String exampleText = examples.get(0).path("text").asText("");
-                // TODO: 翻訳APIを使って日本語に変換
+                logger.debug("Example extracted: {}", exampleText);
+                // 翻訳はgetWordInfoで実行
                 return new String[]{exampleText, ""};
             }
+            
+            logger.debug("No examples found for word: {}", word);
             return new String[]{"", ""};
 
+        } catch (WebClientResponseException e) {
+            logger.error("例文の取得に失敗 (HTTP {}): word={}, message={}",
+                e.getStatusCode(), word, e.getMessage());
+            return new String[]{"", ""};
         } catch (Exception e) {
-            logger.warn("例文の取得に失敗: word={}", word);
+            logger.error("例文の取得に失敗: word={}", word, e);
             return new String[]{"", ""};
         }
     }
@@ -192,6 +234,7 @@ public class WordnikApiClientImpl implements WordnikApiClient {
      */
     private String getAudioUrl(String word) {
         try {
+            logger.debug("Calling /word.json/{}/audio", word);
             String response = webClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/word.json/{word}/audio")
@@ -202,14 +245,24 @@ public class WordnikApiClientImpl implements WordnikApiClient {
                 .bodyToMono(String.class)
                 .block();
 
+            logger.debug("Audio response: {}", response);
             JsonNode audioFiles = objectMapper.readTree(response);
+            
             if (audioFiles.isArray() && audioFiles.size() > 0) {
-                return audioFiles.get(0).path("fileUrl").asText("");
+                String audioUrl = audioFiles.get(0).path("fileUrl").asText("");
+                logger.debug("Audio URL extracted: {}", audioUrl);
+                return audioUrl;
             }
+            
+            logger.debug("No audio files found for word: {}", word);
             return "";
 
+        } catch (WebClientResponseException e) {
+            logger.error("音声URLの取得に失敗 (HTTP {}): word={}, message={}",
+                e.getStatusCode(), word, e.getMessage());
+            return "";
         } catch (Exception e) {
-            logger.warn("音声URLの取得に失敗: word={}", word);
+            logger.error("音声URLの取得に失敗: word={}", word, e);
             return "";
         }
     }
@@ -220,12 +273,25 @@ public class WordnikApiClientImpl implements WordnikApiClient {
     private WordnikWordInfo createMockWordInfo(String word) {
         return WordnikWordInfo.builder()
             .word(word)
-            .meaningJa("（辞書情報を取得できませんでした）")
+            .meaningJa("(辞書情報を取得できませんでした)")
             .pronunciation("")
             .partOfSpeech("unknown")
             .exampleSentence("")
             .exampleTranslate("")
             .audioUrl("")
             .build();
+    }
+
+    /**
+     * 定義と品詞の情報を保持する内部クラス
+     */
+    private static class DefinitionInfo {
+        final String definition;
+        final String partOfSpeech;
+
+        DefinitionInfo(String definition, String partOfSpeech) {
+            this.definition = definition;
+            this.partOfSpeech = partOfSpeech;
+        }
     }
 }

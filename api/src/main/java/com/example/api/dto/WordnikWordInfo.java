@@ -1,72 +1,47 @@
 package com.example.api.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.List;
 
 /**
- * Wordnik APIからの単語情報DTO
+ * Wordnik APIから取得した単語情報を保持するDTO
  */
 @Data
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class WordnikWordInfo {
-
+    
     /**
      * 単語
      */
     private String word;
-
+    
     /**
-     * 意味（日本語訳）
-     * ※Wordnik APIは英語のみなので、翻訳APIとの組み合わせが必要
+     * 日本語の意味
      */
     private String meaningJa;
-
+    
     /**
-     * 発音
+     * 発音記号
      */
     private String pronunciation;
-
+    
     /**
      * 品詞
      */
     private String partOfSpeech;
-
+    
     /**
      * 例文
      */
     private String exampleSentence;
-
+    
     /**
-     * 例文の翻訳
+     * 例文の日本語訳
      */
     private String exampleTranslate;
-
+    
     /**
      * 音声URL
      */
     private String audioUrl;
-
-    /**
-     * 定義リスト
-     */
-    private List<Definition> definitions;
-
-    /**
-     * 定義情報
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Definition {
-        private String text;
-        private String partOfSpeech;
-        private String source;
-    }
 }

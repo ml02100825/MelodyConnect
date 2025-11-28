@@ -5,6 +5,12 @@ import '../services/quiz_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'quiz_result_screen.dart';
 
+/// ★ 追加: APIのベースURL
+const String _apiBaseUrl = String.fromEnvironment(
+  "API_BASE_URL",
+  defaultValue: "http://localhost:8080",
+);
+
 class QuizQuestionScreen extends StatefulWidget {
   final int sessionId;
   final int userId;
@@ -193,6 +199,15 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
           ),
         ),
+        // ★ 追加: audioUrlのデバッグ表示（開発用、本番では削除）
+        if (_currentQuestion.audioUrl != null) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Audio: ${_currentQuestion.audioUrl}',
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ],
     );
   }
@@ -320,18 +335,30 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     );
   }
 
+  /// ★ 修正: 音声再生処理
   Future<void> _playAudio() async {
-    if (_currentQuestion.audioUrl != null) {
-      try {
-        await _audioPlayer.play(UrlSource(_currentQuestion.audioUrl!));
-      } catch (e) {
-        _showError('音声の再生に失敗しました');
-      }
-    } else {
+    String? audioUrl = _currentQuestion.audioUrl;
+    
+    if (audioUrl == null || audioUrl.isEmpty) {
       _showError('音声データがありません');
+      return;
+    }
+
+    try {
+      // 相対パスの場合、ベースURLを追加
+      if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://')) {
+        audioUrl = '$_apiBaseUrl$audioUrl';
+      }
+      
+      debugPrint('Playing audio: $audioUrl');
+      await _audioPlayer.play(UrlSource(audioUrl));
+    } catch (e) {
+      debugPrint('Audio play error: $e');
+      _showError('音声の再生に失敗しました: $e');
     }
   }
 
+  /// ★ 修正: 正解判定処理
   void _submitAnswer() {
     final userAnswer = _answerController.text.trim();
     if (userAnswer.isEmpty) {
@@ -341,18 +368,11 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
 
     setState(() => _isSubmitting = true);
 
-    // 正解判定（実際のアプリではサーバーで判定するべき）
-    // ここでは簡易的にクライアント側で判定
-    _correctAnswer = _currentQuestion.text
-        .replaceAll('_____', '')
-        .replaceAll('___', '')
-        .trim();
-
-    // 虫食い問題の場合は空欄部分を正解とする
-    // リスニング問題の場合は全文を正解とする
-    _isCorrect = _isListening
-        ? userAnswer.toLowerCase() == _currentQuestion.text.toLowerCase()
-        : true; // 実際にはサーバーで判定
+    // ★ 修正: answerフィールドから正解を取得
+    _correctAnswer = _currentQuestion.answer ?? '';
+    
+    // ★ 修正: 正解判定（大文字小文字を無視して比較）
+    _isCorrect = _normalizeAnswer(userAnswer) == _normalizeAnswer(_correctAnswer);
 
     _answers.add(AnswerResult(
       questionId: _currentQuestion.questionId,
@@ -364,6 +384,16 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
       _showResult = true;
       _isSubmitting = false;
     });
+  }
+
+  /// ★ 追加: 回答を正規化（比較用）
+  String _normalizeAnswer(String answer) {
+    return answer
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ')  // 複数の空白を1つに
+       .replaceAll(RegExp(r"[.,!?']+"), '');
+
   }
 
   void _nextQuestion() {

@@ -24,7 +24,7 @@ public class Artist {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "artist_id", nullable = false)
-    private Integer artistId;
+    private Long artistId;
 
     /**
      * アーティスト名
@@ -32,11 +32,6 @@ public class Artist {
     @Column(name = "artist_name", length = 50)
     private String artistName;
 
-    /**
-     * ジャンルID（外部キー）
-     */
-    @Column(name = "genre_id", nullable = false)
-    private Integer genreId;
 
     /**
      * 画像URL
@@ -52,10 +47,17 @@ public class Artist {
 
     /**
      * アーティストAPIID
-     * AppleMusicで使用されるID
+     * SpotifyAPIで使用されるID
      */
     @Column(name = "artist_api_id", length = 50)
     private String artistApiId;
+
+        /**
+     * アーティストの楽曲を最後に同期した日時
+     * nullの場合は未同期
+     */
+    @Column(name = "last_synced_at")
+    private LocalDateTime lastSyncedAt;
 
     /**
      * エンティティ保存前に自動的に追加日時を設定

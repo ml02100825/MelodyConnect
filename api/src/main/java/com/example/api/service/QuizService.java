@@ -1,6 +1,7 @@
 package com.example.api.service;
 
 import com.example.api.dto.*;
+import com.example.api.entity.Artist;
 import com.example.api.entity.LHistory;
 import com.example.api.entity.Question;
 import com.example.api.entity.Song;
@@ -8,8 +9,9 @@ import com.example.api.repository.LHistoryRepository;
 import com.example.api.repository.LikeArtistRepository;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.SongRepository;
+import com.example.api.repository.ArtistRepository;
 import com.example.api.client.SpotifyApiClient;
-import com.example.api.client.TtsApiClient;
+
 import com.example.api.entity.LikeArtist;
 import com.example.api.enums.QuestionFormat;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -35,6 +37,9 @@ public class QuizService {
     private static final Logger logger = LoggerFactory.getLogger(QuizService.class);
     private static final int QUESTION_THRESHOLD = 50;
 
+    /** ★ 追加: ランダム選択用 */
+    private final Random random = new Random();
+
     @Autowired
     private QuestionRepository questionRepository;
 
@@ -46,6 +51,8 @@ public class QuizService {
 
     @Autowired
     private LikeArtistRepository likeArtistRepository;
+    @Autowired
+    private ArtistRepository artistRepository;
 
     @Autowired
     private SpotifyApiClient spotifyApiClient;
@@ -59,11 +66,22 @@ public class QuizService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
-    private TtsApiClient ttsApiClient;
+        /**
+     * Songからアーティスト名を取得するヘルパーメソッド
+     * aritst_idを使ってArtistエンティティから取得
+     */
+    private String getArtistNameFromSong(Song song) {
+        if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
+            return null;
+        }
+        
+        return artistRepository.findById(song.getAritst_id())
+            .map(Artist::getArtistName)
+            .orElse(null);
+    }
 
     /**
-     * クイズを開始
+     * クイズ開始
      * 50問以上あればDBから取得、なければ新規生成
      */
     @Transactional
@@ -77,20 +95,29 @@ public class QuizService {
             Song selectedSong = selectSong(request);
 
             List<Question> questions;
+            Song actualSong = selectedSong; // ★ 実際に使用するSong（新規生成後は更新される）
 
             if (selectedSong != null) {
                 // 2. 曲が選択された場合、50問チェック
-                long questionCount = questionRepository.countBySongId(selectedSong.getSong_id());
-                logger.info("既存の問題数: songId={}, count={}", selectedSong.getSong_id(), questionCount);
+                // ★ selectedSong.getSong_id()がnullの場合（新規Song）は0問として扱う
+                Long songId = selectedSong.getSong_id();
+                long questionCount = (songId != null) ? questionRepository.countBySongId(songId) : 0;
+                logger.info("既存の問題数: songId={}, count={}", songId, questionCount);
 
                 if (questionCount >= QUESTION_THRESHOLD) {
                     // DBから問題を取得
-                    questions = getQuestionsFromDatabase(selectedSong.getSong_id(), request);
+                    questions = getQuestionsFromDatabase(songId, request);
                     logger.info("DBから問題を取得: count={}", questions.size());
                 } else {
                     // 新規生成
                     questions = generateNewQuestions(selectedSong, request);
                     logger.info("新規問題を生成: count={}", questions.size());
+                    
+                    // ★ 新規生成後、問題リストからSong情報を取得（保存後のIDを持つ）
+                    if (!questions.isEmpty() && questions.get(0).getSong() != null) {
+                        actualSong = questions.get(0).getSong();
+                        logger.debug("新規生成後のSong情報を更新: songId={}", actualSong.getSong_id());
+                    }
                 }
             } else {
                 // 曲が選択されない場合（言語のみで検索）
@@ -104,7 +131,7 @@ public class QuizService {
             questions = questions.subList(0, requestedCount);
 
             // 4. l_historyに保存
-            LHistory history = saveQuizSession(request, questions, selectedSong);
+            LHistory history = saveQuizSession(request, questions, actualSong);
 
             // 5. レスポンスを構築
             List<QuizStartResponse.QuizQuestion> quizQuestions = questions.stream()
@@ -112,12 +139,13 @@ public class QuizService {
                 .collect(Collectors.toList());
 
             QuizStartResponse.SongInfo songInfo = null;
-            if (selectedSong != null) {
+            if (actualSong != null && actualSong.getSong_id() != null) {
+                String artistName = getArtistNameFromSong(actualSong);
+  
                 songInfo = QuizStartResponse.SongInfo.builder()
-                    .songId(selectedSong.getSong_id())
-                    .songName(selectedSong.getSongname())
-                    .artistName("Unknown") // TODO: アーティスト名を取得するロジックを実装
-                    .genre(selectedSong.getGenre())
+                    .songId(actualSong.getSong_id())
+                    .songName(actualSong.getSongname())
+                    .artistName(artistName)
                     .build();
             }
 
@@ -235,23 +263,41 @@ public class QuizService {
         LikeArtist randomLikeArtist = likeArtistRepository.findRandomByUserId(userId)
             .orElseThrow(() -> new IllegalStateException("お気に入りアーティストが見つかりません"));
 
-        Integer artistId = randomLikeArtist.getArtist().getArtistId();
+        Long artistId = randomLikeArtist.getArtist().getArtistId();
         String artistApiId = randomLikeArtist.getArtist().getArtistApiId();
 
         logger.debug("選択されたアーティスト: artistId={}, artistApiId={}", artistId, artistApiId);
 
-        return songRepository.findRandomByArtist(artistId.longValue())
+        return songRepository.findRandomByArtist(artistId)
             .orElseGet(() -> spotifyApiClient.getRandomSongBySpotifyArtistId(artistApiId));
     }
 
     /**
+     * ★ 変更 ★
      * ジャンルから楽曲を選択
+     * 
+     * SpotifyApiClient.getRandomSongsByGenre()がList<Song>を返すようになったため、
+     * その中から1曲をランダムに選択して返す。
+     * 
+     * @param genreName ジャンル名
+     * @return 選択された1曲
      */
     private Song selectSongByGenre(String genreName) {
         logger.debug("ジャンルから楽曲を選択: genre={}", genreName);
 
-        return songRepository.findRandomByGenre(genreName)
-            .orElseGet(() -> spotifyApiClient.getRandomSongByGenre(genreName));
+        // SpotifyApiClientから最大5曲を取得
+        List<Song> songs = spotifyApiClient.getRandomSongsByGenre(genreName);
+
+        if (songs == null || songs.isEmpty()) {
+            logger.warn("ジャンル '{}' から楽曲を取得できませんでした。ランダム選曲にフォールバックします。", genreName);
+            return songRepository.findRandom().orElse(null);
+        }
+
+        // リストからランダムに1曲選択
+        Song selectedSong = songs.get(random.nextInt(songs.size()));
+        logger.info("ジャンル '{}' から楽曲を選択: {} (全{}曲から)", genreName, selectedSong.getSongname(), songs.size());
+
+        return selectedSong;
     }
 
     /**
@@ -315,8 +361,18 @@ public class QuizService {
         // 問題を生成
         QuestionGenerationResponse response = questionGeneratorService.generateQuestions(genRequest);
 
+        // ★ 修正: ResponseからsongIdを取得（新規Songの場合、selectedSongのIDはnullのため）
+        Long songId = (response.getSongInfo() != null && response.getSongInfo().getSongId() != null)
+            ? response.getSongInfo().getSongId()
+            : selectedSong.getSong_id();
+        
+        logger.debug("問題取得用songId: {} (selectedSong.getSong_id()={}, response.songId={})",
+            songId, 
+            selectedSong.getSong_id(),
+            response.getSongInfo() != null ? response.getSongInfo().getSongId() : "null");
+
         // 生成された問題を取得
-        return questionRepository.findBySongId(selectedSong.getSong_id());
+        return questionRepository.findBySongId(songId);
     }
 
     /**
@@ -387,58 +443,25 @@ public class QuizService {
      * questionエンティティをQuizQuestionDTOに変換
      */
     private QuizStartResponse.QuizQuestion convertToQuizQuestion(Question q) {
-        String audioUrl = null;
 
-        // リスニング問題の場合は音声を生成
-        if (QuestionFormat.LISTENING.equals(q.getQuestionFormat())) {
-            audioUrl = generateAudioForQuestion(q);
-        }
+     
+        
 
         return QuizStartResponse.QuizQuestion.builder()
             .questionId(q.getQuestionId())
             .text(q.getText())
             .questionFormat(q.getQuestionFormat().getValue())
             .difficultyLevel(q.getDifficultyLevel())
-            .audioUrl(audioUrl)
+            .audioUrl(q.getAudioUrl())
             .language(q.getLanguage())
+
             .build();
     }
 
-    /**
-     * 問題用の音声を生成
-     */
-    private String generateAudioForQuestion(Question question) {
-        try {
-            String ttsLanguageCode = mapLanguageToTtsCode(question.getLanguage());
-            // リスニング問題では答えを読み上げる（聞き取って書く形式）
-            String textToSpeak = question.getAnswer();
 
-            logger.debug("TTS音声生成: questionId={}, language={}, text={}",
-                question.getQuestionId(), ttsLanguageCode, textToSpeak);
-
-            return ttsApiClient.generateAudio(textToSpeak, ttsLanguageCode);
-        } catch (Exception e) {
-            logger.error("音声生成に失敗しました: questionId={}", question.getQuestionId(), e);
-            return null;
-        }
-    }
 
     /**
      * 言語名をTTS言語コードに変換
      */
-    private String mapLanguageToTtsCode(String language) {
-        if (language == null) {
-            return "en-US";
-        }
-        switch (language.toUpperCase()) {
-            case "ENGLISH":
-                return "en-US";
-            case "KOREAN":
-                return "ko-KR";
-            case "JAPANESE":
-                return "ja-JP";
-            default:
-                return "en-US";
-        }
-    }
+   
 }

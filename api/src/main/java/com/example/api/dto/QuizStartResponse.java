@@ -40,6 +40,11 @@ public class QuizStartResponse {
      * メッセージ
      */
     private String message;
+       
+     /**
+     * 正解答案
+     */
+    private String answer;
 
     /**
      * 問題DTO
@@ -55,6 +60,7 @@ public class QuizStartResponse {
         private Integer difficultyLevel;
         private String audioUrl; // リスニング問題用
         private String language;
+        private String answer;
     }
 
     /**
