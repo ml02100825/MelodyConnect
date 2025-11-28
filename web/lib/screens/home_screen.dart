@@ -1,235 +1,220 @@
 import 'package:flutter/material.dart';
-import '../services/auth_api_service.dart';
-import '../services/token_storage_service.dart';
-import 'login_screen.dart';
 import '../bottom_nav.dart';
-
-/// ホーム画面（プレースホルダー）
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
-
+import 'friend_profile.dart';
+ 
+class FriendListScreen extends StatefulWidget {
+  const FriendListScreen({Key? key}) : super(key: key);
+ 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<FriendListScreen> createState() => _FriendListScreenState();
 }
-
-class _HomeScreenState extends State<HomeScreen> {
-  final _authApiService = AuthApiService();
-  final _tokenStorage = TokenStorageService();
-
-  String? _username;
-  String? _email;
-  bool _isLoading = true;
-
+ 
+class _FriendListScreenState extends State<FriendListScreen> {
+  final TextEditingController _searchController = TextEditingController();
+ 
+  // 仮のフレンドリスト
+  final List<Friend> friends = [
+    Friend(
+      id: '100001',
+      name: 'カザフスタン斉藤',
+      status: '最終ログイン 2時間前',
+      avatarColor: Colors.purple[100]!,
+    ),
+    Friend(
+      id: '100002',
+      name: 'mattari.s',
+      status: '最終ログイン 0分前',
+      avatarColor: Colors.purple[100]!,
+    ),
+    Friend(
+      id: '100003',
+      name: 'tom',
+      status: '最終ログイン 0分前',
+      avatarColor: Colors.purple[100]!,
+    ),
+  ];
+ 
+  // 検索結果リスト
+  List<Friend> filteredFriends = [];
+ 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    filteredFriends = friends;
+    _searchController.addListener(_onSearchChanged);
   }
-
-  /// ユーザー情報を読み込む
-  Future<void> _loadUserData() async {
-    try {
-      final username = await _tokenStorage.getUsername();
-      final email = await _tokenStorage.getEmail();
-
-      setState(() {
-        _username = username;
-        _email = email;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  /// ログアウト処理
-  Future<void> _handleLogout() async {
-    try {
-      final userId = await _tokenStorage.getUserId();
-      final accessToken = await _tokenStorage.getAccessToken();
-
-      if (userId != null && accessToken != null) {
-        await _authApiService.logout(userId, accessToken);
+ 
+  void _onSearchChanged() {
+    final query = _searchController.text.trim().toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        filteredFriends = friends;
+      } else {
+        filteredFriends = friends
+            .where((f) => f.name.toLowerCase().contains(query))
+            .toList();
       }
-
-      // ローカルの認証情報を削除
-      await _tokenStorage.clearAuthData();
-
-      if (!mounted) return;
-
-      // ログイン画面に戻る
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('ログアウトに失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    });
   }
-
+ 
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+ 
   @override
   Widget build(BuildContext context) {
-    // レスポンシブ対応: 画面幅に応じてレイアウトを調整
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = screenWidth > 600;
-
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('MelodyConnect'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'ログアウト',
-            onPressed: _handleLogout,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'フレンド一覧',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
           ),
-        ],
+        ),
+        centerTitle: true,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(isWideScreen ? 48.0 : 24.0),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: isWideScreen ? 800 : double.infinity,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // ウェルカムメッセージ
-                      Icon(
-                        Icons.music_note,
-                        size: isWideScreen ? 100 : 80,
-                        color: Colors.blue,
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'ようこそ${_username != null ? '、$_username さん' : ''}！',
-                        style: TextStyle(
-                          fontSize: isWideScreen ? 32 : 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      if (_email != null)
-                        Text(
-                          _email!,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      const SizedBox(height: 48),
-
-                      // プレースホルダーカード
-                      Card(
-                        elevation: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            children: [
-                              const Icon(
-                                Icons.construction,
-                                size: 64,
-                                color: Colors.orange,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'ホーム画面は準備中です',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'この画面は今後実装される予定です。\n現在はログインとプロフィール設定が完了しています。',
-                                style: TextStyle(
-                                  fontSize: isWideScreen ? 16 : 14,
-                                  color: Colors.grey[600],
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // 統計情報（ダミーデータ）
-                      if (isWideScreen)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildStatCard('総プレイ数', '0'),
-                            _buildStatCard('残りライフ', '5'),
-                            _buildStatCard('レート', '1500'),
-                          ],
-                        )
-                      else
-                        Column(
-                          children: [
-                            _buildStatCard('総プレイ数', '0'),
-                            const SizedBox(height: 16),
-                            _buildStatCard('残りライフ', '5'),
-                            const SizedBox(height: 16),
-                            _buildStatCard('レート', '1500'),
-                          ],
-                        ),
-                    ],
-                  ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // 検索バー
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'フレンドを検索',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                filled: true,
+                fillColor: Colors.white,
               ),
             ),
+            const SizedBox(height: 12),
+            // 検索結果リスト
+            Expanded(
+              child: filteredFriends.isEmpty
+                  ? Center(
+                      child: Text(
+                        '検索結果がありません',
+                        style: TextStyle(
+                          color: Colors.red[600],
+                          fontSize: 16,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: filteredFriends.length,
+                      itemBuilder: (context, index) {
+                        return _buildFriendItem(filteredFriends[index]);
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
       bottomNavigationBar: BottomNavBar(
-        currentIndex: 0,
+        currentIndex: 3,
         onTap: (index) {
           // TODO: 画面遷移処理を書く
         },
       ),
     );
   }
-
-  /// 統計情報カードを構築
-  Widget _buildStatCard(String label, String value) {
-    return Card(
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+ 
+  Widget _buildFriendItem(Friend friend) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FriendProfile(
+                    userName: friend.name,
+                    userId: friend.id,
+                    lastLogin: friend.status,
+                    isFriend: true,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: friend.avatarColor,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Icon(
+                Icons.person,
+                color: Colors.purple[300],
+                size: 28,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  friend.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  friend.status,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
+ 
+class Friend {
+  final String id;
+  final String name;
+  final String status;
+  final Color avatarColor;
+ 
+  Friend({
+    required this.id,
+    required this.name,
+    required this.status,
+    required this.avatarColor,
+  });
+}
+ 
+ 
