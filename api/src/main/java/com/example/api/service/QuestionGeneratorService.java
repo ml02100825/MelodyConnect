@@ -90,7 +90,7 @@ public class QuestionGeneratorService {
             }
 
             // Artistを取得してお気に入り同期をチェック
-            Artist artist = artistRepository.findById(song.getAritst_id().intValue()).orElse(null);
+            Artist artist = artistRepository.findById(song.getAritst_id()).orElse(null);
             if (artist != null) {
                 logger.debug("Artist設定完了: artistId={}, artistName={}", artist.getArtistId(), artist.getArtistName());
                 
@@ -132,7 +132,7 @@ public class QuestionGeneratorService {
             // 既存のSongを使用して問題を作成
             Question newQuestion = new Question();
             newQuestion.setSong(song);
-            Artist artist = artistRepository.findById(song.getAritst_id().intValue()).orElse(null);
+            Artist artist = artistRepository.findById(song.getAritst_id()).orElse(null);
             newQuestion.setArtist(artist);
 
             logger.debug("Setting question - text='{}', answer='{}', completeSentence='{}'",
@@ -329,12 +329,12 @@ public class QuestionGeneratorService {
         LikeArtist randomLikeArtist = likeArtistRepository.findRandomByUserId(userId)
             .orElseThrow(() -> new IllegalStateException("お気に入りアーティストが見つかりません"));
 
-        Integer artistId = randomLikeArtist.getArtist().getArtistId();
+        Long artistId = randomLikeArtist.getArtist().getArtistId();
         String artistApiId = randomLikeArtist.getArtist().getArtistApiId();
 
         logger.debug("選択されたアーティスト: artistId={}, artistApiId={}", artistId, artistApiId);
 
-        return songRepository.findRandomByArtist(artistId.longValue())
+        return songRepository.findRandomByArtist(artistId)
             .orElseGet(() -> spotifyApiClient.getRandomSongBySpotifyArtistId(artistApiId));
     }
 
@@ -456,7 +456,7 @@ public class QuestionGeneratorService {
             return null;
         }
         
-        return artistRepository.findById(song.getAritst_id().intValue())
+        return artistRepository.findById(song.getAritst_id())
             .map(Artist::getArtistName)
             .orElse(null);
     }
@@ -570,7 +570,7 @@ public class QuestionGeneratorService {
     private QuestionGenerationResponse.SongInfo buildSongInfo(Song song) {
         String artistName = "Unknown";
         if (song.getAritst_id() != null) {
-            Artist artist = artistRepository.findById(song.getAritst_id().intValue()).orElse(null);
+            Artist artist = artistRepository.findById(song.getAritst_id()).orElse(null);
             if (artist != null) {
                 artistName = artist.getArtistName();
             }

@@ -14,7 +14,7 @@ import java.util.Optional;
  * Artist Repository
  */
 @Repository
-public interface ArtistRepository extends JpaRepository<Artist, Integer> {
+public interface ArtistRepository extends JpaRepository<Artist, Long> {
 
     /**
      * アーティスト名で検索

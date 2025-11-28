@@ -369,7 +369,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                 selectedArtist.getArtistId(), selectedArtist.getArtistName());
 
             // ステップ2: Songテーブルからそのアーティストの曲数をチェック
-            long songCount = songRepository.countByArtistId(selectedArtist.getArtistId().longValue());
+            long songCount = songRepository.countByArtistId(selectedArtist.getArtistId());
             logger.info("DBに存在する楽曲数: {}", songCount);
 
             // ステップ3: 曲がなければSpotify APIから同期
@@ -378,7 +378,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                 syncArtistSongsFromSpotify(selectedArtist);
                 
                 // 同期後に再カウント
-                songCount = songRepository.countByArtistId(selectedArtist.getArtistId().longValue());
+                songCount = songRepository.countByArtistId(selectedArtist.getArtistId());
                 logger.info("同期後の楽曲数: {}", songCount);
                 
                 if (songCount == 0) {
@@ -389,7 +389,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
             // ステップ4: DBからランダムに5曲取得
             List<Song> songs = songRepository.findRandomSongsByArtist(
-                selectedArtist.getArtistId().longValue(), 
+                selectedArtist.getArtistId(), 
                 GENRE_SEARCH_SONG_LIMIT
             );
 
@@ -755,10 +755,12 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                     newArtist.setArtistName(artistName);
                     newArtist.setArtistApiId(artistApiId);
                     logger.info("新規アーティストを作成: name={}, apiId={}", artistName, artistApiId);
-                    return artistRepository.save(newArtist);
+                    // saveAndFlushで即座にDBに反映し、IDを確実に取得
+                    return artistRepository.saveAndFlush(newArtist);
                 });
 
-            song.setAritst_id(artist.getArtistId().longValue());
+            // artistIdがLong型に変更されたため、直接設定
+            song.setAritst_id(artist.getArtistId());
             logger.debug("Songにアーティストを設定: artistId={}, artistName={}", artist.getArtistId(), artist.getArtistName());
         } else {
             logger.warn("トラックにアーティスト情報がありません: {}", songName);

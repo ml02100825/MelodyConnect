@@ -39,7 +39,7 @@ public class ArtistSyncService {
      * @return 新規に保存された曲数
      */
     @Transactional
-    public int syncArtistSongs(Integer artistId) {
+    public int syncArtistSongs(Long artistId) {
         logger.info("=== アーティスト楽曲同期開始 ===");
         logger.info("Artist ID: {}", artistId);
 
