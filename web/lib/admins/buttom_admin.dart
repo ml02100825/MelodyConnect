@@ -195,7 +195,7 @@ class BottomAdminLayout extends StatelessWidget {
         break;
       case 'コンテンツ管理':
         // コンテンツ管理画面へ遷移（最初のタブを表示）
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => VocabularyAdmin(initialTab: '単語')));
+        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => VocabularyAdmin()));
         break;
       case 'お問い合わせ管理':
         // お問い合わせ管理画面へ遷移
