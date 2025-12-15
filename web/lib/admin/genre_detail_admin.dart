@@ -1,5 +1,5 @@
 // genre_detail_admin.dart（ジャンル詳細画面）
-import 'package:flutter/material.dart' hide Genre;
+import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'genre_admin.dart';
 
@@ -50,13 +50,9 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
     
     // コントローラー初期化
     nameController = TextEditingController(text: widget.genre.name);
-    descriptionController = TextEditingController(text: widget.genre.description ?? '');
-    imageUrlController = TextEditingController(text: widget.genre.imageUrl ?? '');
     
     // 元の値を保存（キャンセル用）
     _originalName = widget.genre.name;
-    _originalDescription = widget.genre.description ?? '';
-    _originalImageUrl = widget.genre.imageUrl ?? '';
     _originalStatus = widget.genre.status;
     
     // 選択状態初期化
@@ -449,8 +445,6 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
           isActive: selectedStatus == '有効',
           addedDate: widget.genre.addedDate,
           updatedDate: DateTime.now(),
-          description: descriptionController.text.isEmpty ? null : descriptionController.text,
-          imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
         );
         widget.onStatusChanged!(updatedGenre, 'status_changed');
       }
@@ -469,8 +463,6 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
       isActive: selectedStatus == '有効',
       addedDate: widget.genre.addedDate,
       updatedDate: DateTime.now(),
-      description: descriptionController.text.isEmpty ? null : descriptionController.text,
-      imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
     );
 
     // 元の値を更新
@@ -618,8 +610,6 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
       status: selectedStatus,
       isActive: selectedStatus == '有効',
       addedDate: widget.genre.addedDate,
-      description: descriptionController.text.isEmpty ? null : descriptionController.text,
-      imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
     );
     
     Navigator.pop(context, {

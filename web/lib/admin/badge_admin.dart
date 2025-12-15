@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'badge_detail_admin.dart';
+import 'touroku_admin.dart'; // 追加
 
 class Badge {
   final String id;
@@ -11,8 +12,6 @@ class Badge {
   final bool isActive;
   final DateTime addedDate;
   final DateTime? updatedDate;
-  final String? description;
-  final String? imageUrl;
 
   Badge({
     required this.id,
@@ -23,8 +22,6 @@ class Badge {
     required this.isActive,
     required this.addedDate,
     this.updatedDate,
-    this.description,
-    this.imageUrl,
   });
 
   Badge copyWith({
@@ -36,8 +33,6 @@ class Badge {
     bool? isActive,
     DateTime? addedDate,
     DateTime? updatedDate,
-    String? description,
-    String? imageUrl,
   }) {
     return Badge(
       id: id ?? this.id,
@@ -48,8 +43,6 @@ class Badge {
       isActive: isActive ?? this.isActive,
       addedDate: addedDate ?? this.addedDate,
       updatedDate: updatedDate ?? this.updatedDate,
-      description: description ?? this.description,
-      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }
@@ -78,8 +71,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
   String? statusFilter;
   DateTime? addedStart;
   DateTime? addedEnd;
-  DateTime? updatedStart;
-  DateTime? updatedEnd;
 
   @override
   void initState() {
@@ -98,8 +89,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 1, 1),
         updatedDate: DateTime(2024, 1, 1),
-        description: '対戦モードで初めて勝利すると獲得できるバッジ',
-        imageUrl: 'https://example.com/badge1.png',
       ),
       Badge(
         id: '00002',
@@ -110,8 +99,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 1, 15),
         updatedDate: DateTime(2024, 1, 15),
-        description: '対戦モードで10回勝利すると獲得できるバッジ',
-        imageUrl: 'https://example.com/badge2.png',
       ),
       Badge(
         id: '00003',
@@ -122,8 +109,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 2, 1),
         updatedDate: DateTime(2024, 2, 1),
-        description: 'スラングアカウントモードで初めて全問正解すると獲得できるバッジ',
-        imageUrl: 'https://example.com/badge3.png',
       ),
       Badge(
         id: '00004',
@@ -134,8 +119,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         isActive: false,
         addedDate: DateTime(2024, 2, 15),
         updatedDate: DateTime(2024, 2, 15),
-        description: 'スラングアカウントモードで10回全問正解すると獲得できるバッジ',
-        imageUrl: 'https://example.com/badge4.png',
       ),
       Badge(
         id: '00005',
@@ -146,8 +129,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 3, 1),
         updatedDate: DateTime(2024, 3, 1),
-        description: '楽曲モードで100曲クリアすると獲得できるバッジ',
-        imageUrl: 'https://example.com/badge5.png',
       ),
       Badge(
         id: '00006',
@@ -158,8 +139,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         isActive: false,
         addedDate: DateTime(2024, 3, 15),
         updatedDate: DateTime(2024, 3, 15),
-        description: '単語モードで500単語習得すると獲得できるバッジ',
-        imageUrl: 'https://example.com/badge6.png',
       ),
     ];
     filteredBadges = List.from(badges);
@@ -213,8 +192,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
       statusFilter = null;
       addedStart = null;
       addedEnd = null;
-      updatedStart = null;
-      updatedEnd = null;
 
       filteredBadges = List.from(badges);
       selectedRows = List.generate(filteredBadges.length, (index) => false);
@@ -298,19 +275,6 @@ class _BadgeAdminState extends State<BadgeAdmin> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('選択したバッジを有効化しました')),
     );
-  }
-
-  void _createNewBadge() {
-    final newBadge = Badge(
-      id: 'NEW${(badges.length + 1).toString().padLeft(5, '0')}',
-      name: '新規バッジ',
-      mode: '対戦',
-      condition: '条件を設定してください',
-      status: '有効',
-      isActive: true,
-      addedDate: DateTime.now(),
-    );
-    _navigateToDetailPage(newBadge, isNew: true);
   }
 
   Future<void> _navigateToDetailPage(Badge badge, {bool isNew = false}) async {
@@ -412,6 +376,34 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         SnackBar(content: Text(message)),
       );
     });
+  }
+
+  // バッジ登録ダイアログを表示
+  void _showTourokuDialog() {
+    showTourokuDialog(
+      context,
+      'badge',
+      (data) {
+        final newBadge = Badge(
+          id: '${(badges.length + 1).toString().padLeft(5, '0')}',
+          name: data['name'],
+          mode: data['mode'],
+          condition: data['condition'],
+          status: '有効',
+          isActive: true,
+          addedDate: DateTime.now(),
+        );
+
+        badges.add(newBadge);
+        filteredBadges = List.from(badges);
+        selectedRows = List.generate(filteredBadges.length, (index) => false);
+        _updateSelectionState();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('バッジを登録しました')),
+        );
+      },
+    );
   }
 
   Widget _buildStatusIndicator(String status) {
@@ -834,7 +826,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
           ),
           
           // 全てのボタンを同じ行に表示
-          _buildAllButtons(),
+          _buildButtonsArea(),
         ],
       ),
     );
@@ -861,7 +853,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
     );
   }
 
-  Widget _buildAllButtons() {
+  Widget _buildButtonsArea() {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -919,7 +911,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
               ),
             ),
           
-          // 新規作成ボタン
+          // バッジ登録ボタン
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
@@ -932,14 +924,14 @@ class _BadgeAdminState extends State<BadgeAdmin> {
               ],
             ),
             child: ElevatedButton(
-              onPressed: _createNewBadge,
+              onPressed: _showTourokuDialog,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
-              child: const Text('新規作成', style: TextStyle(color: Colors.white)),
+              child: const Text('追加作成', style: TextStyle(color: Colors.white)),
             ),
           ),
         ],

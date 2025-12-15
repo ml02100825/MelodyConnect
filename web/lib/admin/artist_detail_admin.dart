@@ -68,7 +68,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     genreController = TextEditingController(text: widget.artist.genre);
     genreIdController = TextEditingController(text: widget.artist.genreId ?? '');
     artistApiIdController = TextEditingController(text: widget.artist.artistApiId ?? '');
-    descriptionController = TextEditingController(text: widget.artist.description ?? '');
     imageUrlController = TextEditingController(text: widget.artist.imageUrl ?? '');
     
     // 元の値を保存（キャンセル用）
@@ -76,7 +75,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     _originalGenre = widget.artist.genre;
     _originalGenreId = widget.artist.genreId ?? '';
     _originalArtistApiId = widget.artist.artistApiId ?? '';
-    _originalDescription = widget.artist.description ?? '';
     _originalImageUrl = widget.artist.imageUrl ?? '';
     _originalStatus = widget.artist.status;
     
@@ -516,7 +514,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
           updatedDate: DateTime.now(),
           genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
           artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
-          description: descriptionController.text.isEmpty ? null : descriptionController.text,
           imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
         );
         widget.onStatusChanged!(updatedArtist, 'status_changed');
@@ -539,7 +536,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       updatedDate: DateTime.now(),
       genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
       artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
-      description: descriptionController.text.isEmpty ? null : descriptionController.text,
       imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
     );
 
@@ -707,7 +703,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       addedDate: widget.artist.addedDate,
       genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
       artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
-      description: descriptionController.text.isEmpty ? null : descriptionController.text,
       imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
     );
     

@@ -1,7 +1,7 @@
-// genre_admin.dart（ジャンル一覧画面）
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'genre_detail_admin.dart';
+import 'touroku_admin.dart';
 
 class Genre {
   final String id;
@@ -10,8 +10,6 @@ class Genre {
   final bool isActive;
   final DateTime addedDate;
   final DateTime? updatedDate;
-  final String? description;
-  final String? imageUrl;
 
   Genre({
     required this.id,
@@ -20,8 +18,6 @@ class Genre {
     required this.isActive,
     required this.addedDate,
     this.updatedDate,
-    this.description,
-    this.imageUrl,
   });
 
   Genre copyWith({
@@ -31,8 +27,6 @@ class Genre {
     bool? isActive,
     DateTime? addedDate,
     DateTime? updatedDate,
-    String? description,
-    String? imageUrl,
   }) {
     return Genre(
       id: id ?? this.id,
@@ -41,8 +35,6 @@ class Genre {
       isActive: isActive ?? this.isActive,
       addedDate: addedDate ?? this.addedDate,
       updatedDate: updatedDate ?? this.updatedDate,
-      description: description ?? this.description,
-      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }
@@ -84,8 +76,6 @@ class _GenreAdminState extends State<GenreAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 1, 1),
         updatedDate: DateTime(2024, 1, 1),
-        description: 'ポップ音楽のジャンル',
-        imageUrl: 'https://example.com/genre1.png',
       ),
       Genre(
         id: '00002',
@@ -94,8 +84,6 @@ class _GenreAdminState extends State<GenreAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 1, 15),
         updatedDate: DateTime(2024, 1, 15),
-        description: 'ロック音楽のジャンル',
-        imageUrl: 'https://example.com/genre2.png',
       ),
       Genre(
         id: '00003',
@@ -104,8 +92,6 @@ class _GenreAdminState extends State<GenreAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 2, 1),
         updatedDate: DateTime(2024, 2, 1),
-        description: 'ジャズ音楽のジャンル',
-        imageUrl: 'https://example.com/genre3.png',
       ),
       Genre(
         id: '00004',
@@ -114,8 +100,6 @@ class _GenreAdminState extends State<GenreAdmin> {
         isActive: false,
         addedDate: DateTime(2024, 2, 15),
         updatedDate: DateTime(2024, 2, 15),
-        description: 'クラシック音楽のジャンル',
-        imageUrl: 'https://example.com/genre4.png',
       ),
     ];
     filteredGenres = List.from(genres);
@@ -242,17 +226,6 @@ class _GenreAdminState extends State<GenreAdmin> {
     );
   }
 
-  void _createNewGenre() {
-    final newGenre = Genre(
-      id: 'NEW${(genres.length + 1).toString().padLeft(5, '0')}',
-      name: '新規ジャンル',
-      status: '有効',
-      isActive: true,
-      addedDate: DateTime.now(),
-    );
-    _navigateToDetailPage(newGenre, isNew: true);
-  }
-
   Future<void> _navigateToDetailPage(Genre genre, {bool isNew = false}) async {
     final result = await Navigator.push(
       context,
@@ -343,6 +316,31 @@ class _GenreAdminState extends State<GenreAdmin> {
         SnackBar(content: Text(message)),
       );
     });
+  }
+
+  void _showTourokuDialog() {
+    showTourokuDialog(
+      context,
+      'genre',
+      (data) {
+        final newGenre = Genre(
+          id: '${(genres.length + 1).toString().padLeft(5, '0')}',
+          name: data['name'],
+          status: '有効',
+          isActive: true,
+          addedDate: DateTime.now(),
+        );
+
+        genres.add(newGenre);
+        filteredGenres = List.from(genres);
+        selectedRows = List.generate(filteredGenres.length, (index) => false);
+        _updateSelectionState();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ジャンルを登録しました')),
+        );
+      },
+    );
   }
 
   Widget _buildStatusIndicator(String status) {
@@ -718,7 +716,7 @@ class _GenreAdminState extends State<GenreAdmin> {
           ),
           
           // 全てのボタンを同じ行に表示
-          _buildAllButtons(),
+          _buildButtonsArea(),
         ],
       ),
     );
@@ -745,7 +743,7 @@ class _GenreAdminState extends State<GenreAdmin> {
     );
   }
 
-  Widget _buildAllButtons() {
+  Widget _buildButtonsArea() {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -780,7 +778,6 @@ class _GenreAdminState extends State<GenreAdmin> {
           // 選択中のジャンルを有効化ボタン
           if (hasSelection)
             Container(
-              margin: const EdgeInsets.only(right: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
@@ -802,8 +799,6 @@ class _GenreAdminState extends State<GenreAdmin> {
                 child: const Text('選択中のジャンルを有効化', style: TextStyle(color: Colors.white)),
               ),
             ),
-          
-          // 新規作成ボタン
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
@@ -816,14 +811,14 @@ class _GenreAdminState extends State<GenreAdmin> {
               ],
             ),
             child: ElevatedButton(
-              onPressed: _createNewGenre,
+              onPressed: _showTourokuDialog,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
-              child: const Text('新規作成', style: TextStyle(color: Colors.white)),
+              child: const Text('追加作成', style: TextStyle(color: Colors.white)),
             ),
           ),
         ],

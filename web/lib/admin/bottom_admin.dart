@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'user_list_admin.dart';
 import 'vocabulary_admin.dart';
-import 'contact_list_admin.dart';
-// import 'mondai_admin.dart';
-// import 'music_admin.dart';
+import 'contact_admin.dart';
+import 'mondai_admin.dart';
+import 'music_admin.dart';
 import 'artist_admin.dart';
 import 'genre_admin.dart';
 import 'badge_admin.dart';
@@ -209,7 +209,7 @@ Widget build(BuildContext context) {
         break;
       case 'お問い合わせ管理':
         // お問い合わせ管理画面へ遷移
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ContactListAdmin()));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ContactAdmin()));
         break;
     }
   }
@@ -231,14 +231,14 @@ Widget build(BuildContext context) {
         break;
       case '問題':
         // 問題管理コンテンツを表示
-        // Navigator.pushReplacement(
-        //   context,
-          // MaterialPageRoute(builder: (context) => const MondaiAdmin()));
-        // break;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MondaiAdmin()));
+        break;
       case '楽曲':
         // 楽曲管理コンテンツを表示
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MusicAdmin()));
-        // break;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MusicAdmin()));
+        break;
       case 'アーティスト':
         Navigator.pushReplacement(
           context,

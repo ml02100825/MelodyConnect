@@ -1,7 +1,7 @@
-// artist_admin.dart（アーティスト一覧画面）
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'artist_detail_admin.dart';
+import 'touroku_admin.dart';
 
 class Artist {
   final String id;
@@ -13,7 +13,6 @@ class Artist {
   final DateTime? updatedDate;
   final String? genreId;
   final String? artistApiId;
-  final String? description;
   final String? imageUrl;
 
   Artist({
@@ -26,7 +25,6 @@ class Artist {
     this.updatedDate,
     this.genreId,
     this.artistApiId,
-    this.description,
     this.imageUrl,
   });
 
@@ -40,7 +38,6 @@ class Artist {
     DateTime? updatedDate,
     String? genreId,
     String? artistApiId,
-    String? description,
     String? imageUrl,
   }) {
     return Artist(
@@ -53,7 +50,6 @@ class Artist {
       updatedDate: updatedDate ?? this.updatedDate,
       genreId: genreId ?? this.genreId,
       artistApiId: artistApiId ?? this.artistApiId,
-      description: description ?? this.description,
       imageUrl: imageUrl ?? this.imageUrl,
     );
   }
@@ -107,9 +103,8 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 1, 1),
         updatedDate: DateTime(2024, 1, 1),
-        genreId: 'GEN001',
+        genreId: '00001',
         artistApiId: 'API001',
-        description: 'ポップミュージックの代表的なアーティスト',
         imageUrl: 'https://example.com/artist1.png',
       ),
       Artist(
@@ -120,9 +115,8 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 1, 15),
         updatedDate: DateTime(2024, 1, 15),
-        genreId: 'GEN002',
+        genreId: '00002',
         artistApiId: 'API002',
-        description: 'ロックミュージックの代表的なアーティスト',
         imageUrl: 'https://example.com/artist2.png',
       ),
       Artist(
@@ -133,9 +127,8 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         isActive: true,
         addedDate: DateTime(2024, 2, 1),
         updatedDate: DateTime(2024, 2, 1),
-        genreId: 'GEN003',
+        genreId: '00003',
         artistApiId: 'API003',
-        description: 'ジャズミュージックの代表的なアーティスト',
         imageUrl: 'https://example.com/artist3.png',
       ),
       Artist(
@@ -146,9 +139,8 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         isActive: false,
         addedDate: DateTime(2024, 2, 15),
         updatedDate: DateTime(2024, 2, 15),
-        genreId: 'GEN004',
+        genreId: '00004',
         artistApiId: 'API004',
-        description: 'クラシック音楽の代表的なアーティスト',
         imageUrl: 'https://example.com/artist4.png',
       ),
     ];
@@ -284,18 +276,6 @@ class _ArtistAdminState extends State<ArtistAdmin> {
     );
   }
 
-  void _createNewArtist() {
-    final newArtist = Artist(
-      id: 'NEW${(artists.length + 1).toString().padLeft(5, '0')}',
-      name: '新規アーティスト',
-      genre: 'ジャンル01',
-      status: '有効',
-      isActive: true,
-      addedDate: DateTime.now(),
-    );
-    _navigateToDetailPage(newArtist, isNew: true);
-  }
-
   Future<void> _navigateToDetailPage(Artist artist, {bool isNew = false}) async {
     final result = await Navigator.push(
       context,
@@ -393,6 +373,36 @@ class _ArtistAdminState extends State<ArtistAdmin> {
       );
     });
   }
+
+  void _showTourokuDialog() {
+    showTourokuDialog(
+      context,
+      'artist',
+      (data) {
+        final newArtist = Artist(
+          id: 'NEW${(artists.length + 1).toString().padLeft(5, '0')}',
+          name: data['name'],
+          genre: data['genre'],
+          status: '有効',
+          isActive: true,
+          addedDate: DateTime.now(),
+          genreId: data['genreId'].isNotEmpty ? data['genreId'] : null,
+          artistApiId: data['artistApiId'].isNotEmpty ? data['artistApiId'] : null,
+          imageUrl: data['imageUrl'].isNotEmpty ? data['imageUrl'] : null,
+        );
+
+        artists.add(newArtist);
+        filteredArtists = List.from(artists);
+        selectedRows = List.generate(filteredArtists.length, (index) => false);
+        _updateSelectionState();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('アーティストを登録しました')),
+        );
+      },
+    );
+  }
+
 
   Widget _buildStatusIndicator(String status) {
     final isActive = status == '有効';
@@ -810,7 +820,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
           ),
           
           // 全てのボタンを同じ行に表示
-          _buildAllButtons(),
+          _buildButtonsArea(),
         ],
       ),
     );
@@ -837,7 +847,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
     );
   }
 
-  Widget _buildAllButtons() {
+  Widget _buildButtonsArea() {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -872,7 +882,6 @@ class _ArtistAdminState extends State<ArtistAdmin> {
           // 選択中のアーティストを有効化ボタン
           if (hasSelection)
             Container(
-              margin: const EdgeInsets.only(right: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
@@ -894,8 +903,6 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                 child: const Text('選択中のアーティストを有効化', style: TextStyle(color: Colors.white)),
               ),
             ),
-          
-          // 新規作成ボタン
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
@@ -908,14 +915,14 @@ class _ArtistAdminState extends State<ArtistAdmin> {
               ],
             ),
             child: ElevatedButton(
-              onPressed: _createNewArtist,
+              onPressed: _showTourokuDialog,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
-              child: const Text('新規作成', style: TextStyle(color: Colors.white)),
+              child: const Text('追加作成', style: TextStyle(color: Colors.white)),
             ),
           ),
         ],

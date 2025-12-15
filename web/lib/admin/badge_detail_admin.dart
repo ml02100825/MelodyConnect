@@ -66,14 +66,10 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
     // コントローラー初期化
     nameController = TextEditingController(text: widget.badge.name);
     conditionController = TextEditingController(text: widget.badge.condition);
-    descriptionController = TextEditingController(text: widget.badge.description ?? '');
-    imageUrlController = TextEditingController(text: widget.badge.imageUrl ?? '');
     
     // 元の値を保存（キャンセル用）
     _originalName = widget.badge.name;
     _originalCondition = widget.badge.condition;
-    _originalDescription = widget.badge.description ?? '';
-    _originalImageUrl = widget.badge.imageUrl ?? '';
     _originalMode = widget.badge.mode;
     _originalStatus = widget.badge.status;
     
@@ -513,8 +509,6 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
           isActive: selectedStatus == '有効',
           addedDate: widget.badge.addedDate,
           updatedDate: DateTime.now(),
-          description: descriptionController.text.isEmpty ? null : descriptionController.text,
-          imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
         );
         widget.onStatusChanged!(updatedBadge, 'status_changed');
       }
@@ -535,8 +529,6 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       isActive: selectedStatus == '有効',
       addedDate: widget.badge.addedDate,
       updatedDate: DateTime.now(),
-      description: descriptionController.text.isEmpty ? null : descriptionController.text,
-      imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
     );
 
     // 元の値を更新
@@ -698,8 +690,6 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       status: selectedStatus,
       isActive: selectedStatus == '有効',
       addedDate: widget.badge.addedDate,
-      description: descriptionController.text.isEmpty ? null : descriptionController.text,
-      imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
     );
     
     Navigator.pop(context, {
