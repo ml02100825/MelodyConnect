@@ -68,7 +68,9 @@ class QuizQuestion {
   final int difficultyLevel;
   final String? audioUrl;
   final String? language;
-  final String? answer;  // ★ 追加: 正解
+  final String? answer;  // 正解（リスニングの場合はcompleteSentence）
+  final String? completeSentence;  // ★ 追加: 完全な文
+  final String? translationJa;     // ★ 追加: 日本語訳
 
   QuizQuestion({
     required this.questionId,
@@ -77,7 +79,9 @@ class QuizQuestion {
     required this.difficultyLevel,
     this.audioUrl,
     this.language,
-    this.answer,  // ★ 追加
+    this.answer,
+    this.completeSentence,  // ★ 追加
+    this.translationJa,     // ★ 追加
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
@@ -88,7 +92,9 @@ class QuizQuestion {
       difficultyLevel: json['difficultyLevel'] ?? 1,
       audioUrl: json['audioUrl'],
       language: json['language'],
-      answer: json['answer'],  // ★ 追加
+      answer: json['answer'],
+      completeSentence: json['completeSentence'],  // ★ 追加
+      translationJa: json['translationJa'],        // ★ 追加
     );
   }
 }

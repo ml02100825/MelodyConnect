@@ -34,12 +34,11 @@ class QuizResultScreen extends StatelessWidget {
               const SizedBox(height: 24),
             ],
 
-            // ナビゲーションボタン
+            // ★ 修正: ナビゲーションボタン（問題一覧ボタンを大きく）
             _buildNavigationButtons(context),
-            const SizedBox(height: 24),
-
-            // 問題一覧
-            _buildQuestionList(),
+            
+            // ★ 削除: デフォルトの問題一覧表示を削除
+            // 代わりにボトムシートで表示
           ],
         ),
       ),
@@ -50,16 +49,20 @@ class QuizResultScreen extends StatelessWidget {
     final percentage = (result.accuracy * 100).round();
     Color scoreColor;
     String message;
+    IconData icon;
 
     if (percentage >= 80) {
       scoreColor = Colors.green;
       message = '素晴らしい！';
+      icon = Icons.celebration;
     } else if (percentage >= 60) {
       scoreColor = Colors.orange;
       message = 'よくできました！';
+      icon = Icons.thumb_up;
     } else {
       scoreColor = Colors.red;
       message = 'もっと頑張りましょう！';
+      icon = Icons.fitness_center;
     }
 
     return Card(
@@ -80,6 +83,8 @@ class QuizResultScreen extends StatelessWidget {
         ),
         child: Column(
           children: [
+            Icon(icon, size: 48, color: Colors.white),
+            const SizedBox(height: 8),
             Text(
               message,
               style: const TextStyle(
@@ -121,76 +126,185 @@ class QuizResultScreen extends StatelessWidget {
     );
   }
 
+  /// ★ 修正: ナビゲーションボタン - 問題一覧ボタンを大きく目立たせる
   Widget _buildNavigationButtons(BuildContext context) {
     return Column(
       children: [
+        // ★ 問題一覧を見るボタン（大きく目立たせる）
         SizedBox(
           width: double.infinity,
+          height: 64,
           child: ElevatedButton.icon(
             onPressed: () => _showQuestionDetails(context),
-            icon: const Icon(Icons.list),
-            label: const Text('問題一覧を見る'),
+            icon: const Icon(Icons.list_alt, size: 28),
+            label: const Text(
+              '問題一覧を見る',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 4,
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        // ホームと単語帳ボタン
         Row(
           children: [
             Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => _goToHome(context),
-                icon: const Icon(Icons.home),
-                label: const Text('ホームへ'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              child: SizedBox(
+                height: 56,
+                child: OutlinedButton(
+                  onPressed: () => _goToHome(context),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.home, size: 20),
+                        SizedBox(width: 6),
+                        Text('ホーム'),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => _goToVocabulary(context),
-                icon: const Icon(Icons.book),
-                label: const Text('単語帳'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              child: SizedBox(
+                height: 56,
+                child: OutlinedButton(
+                  onPressed: () => _goToVocabulary(context),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.book, size: 20),
+                        SizedBox(width: 6),
+                        Text('単語帳'),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        // もう一度挑戦ボタン
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: TextButton.icon(
+            onPressed: () => _retryQuiz(context),
+            icon: const Icon(Icons.refresh),
+            label: const Text('もう一度挑戦'),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildQuestionList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '問題一覧',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...result.questionResults.asMap().entries.map((entry) {
-          final index = entry.key;
-          final questionResult = entry.value;
-          return _buildQuestionResultCard(index + 1, questionResult);
-        }),
-      ],
+  /// 問題詳細をボトムシートで表示
+  void _showQuestionDetails(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (context, scrollController) {
+          return Column(
+            children: [
+              // ハンドル
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // ヘッダー
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '問題一覧',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${result.correctCount}/${result.totalCount} 正解',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(),
+              // 問題リスト
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: result.questionResults.length,
+                  itemBuilder: (context, index) {
+                    return _buildQuestionResultCard(
+                      index + 1,
+                      result.questionResults[index],
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
   Widget _buildQuestionResultCard(int number, QuestionResult questionResult) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: questionResult.isCorrect 
+              ? Colors.green.shade200 
+              : Colors.red.shade200,
+          width: 1,
+        ),
+      ),
       child: ExpansionTile(
         leading: Container(
           width: 40,
@@ -208,15 +322,39 @@ class QuizResultScreen extends StatelessWidget {
             ),
           ),
         ),
-        title: Text('問題 $number'),
-        subtitle: Text(
-          questionResult.questionFormat == 'listening'
-              ? 'リスニング'
-              : '虫食い',
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 12,
-          ),
+        title: Text(
+          '問題 $number',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: questionResult.questionFormat == 'listening'
+                    ? Colors.blue.shade100
+                    : Colors.green.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                questionResult.questionFormat == 'listening'
+                    ? 'リスニング'
+                    : '虫食い',
+                style: TextStyle(
+                  color: questionResult.questionFormat == 'listening'
+                      ? Colors.blue.shade800
+                      : Colors.green.shade800,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '★' * questionResult.difficultyLevel,
+              style: const TextStyle(color: Colors.amber, fontSize: 12),
+            ),
+          ],
         ),
         children: [
           Padding(
@@ -225,22 +363,17 @@ class QuizResultScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildDetailRow('問題', questionResult.questionText),
-                const SizedBox(height: 8),
-                _buildDetailRow('あなたの回答', questionResult.userAnswer),
-                const SizedBox(height: 8),
-                _buildDetailRow('正解', questionResult.correctAnswer),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Text(
-                      '難易度: ',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      '★' * questionResult.difficultyLevel,
-                      style: const TextStyle(color: Colors.amber),
-                    ),
-                  ],
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  'あなたの回答',
+                  questionResult.userAnswer,
+                  color: questionResult.isCorrect ? Colors.green : Colors.red,
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  '正解',
+                  questionResult.correctAnswer,
+                  color: Colors.green,
                 ),
               ],
             ),
@@ -250,53 +383,35 @@ class QuizResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(String label, String value, {Color? color}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 12,
-            color: Colors.grey,
+            color: Colors.grey.shade600,
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 14),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              color: color,
+            ),
+          ),
         ),
       ],
-    );
-  }
-
-  void _showQuestionDetails(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        minChildSize: 0.5,
-        expand: false,
-        builder: (context, scrollController) {
-          return ListView.builder(
-            controller: scrollController,
-            padding: const EdgeInsets.all(16),
-            itemCount: result.questionResults.length,
-            itemBuilder: (context, index) {
-              return _buildQuestionResultCard(
-                index + 1,
-                result.questionResults[index],
-              );
-            },
-          );
-        },
-      ),
     );
   }
 
@@ -309,5 +424,10 @@ class QuizResultScreen extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('単語帳機能は準備中です')),
     );
+  }
+
+  void _retryQuiz(BuildContext context) {
+    // ホーム画面に戻る（そこから再挑戦）
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }

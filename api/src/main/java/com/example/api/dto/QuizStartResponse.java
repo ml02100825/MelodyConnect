@@ -40,15 +40,6 @@ public class QuizStartResponse {
      * メッセージ
      */
     private String message;
-     /**
-     * user正解答案
-     */
-    private String user_answer;
-       
-     /**
-     * 正解答案
-     */
-    private String answer;
 
     /**
      * 問題DTO
@@ -60,11 +51,13 @@ public class QuizStartResponse {
     public static class QuizQuestion {
         private Integer questionId;
         private String text;
-        private String questionFormat; // "fill_in_blank" or "listening"
+        private String questionFormat; // "fill_in_the_blank" or "listening"
         private Integer difficultyLevel;
         private String audioUrl; // リスニング問題用
         private String language;
-        private String answer;
+        private String answer;  // 正解（リスニングの場合はcompleteSentence）
+        private String completeSentence;  // ★ 追加: 完全な文
+        private String translationJa;     // ★ 追加: 日本語訳
     }
 
     /**
