@@ -11,14 +11,26 @@ import lombok.Data;
 public class WordnikWordInfo {
     
     /**
-     * 単語
+     * 単語（そのままの形）
      */
     private String word;
     
     /**
-     * 日本語の意味
+     * 原形（lemma）
+     * 例: memories → memory, running → run
+     */
+    private String baseForm;
+    
+    /**
+     * 詳細な日本語の意味（辞書的な説明）
      */
     private String meaningJa;
+    
+    /**
+     * 簡潔な日本語訳（一言訳）
+     * 例: important → "重要な"
+     */
+    private String translationJa;
     
     /**
      * 発音記号

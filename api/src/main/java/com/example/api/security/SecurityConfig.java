@@ -33,10 +33,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        // allowCredentials(true)と組み合わせる場合はallowedOriginPatternsを使用
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -81,6 +83,7 @@ public class SecurityConfig {
                         .requestMatchers("/hello").permitAll()
                         .requestMatchers("/samples/**").permitAll()
                         .requestMatchers("/api/dev/**").permitAll() // 開発用エンドポイント
+                        .requestMatchers("/api/vocabulary/**").permitAll() // ★追加: 単語帳API
                         // その他のエンドポイントは認証が必要
                         .anyRequest().authenticated()
                 )

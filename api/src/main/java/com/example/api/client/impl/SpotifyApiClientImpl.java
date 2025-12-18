@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -267,7 +268,8 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
                 if (items.isArray()) {
                     for (JsonNode track : items) {
-                        Song song = parseTrackToSong(track);
+                        // ★ 修正: artistIdを指定してArtist検索/作成をスキップ
+                        Song song = parseTrackToSongWithArtist(track, artistId);
                         if (song != null) {
                             songs.add(song);
                         }
@@ -736,6 +738,17 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
      * アーティストが存在しない場合は先にDBに保存する
      */
     private Song parseTrackToSong(JsonNode trackNode) {
+        return parseTrackToSongWithArtist(trackNode, null);
+    }
+
+    /**
+     * SpotifyのトラックJSONをSongエンティティに変換（アーティストID指定版）
+     * 
+     * @param trackNode SpotifyのトラックJSON
+     * @param knownArtistApiId 既知のSpotifyアーティストID（nullの場合はトラックから取得）
+     * @return Songエンティティ
+     */
+    private Song parseTrackToSongWithArtist(JsonNode trackNode, String knownArtistApiId) {
         Song song = new Song();
 
         String songName = trackNode.path("name").asText();
@@ -744,20 +757,19 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
         // アーティスト情報を取得してDBに保存
         JsonNode artists = trackNode.path("artists");
-        if (artists.isArray() && artists.size() > 0) {
-            String artistApiId = artists.get(0).path("id").asText();
-            String artistName = artists.get(0).path("name").asText();
+        String artistApiId = knownArtistApiId;
+        String artistName = null;
 
-            // ArtistをartistApiIdで検索、存在しなければ新規作成
-            Artist artist = artistRepository.findByArtistApiId(artistApiId)
-                .orElseGet(() -> {
-                    Artist newArtist = new Artist();
-                    newArtist.setArtistName(artistName);
-                    newArtist.setArtistApiId(artistApiId);
-                    logger.info("新規アーティストを作成: name={}, apiId={}", artistName, artistApiId);
-                    // saveAndFlushで即座にDBに反映し、IDを確実に取得
-                    return artistRepository.saveAndFlush(newArtist);
-                });
+        if (artists.isArray() && artists.size() > 0) {
+            if (artistApiId == null) {
+                artistApiId = artists.get(0).path("id").asText();
+            }
+            artistName = artists.get(0).path("name").asText();
+        }
+
+        if (artistApiId != null && !artistApiId.isEmpty()) {
+            // ★ 修正: 競合状態を考慮したArtist取得・作成
+            Artist artist = getOrCreateArtist(artistApiId, artistName != null ? artistName : "Unknown Artist");
 
             // artistIdがLong型に変更されたため、直接設定
             song.setAritst_id(artist.getArtistId());
@@ -772,6 +784,53 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
         logger.debug("Spotify楽曲をパース: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
         return song;
+    }
+
+    /**
+     * ★ 追加: アーティストを取得または作成（競合状態に対応）
+     * 
+     * 複数のリクエストが同時に同じアーティストを作成しようとした場合、
+     * 一意制約違反が発生する可能性があります。その場合は再検索して取得します。
+     * 
+     * @param artistApiId Spotify Artist ID
+     * @param artistName アーティスト名
+     * @return Artist エンティティ（既存または新規作成）
+     */
+    private Artist getOrCreateArtist(String artistApiId, String artistName) {
+        // まず検索
+        Optional<Artist> existing = artistRepository.findByArtistApiId(artistApiId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        // 新規作成を試みる
+        try {
+            Artist newArtist = new Artist();
+            newArtist.setArtistName(artistName);
+            newArtist.setArtistApiId(artistApiId);
+            logger.info("新規アーティストを作成: name={}, apiId={}", artistName, artistApiId);
+            return artistRepository.saveAndFlush(newArtist);
+        } catch (DataIntegrityViolationException e) {
+            // 競合状態: 他のリクエストが先に保存した場合
+            logger.warn("アーティスト作成で競合が発生。再検索します: apiId={}", artistApiId);
+            return artistRepository.findByArtistApiId(artistApiId)
+                .orElseThrow(() -> {
+                    logger.error("アーティストの取得に失敗しました: apiId={}", artistApiId);
+                    return new RuntimeException("アーティストの取得・作成に失敗しました: " + artistApiId, e);
+                });
+        } catch (Exception e) {
+            // その他の例外（Hibernateセッションが汚染されている可能性）
+            logger.error("アーティスト作成中に予期せぬエラー: apiId={}, error={}", artistApiId, e.getMessage());
+            // フォールバック: デフォルトアーティストを返す
+            return artistRepository.findById(1L)
+                .orElseGet(() -> {
+                    Artist defaultArtist = new Artist();
+                    defaultArtist.setArtistId(1L);
+                    defaultArtist.setArtistName("Unknown Artist");
+                    defaultArtist.setArtistApiId("unknown");
+                    return defaultArtist;
+                });
+        }
     }
 
     private Song createMockSong(String genre) {

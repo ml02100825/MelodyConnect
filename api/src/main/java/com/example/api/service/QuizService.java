@@ -64,6 +64,9 @@ public class QuizService {
     private VocabularyService vocabularyService;
 
     @Autowired
+    private UserVocabularyService userVocabularyService;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
         /**
@@ -184,19 +187,40 @@ public class QuizService {
                     .orElse(null);
 
                 if (q != null) {
-                    boolean isCorrect = q.getAnswer().trim().equalsIgnoreCase(answer.getUserAnswer().trim());
+                    // ★ 正解判定: リスニング問題はcompleteSentenceと比較
+                    String correctAnswer;
+                    if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat())) {
+                        correctAnswer = q.getCompleteSentence() != null ? q.getCompleteSentence() : q.getText();
+                    } else {
+                        correctAnswer = q.getAnswer();
+                    }
+                    
+                    boolean isCorrect = correctAnswer.trim().equalsIgnoreCase(answer.getUserAnswer().trim());
                     if (isCorrect) correctCount++;
 
-                    // リスニング問題で間違えた場合、単語を保存
-                    if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat()) && !isCorrect) {
-                        vocabularyService.saveIncorrectWords(answer.getUserAnswer(), q.getAnswer());
+                    // ★ UserVocabularyに登録
+                    try {
+                        if (com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK.equals(q.getQuestionFormat())) {
+                            // FILL_IN_BLANK: 全ての問題のanswerを登録
+                            userVocabularyService.registerFillInBlankAnswer(request.getUserId(), q.getAnswer());
+                        } else if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat()) && !isCorrect) {
+                            // LISTENING: 不正解の場合、間違えた単語を登録
+                            userVocabularyService.registerListeningMistakes(
+                                request.getUserId(), 
+                                answer.getUserAnswer(), 
+                                correctAnswer
+                            );
+                        }
+                    } catch (Exception e) {
+                        // UserVocabulary登録に失敗してもクイズ完了処理は続行
+                        logger.warn("UserVocabulary登録中にエラーが発生しましたが、処理を続行します: {}", e.getMessage());
                     }
 
                     questionResults.add(QuizCompleteResponse.QuestionResult.builder()
                         .questionId(q.getQuestionId())
                         .questionText(q.getText())
                         .questionFormat(q.getQuestionFormat().getValue())
-                        .correctAnswer(q.getAnswer())
+                        .correctAnswer(correctAnswer)
                         .userAnswer(answer.getUserAnswer())
                         .isCorrect(isCorrect)
                         .difficultyLevel(q.getDifficultyLevel())
@@ -441,11 +465,23 @@ public class QuizService {
 
     /**
      * questionエンティティをQuizQuestionDTOに変換
+     * 
+     * リスニング問題の場合:
+     *   - answer に completeSentence を設定（ユーザーが入力すべき完全な文）
+     * 
+     * 虫食い問題の場合:
+     *   - answer に answer を設定（空欄に入る単語）
      */
     private QuizStartResponse.QuizQuestion convertToQuizQuestion(Question q) {
-
-     
-        
+        // ★ リスニング問題の場合はanswerにcompleteSentenceを設定
+        String answerValue;
+        if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat())) {
+            // リスニング: 完全な文を正解とする
+            answerValue = q.getCompleteSentence() != null ? q.getCompleteSentence() : q.getText();
+        } else {
+            // 虫食い: 空欄に入る単語を正解とする
+            answerValue = q.getAnswer();
+        }
 
         return QuizStartResponse.QuizQuestion.builder()
             .questionId(q.getQuestionId())
@@ -454,7 +490,9 @@ public class QuizService {
             .difficultyLevel(q.getDifficultyLevel())
             .audioUrl(q.getAudioUrl())
             .language(q.getLanguage())
-
+            .answer(answerValue)
+            .completeSentence(q.getCompleteSentence())  // ★ 追加
+            .translationJa(q.getTranslationJa())        // ★ 追加
             .build();
     }
 

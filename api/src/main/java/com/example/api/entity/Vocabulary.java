@@ -15,17 +15,36 @@ public class Vocabulary {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    
-        
     @Column(name = "vocab_id", nullable = false)
     private Integer vocab_id;
 
+    /**
+     * 単語（そのままの形: memories, running等）
+     */
     @Column(name = "word", nullable = false, length = 50)
     private String word;
 
-    // TEXT カラムは length を付けない。DB 方言に合わせるため columnDefinition を明示
+    /**
+     * 原形（memory, run等）
+     * Gemini APIで変換
+     */
+    @Column(name = "base_form", length = 50)
+    private String base_form;
+
+    /**
+     * 詳細な日本語の意味（辞書的な説明）
+     * 例: "事の成り行きや物事の本質に大きな影響を与えること。重要なこと。"
+     */
     @Column(name = "meaning_ja", nullable = false, columnDefinition = "TEXT")
     private String meaning_ja;
+
+    /**
+     * 簡潔な日本語訳（一言訳）
+     * 例: "重要な"
+     * Gemini APIで生成
+     */
+    @Column(name = "translation_ja", length = 100)
+    private String translation_ja;
 
     @Column(name = "pronunciation", length = 100)
     private String pronunciation;
@@ -56,5 +75,10 @@ public class Vocabulary {
         if (created_at == null) {
             created_at = LocalDateTime.now();
         }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updated_at = LocalDateTime.now();
     }
 }

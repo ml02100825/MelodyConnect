@@ -4,10 +4,16 @@ import '../services/artist_api_service.dart';
 import '../services/token_storage_service.dart';
 import '../widgets/genre_selection_dialog.dart';
 import '../widgets/artist_selection_dialog.dart';
+import '../bottom_nav.dart';
 import 'login_screen.dart';
-import 'settings_screen.dart';
+import 'my_profile.dart';
+import 'battle_mode_selection_screen.dart';
+import 'vocabulary_screen.dart';
+import 'shop_screen.dart';
+import 'badge_screen.dart';
+import 'ranking_screen.dart';
 
-/// ホーム画面（プレースホルダー）
+/// ホーム画面
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -20,10 +26,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final _artistApiService = ArtistApiService();
   final _tokenStorage = TokenStorageService();
 
-  String? _username;
-  String? _email;
   bool _isLoading = true;
   bool _showedArtistDialog = false;
+  int? _userId;
 
   @override
   void initState() {
@@ -34,12 +39,11 @@ class _HomeScreenState extends State<HomeScreen> {
   /// ユーザー情報を読み込む
   Future<void> _loadUserData() async {
     try {
-      final username = await _tokenStorage.getUsername();
-      final email = await _tokenStorage.getEmail();
+      await _tokenStorage.getEmail();
+      final userId = await _tokenStorage.getUserId();
 
       setState(() {
-        _username = username;
-        _email = email;
+        _userId = userId;
         _isLoading = false;
       });
 
@@ -140,195 +144,255 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // レスポンシブ対応: 画面幅に応じてレイアウトを調整
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = screenWidth > 600;
-
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('MelodyConnect'),
-        centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: Row(
+          children: [
+            // ライフ表示（音符5個）
+            Row(
+              children: List.generate(5, (index) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.music_note,
+                    color: Colors.blue[600],
+                    size: 20,
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
         actions: [
-          // ========================================
-          // 設定ボタン → SettingsScreenに遷移
-          // ========================================
           IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: '設定',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
-          ),
-          // ========================================
-          // ログアウトボタン
-          // ========================================
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'ログアウト',
+            icon: const Icon(Icons.logout, color: Colors.black87),
             onPressed: _handleLogout,
           ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(isWideScreen ? 48.0 : 24.0),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: isWideScreen ? 800 : double.infinity,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // ウェルカムメッセージ
-                      Icon(
-                        Icons.music_note,
-                        size: isWideScreen ? 100 : 80,
-                        color: Colors.blue,
+          : Column(
+              children: [
+                // アバター（タップでマイプロフィールへ）
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: GestureDetector(
+                    onTap: () {
+                      debugPrint('アバターがタップされました');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MyProfile(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.purple[100],
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'ようこそ${_username != null ? '、$_username さん' : ''}！',
-                        style: TextStyle(
-                          fontSize: isWideScreen ? 32 : 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
+                      child: Icon(
+                        Icons.person,
+                        color: Colors.purple[300],
+                        size: 45,
                       ),
-                      const SizedBox(height: 16),
-                      if (_email != null)
-                        Text(
-                          _email!,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      const SizedBox(height: 48),
-
-                      // Battleボタン
-                      SizedBox(
-                        width: double.infinity,
-                        height: 80,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/battle-mode');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 4,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              Icon(Icons.sports_martial_arts, size: 36),
-                              SizedBox(width: 16),
-                              Text(
-                                'Battle',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 学習ボタン
-                      SizedBox(
-                        width: double.infinity,
-                        height: 80,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/learning');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 4,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              Icon(Icons.school, size: 36),
-                              SizedBox(width: 16),
-                              Text(
-                                '学習',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // 統計情報（ダミーデータ）
-                      if (isWideScreen)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildStatCard('総プレイ数', '0'),
-                            _buildStatCard('残りライフ', '5'),
-                            _buildStatCard('レート', '1500'),
-                          ],
-                        )
-                      else
-                        Column(
-                          children: [
-                            _buildStatCard('総プレイ数', '0'),
-                            const SizedBox(height: 16),
-                            _buildStatCard('残りライフ', '5'),
-                            const SizedBox(height: 16),
-                            _buildStatCard('レート', '1500'),
-                          ],
-                        ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                
+                // メインコンテンツ（中央寄せ）
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // メインメニュー（2x2グリッド）
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildMenuCard(
+                                icon: Icons.sports_esports,
+                                label: '対戦する',
+                                onTap: () {
+                                  debugPrint('対戦するボタンがタップされました');
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const BattleModeSelectionScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 12),
+                              _buildMenuCard(
+                                icon: Icons.library_music,
+                                label: '単語帳',
+                                onTap: () {
+                                  debugPrint('単語帳ボタンがタップされました');
+                                  if (_userId != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => VocabularyScreen(userId: _userId!),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('ユーザー情報の取得に失敗しました'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildMenuCard(
+                                icon: Icons.shopping_cart,
+                                label: 'ショップ',
+                                onTap: () {
+                                  debugPrint('ショップボタンがタップされました');
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const ShopScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 12),
+                              _buildMenuCard(
+                                icon: Icons.local_florist,
+                                label: 'バッジ',
+                                subtitle: '12/49',
+                                onTap: () {
+                                  debugPrint('バッジボタンがタップされました');
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const BadgeScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // ランキングボタン
+                          _buildRankingCard(
+                            onTap: () {
+                              debugPrint('ランキングボタンがタップされました');
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const RankingScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 0,
+        onTap: (index) {
+          // 画面遷移はBottomNavBar内で処理
+        },
+      ),
     );
   }
 
-  /// 統計情報カードを構築
-  Widget _buildStatCard(String label, String value) {
-    return Card(
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+  Widget _buildMenuCard({
+    required IconData icon,
+    required String label,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 160,
+        height: 140,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
-              ),
-            ),
-            const SizedBox(height: 4),
+            Icon(icon, size: 48, color: Colors.black87),
+            const SizedBox(height: 8),
             Text(
               label,
               style: const TextStyle(
                 fontSize: 14,
-                color: Colors.grey,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
               ),
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRankingCard({required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 332,
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Column(
+          children: [
+            const Text(
+              'ランキングを確認する',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Icon(
+              Icons.emoji_events,
+              size: 48,
+              color: Colors.amber[700],
             ),
           ],
         ),
