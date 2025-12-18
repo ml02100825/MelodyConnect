@@ -44,4 +44,39 @@ public interface ResultRepository extends JpaRepository<Result, Long> {
      * @return 結果のリスト（通常2件）
      */
     List<Result> findAllByMatchUuid(String matchUuid);
+
+    /**
+     * マッチUUIDとプレイヤーIDで結果を検索（重複チェック用）
+     * @param matchUuid マッチUUID
+     * @param playerId プレイヤーID
+     * @return 結果（存在する場合）
+     */
+    @Query("SELECT r FROM Result r WHERE r.matchUuid = ?1 AND r.player.id = ?2")
+    Optional<Result> findByMatchUuidAndPlayerId(String matchUuid, Long playerId);
+
+    /**
+     * マッチUUIDとプレイヤーIDの組み合わせが存在するかチェック
+     * @param matchUuid マッチUUID
+     * @param playerId プレイヤーID
+     * @return 存在する場合true
+     */
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END FROM Result r WHERE r.matchUuid = ?1 AND r.player.id = ?2")
+    boolean existsByMatchUuidAndPlayerId(String matchUuid, Long playerId);
+
+    /**
+     * プレイヤーIDで結果を新しい順に検索
+     * @param playerId プレイヤーID
+     * @return 結果のリスト（新しい順）
+     */
+    @Query("SELECT r FROM Result r WHERE r.player.id = ?1 ORDER BY r.endedAt DESC")
+    List<Result> findByPlayerIdOrderByEndedAtDesc(Long playerId);
+
+    /**
+     * プレイヤーIDとマッチタイプで結果を検索
+     * @param playerId プレイヤーID
+     * @param matchType マッチタイプ
+     * @return 結果のリスト
+     */
+    @Query("SELECT r FROM Result r WHERE r.player.id = ?1 AND r.matchType = ?2 ORDER BY r.endedAt DESC")
+    List<Result> findByPlayerIdAndMatchType(Long playerId, Result.MatchType matchType);
 }
