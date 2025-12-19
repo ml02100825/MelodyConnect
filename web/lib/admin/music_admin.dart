@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
-import 'vocabulary_admin.dart';
-import 'mondai_admin.dart';
-import 'artist_admin.dart';
-import 'genre_admin.dart';
-import 'badge_admin.dart';
 import 'music_admin2.dart';
 import 'touroku_admin.dart';
 
@@ -38,9 +33,17 @@ class _MusicAdminState extends State<MusicAdmin> {
     {'id': '0004', 'songName': '楽曲04', 'artist': 'アーティスト04', 'status': '無効'},
   ];
 
+  List<Map<String, dynamic>> _displayedMusicList = [];
+
   final Set<String> _selectedIds = {};
 
   bool get hasSelection => _selectedIds.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayedMusicList = List.from(_musicList);
+  }
 
   void _deactivateSelected() {
     setState(() {
@@ -51,6 +54,7 @@ class _MusicAdminState extends State<MusicAdmin> {
         }
       }
       _selectedIds.clear();
+      _performSearch(); // 検索を実行して表示を更新
     });
   }
 
@@ -63,6 +67,91 @@ class _MusicAdminState extends State<MusicAdmin> {
         }
       }
       _selectedIds.clear();
+      _performSearch(); // 検索を実行して表示を更新
+    });
+  }
+
+  // 検索処理
+  void _performSearch() {
+    setState(() {
+      // 検索条件に基づいてフィルタリング
+      _displayedMusicList = _musicList.where((item) {
+        bool matches = true;
+
+        // IDでの検索
+        if (_idController.text.isNotEmpty) {
+          matches = matches && item['id'].toString().contains(_idController.text);
+        }
+
+        // 楽曲名での検索
+        if (_songNameController.text.isNotEmpty) {
+          matches = matches && 
+              (item['songName']?.toString().toLowerCase().contains(_songNameController.text.toLowerCase()) ?? false);
+        }
+
+        // アーティストでの検索
+        if (_artistController.text.isNotEmpty) {
+          matches = matches && 
+              (item['artist']?.toString().toLowerCase().contains(_artistController.text.toLowerCase()) ?? false);
+        }
+
+        // ジャンルでの検索（_selectedGenreがnullまたは空でない場合）
+        if (_selectedGenre != null && _selectedGenre!.isNotEmpty) {
+          // itemにgenreフィールドがあるか確認（サンプルデータにはないので一旦スキップ）
+          // 実際のデータ構造に合わせて修正してください
+          // matches = matches && (item['genre'] == _selectedGenre);
+        }
+
+        // 状態での検索
+        if (_selectedStatus != null && _selectedStatus!.isNotEmpty) {
+          matches = matches && (item['status'] == _selectedStatus);
+        }
+
+        // 言語での検索（_languageControllerがnullまたは空でない場合）
+        if (_languageController.text.isNotEmpty) {
+          // itemにlanguageフィールドがあるか確認（サンプルデータにはないので一旦スキップ）
+          // 実際のデータ構造に合わせて修正してください
+          // matches = matches && (item['language']?.toString().toLowerCase().contains(_languageController.text.toLowerCase()) ?? false);
+        }
+
+        // 追加日の範囲検索
+        if (startDate != null) {
+          final addedDate = item['addedDate']; // サンプルデータにはaddedDateがないので注意
+          // 実際のデータ構造に合わせて修正してください
+          // if (addedDate is DateTime) {
+          //   matches = matches && addedDate.isAfter(startDate!) || addedDate.isAtSameMomentAs(startDate!);
+          // }
+        }
+
+        if (endDate != null) {
+          final addedDate = item['addedDate']; // サンプルデータにはaddedDateがないので注意
+          // 実際のデータ構造に合わせて修正してください
+          // if (addedDate is DateTime) {
+          //   matches = matches && addedDate.isBefore(endDate!) || addedDate.isAtSameMomentAs(endDate!);
+          // }
+        }
+
+        return matches;
+      }).toList();
+
+      // 選択状態をクリア
+      _selectedIds.clear();
+    });
+  }
+
+  // クリア処理
+  void _clearSearch() {
+    setState(() {
+      _idController.clear();
+      _songNameController.clear();
+      _artistController.clear();
+      _languageController.clear();
+      startDate = null;
+      endDate = null;
+      _selectedGenre = null;
+      _selectedStatus = null;
+      _displayedMusicList = List.from(_musicList);
+      _selectedIds.clear();
     });
   }
 
@@ -73,7 +162,7 @@ class _MusicAdminState extends State<MusicAdmin> {
       body: BottomAdminLayout(
         selectedMenu: selectedMenu,
         selectedTab: selectedTab,
-        showTabs: false,
+        showTabs: true,
         mainContent: _buildMainContent(),
       ),
     );
@@ -82,8 +171,6 @@ class _MusicAdminState extends State<MusicAdmin> {
   Widget _buildMainContent() {
     return Column(
       children: [
-        _buildTabBar(),
-        const SizedBox(height: 24),
         _buildSearchArea(),
         const SizedBox(height: 24),
         Expanded(child: _buildDataTable()),
@@ -91,87 +178,6 @@ class _MusicAdminState extends State<MusicAdmin> {
         _buildActionButton(),
       ],
     );
-  }
-
-  Widget _buildTabBar() {
-    final tabs = ['単語', '問題', '楽曲', 'アーティスト', 'ジャンル', 'バッジ'];
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.grey[300]!),
-        ),
-      ),
-      child: Row(
-        children: tabs.map((tab) {
-          final isSelected = selectedTab == tab;
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                selectedTab = tab;
-              });
-              _navigateToTab(tab);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isSelected ? Colors.blue : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Text(
-                tab,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isSelected ? Colors.blue : Colors.grey[600],
-                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  void _navigateToTab(String tab) {
-    switch (tab) {
-      case '単語':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const VocabularyAdmin()),
-        );
-        break;
-      case '問題':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MondaiAdmin()),
-        );
-        break;
-      case '楽曲':
-        // 既に楽曲画面なので何もしない
-        break;
-      case 'アーティスト':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ArtistAdmin()),
-        );
-        break;
-      case 'ジャンル':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const GenreAdmin()),
-        );
-        break;
-      case 'バッジ':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const BadgeAdmin()),
-        );
-        break;
-    }
   }
 
   Widget _buildSearchArea() {
@@ -243,18 +249,7 @@ class _MusicAdminState extends State<MusicAdmin> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _idController.clear();
-                    _songNameController.clear();
-                    _artistController.clear();
-                    _languageController.clear();
-                    startDate = null;
-                    endDate = null;
-                    _selectedGenre = null;
-                    _selectedStatus = null;
-                  });
-                },
+                onPressed: _clearSearch,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.grey[300],
                   foregroundColor: Colors.grey[700],
@@ -265,9 +260,7 @@ class _MusicAdminState extends State<MusicAdmin> {
               ),
               const SizedBox(width: 12),
               ElevatedButton(
-                onPressed: () {
-                  // 検索処理
-                },
+                onPressed: _performSearch,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
@@ -447,11 +440,11 @@ class _MusicAdminState extends State<MusicAdmin> {
                 SizedBox(
                   width: 40,
                   child: Checkbox(
-                    value: _selectedIds.length == _musicList.length && _musicList.isNotEmpty,
+                    value: _selectedIds.length == _displayedMusicList.length && _displayedMusicList.isNotEmpty,
                     onChanged: (value) {
                       setState(() {
                         if (value == true) {
-                          _selectedIds.addAll(_musicList.map((e) => e['id'] as String));
+                          _selectedIds.addAll(_displayedMusicList.map((e) => e['id'] as String));
                         } else {
                           _selectedIds.clear();
                         }
@@ -498,9 +491,9 @@ class _MusicAdminState extends State<MusicAdmin> {
           // テーブルボディ
           Expanded(
             child: ListView.builder(
-              itemCount: _musicList.length,
+              itemCount: _displayedMusicList.length,
               itemBuilder: (context, index) {
-                final item = _musicList[index];
+                final item = _displayedMusicList[index];
                 final isSelected = _selectedIds.contains(item['id']);
                 return Container(
                   decoration: BoxDecoration(
@@ -630,7 +623,9 @@ class _MusicAdminState extends State<MusicAdmin> {
                 setState(() {
                   final newId = (_musicList.length + 1).toString().padLeft(4, '0');
                   data['id'] = newId;
+                  data['status'] = '有効'; // デフォルト値を設定
                   _musicList.add(data);
+                  _performSearch(); // 追加後に検索を実行して表示を更新
                 });
               },
             );

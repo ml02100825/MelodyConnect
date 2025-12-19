@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
-import 'vocabulary_admin.dart';
-import 'music_admin.dart';
-import 'artist_admin.dart';
-import 'genre_admin.dart';
-import 'badge_admin.dart';
 import 'mondai_admin2.dart';
 import 'touroku_admin.dart';
-import 'mondai_admin2.dart';
 
 class MondaiAdmin extends StatefulWidget {
   const MondaiAdmin({Key? key}) : super(key: key);
@@ -172,7 +166,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
       body: BottomAdminLayout(
         selectedMenu: selectedMenu,
         selectedTab: selectedTab,
-        showTabs: false,
+        showTabs: true,
         mainContent: _buildMainContent(),
       ),
     );
@@ -181,8 +175,6 @@ class _MondaiAdminState extends State<MondaiAdmin> {
   Widget _buildMainContent() {
     return Column(
       children: [
-        _buildTabBar(),
-        const SizedBox(height: 24),
         _buildSearchArea(),
         const SizedBox(height: 24),
         Expanded(child: _buildDataList()),
@@ -190,87 +182,6 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         _buildActionButton(),
       ],
     );
-  }
-
-  Widget _buildTabBar() {
-    final tabs = ['単語', '問題', '楽曲', 'アーティスト', 'ジャンル', 'バッジ'];
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.grey[300]!),
-        ),
-      ),
-      child: Row(
-        children: tabs.map((tab) {
-          final isSelected = selectedTab == tab;
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                selectedTab = tab;
-              });
-              _navigateToTab(tab);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isSelected ? Colors.blue : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Text(
-                tab,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isSelected ? Colors.blue : Colors.grey[600],
-                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  void _navigateToTab(String tab) {
-    switch (tab) {
-      case '単語':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const VocabularyAdmin()),
-        );
-        break;
-      case '問題':
-        // 既に問題画面なので何もしない
-        break;
-      case '楽曲':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MusicAdmin()),
-        );
-        break;
-      case 'アーティスト':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ArtistAdmin()),
-        );
-        break;
-      case 'ジャンル':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const GenreAdmin()),
-        );
-        break;
-      case 'バッジ':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const BadgeAdmin()),
-        );
-        break;
-    }
   }
 
   Widget _buildSearchArea() {

@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
-import 'user_mode_adminl.dart';
+import 'user_model.dart';
 import 'user_detail_admin.dart';
+import 'bottom_admin.dart';
 
-class UserListScreen extends StatefulWidget {
+class UserListAdmin extends StatefulWidget {
   @override
-  _UserListScreenState createState() => _UserListScreenState();
+  _UserListAdminState createState() => _UserListAdminState();
 }
 
-class _UserListScreenState extends State<UserListScreen> {
+class _UserListAdminState extends State<UserListAdmin> {
   List<User> users = [];
   List<User> filteredUsers = [];
   List<bool> selectedUsers = [];
-  bool hasSelection = false; // 選択状態を管理
+  bool hasSelection = false;
 
   // 検索条件
-  String idSearch = '';
-  String uuidSearch = '';
-  String usernameSearch = '';
-  String emailSearch = '';
+  final TextEditingController idController = TextEditingController();
+  final TextEditingController uuidController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  
+  // 日付フィールド
   DateTime? createdStart;
   DateTime? createdEnd;
   DateTime? lastLoginStart;
@@ -26,9 +29,10 @@ class _UserListScreenState extends State<UserListScreen> {
   DateTime? subscRegistEnd;
   DateTime? subscCancelStart;
   DateTime? subscCancelEnd;
-  String? freezeStatus;
-  String? language;
-  String? subscStatus;
+  
+  // ドロップダウン選択
+  String freezeStatus = '全て';
+  String subscStatus = '全て';
 
   @override
   void initState() {
@@ -43,84 +47,139 @@ class _UserListScreenState extends State<UserListScreen> {
         uuid: 'sample_01',
         username: 'サンプル01',
         email: 'sample01@example.com',
-        lastLogin: DateTime(2026, 1, 1),
-        subscription: '加入中',
+        accountCreated: DateTime(2024, 1, 1),
+        lastLogin: DateTime(2024, 12, 1),
+        subscriptionRegistered: DateTime(2024, 1, 2),
         isFrozen: false,
+        subscription: '加入中',
       ),
       User(
         id: '00002',
         uuid: 'sample_02',
         username: 'サンプル02',
         email: 'sample02@example.com',
-        lastLogin: DateTime(2026, 2, 2),
-        subscription: '×',
+        accountCreated: DateTime(2024, 2, 1),
+        lastLogin: DateTime(2024, 11, 15),
+        subscriptionRegistered: DateTime(2024, 2, 2),
+        subscriptionCancelled: DateTime(2024, 6, 1),
         isFrozen: false,
+        subscription: '×',
       ),
       User(
         id: '00003',
         uuid: 'sample_03',
         username: 'サンプル03',
         email: 'sample03@example.com',
-        lastLogin: DateTime(2026, 3, 3),
-        subscription: '×',
+        accountCreated: DateTime(2024, 3, 1),
+        lastLogin: DateTime(2024, 10, 20),
+        subscriptionRegistered: DateTime(2024, 3, 2),
         isFrozen: true,
+        subscription: '加入中',
       ),
       User(
         id: '00004',
         uuid: 'sample_04',
         username: 'サンプル04',
         email: 'sample04@example.com',
-        lastLogin: DateTime(2026, 4, 4),
-        subscription: '加入中',
+        accountCreated: DateTime(2024, 4, 1),
+        lastLogin: DateTime(2024, 9, 5),
+        subscriptionRegistered: DateTime(2024, 4, 2),
+        subscriptionCancelled: DateTime(2024, 8, 1),
         isFrozen: false,
+        subscription: '×',
       ),
     ];
     filteredUsers = List.from(users);
     selectedUsers = List.generate(filteredUsers.length, (index) => false);
   }
 
-  void _searchUsers() {
+  void _applySearch() {
+    final idQuery = idController.text.trim();
+    final uuidQuery = uuidController.text.trim();
+    final usernameQuery = usernameController.text.trim().toLowerCase();
+    final emailQuery = emailController.text.trim().toLowerCase();
+
     setState(() {
       filteredUsers = users.where((user) {
-        bool matches = true;
-
-        if (idSearch.isNotEmpty && !user.id.contains(idSearch)) {
-          matches = false;
+        final matchesId = idQuery.isEmpty || user.id.contains(idQuery);
+        final matchesUuid = uuidQuery.isEmpty || user.uuid.contains(uuidQuery);
+        final matchesUsername = usernameQuery.isEmpty || 
+                               user.username.toLowerCase().contains(usernameQuery);
+        final matchesEmail = emailQuery.isEmpty || 
+                           user.email.toLowerCase().contains(emailQuery);
+        
+        bool matchesFreezeStatus = true;
+        if (freezeStatus != '全て') {
+          if (freezeStatus == '停止中' && !user.isFrozen) {
+            matchesFreezeStatus = false;
+          } else if (freezeStatus == '有効' && user.isFrozen) {
+            matchesFreezeStatus = false;
+          }
         }
-        if (uuidSearch.isNotEmpty && !user.uuid.contains(uuidSearch)) {
-          matches = false;
-        }
-        if (usernameSearch.isNotEmpty &&
-            !user.username.contains(usernameSearch)) {
-          matches = false;
-        }
-        if (emailSearch.isNotEmpty && !user.email.contains(emailSearch)) {
-          matches = false;
-        }
-        if (freezeStatus != null && user.isFrozen != (freezeStatus == '停止中')) {
-          matches = false;
-        }
-        if (subscStatus != null) {
+        
+        bool matchesSubscStatus = true;
+        if (subscStatus != '全て') {
           if (subscStatus == '加入中' && user.subscription != '加入中') {
-            matches = false;
+            matchesSubscStatus = false;
           } else if (subscStatus == '解約' && user.subscription != '×') {
-            matches = false;
+            matchesSubscStatus = false;
           }
         }
 
-        return matches;
+        bool matchesCreatedDate = true;
+        if (createdStart != null) {
+          matchesCreatedDate = user.accountCreated.isAfter(createdStart!);
+        }
+        if (createdEnd != null) {
+          matchesCreatedDate = matchesCreatedDate && 
+                              user.accountCreated.isBefore(createdEnd!.add(const Duration(days: 1)));
+        }
+
+        bool matchesLastLoginDate = true;
+        if (lastLoginStart != null) {
+          matchesLastLoginDate = user.lastLogin.isAfter(lastLoginStart!);
+        }
+        if (lastLoginEnd != null) {
+          matchesLastLoginDate = matchesLastLoginDate && 
+                                user.lastLogin.isBefore(lastLoginEnd!.add(const Duration(days: 1)));
+        }
+
+        bool matchesSubscRegistDate = true;
+        if (subscRegistStart != null && user.subscriptionRegistered != null) {
+          matchesSubscRegistDate = user.subscriptionRegistered!.isAfter(subscRegistStart!);
+        }
+        if (subscRegistEnd != null && user.subscriptionRegistered != null) {
+          matchesSubscRegistDate = matchesSubscRegistDate && 
+                                  user.subscriptionRegistered!.isBefore(subscRegistEnd!.add(const Duration(days: 1)));
+        }
+
+        bool matchesSubscCancelDate = true;
+        if (subscCancelStart != null && user.subscriptionCancelled != null) {
+          matchesSubscCancelDate = user.subscriptionCancelled!.isAfter(subscCancelStart!);
+        }
+        if (subscCancelEnd != null && user.subscriptionCancelled != null) {
+          matchesSubscCancelDate = matchesSubscCancelDate && 
+                                  user.subscriptionCancelled!.isBefore(subscCancelEnd!.add(const Duration(days: 1)));
+        }
+
+        return matchesId && matchesUuid && matchesUsername && matchesEmail &&
+               matchesFreezeStatus && matchesSubscStatus &&
+               matchesCreatedDate && matchesLastLoginDate &&
+               matchesSubscRegistDate && matchesSubscCancelDate;
       }).toList();
 
       selectedUsers = List.generate(filteredUsers.length, (index) => false);
+      _updateSelectionState();
     });
   }
 
   void _clearSearch() {
     setState(() {
-      idSearch = '';
-      uuidSearch = '';
-      usernameSearch = '';
-      emailSearch = '';
+      idController.clear();
+      uuidController.clear();
+      usernameController.clear();
+      emailController.clear();
+      
       createdStart = null;
       createdEnd = null;
       lastLoginStart = null;
@@ -129,12 +188,13 @@ class _UserListScreenState extends State<UserListScreen> {
       subscRegistEnd = null;
       subscCancelStart = null;
       subscCancelEnd = null;
-      freezeStatus = null;
-      language = null;
-      subscStatus = null;
+      
+      freezeStatus = '全て';
+      subscStatus = '全て';
 
       filteredUsers = List.from(users);
       selectedUsers = List.generate(filteredUsers.length, (index) => false);
+      _updateSelectionState();
     });
   }
 
@@ -162,12 +222,16 @@ class _UserListScreenState extends State<UserListScreen> {
     });
   }
 
-// 一括操作メソッドも修正
   void _freezeSelectedUsers() {
     setState(() {
       for (int i = 0; i < selectedUsers.length; i++) {
         if (selectedUsers[i]) {
-          filteredUsers[i].freeze(); // モデルのメソッドを使用
+          filteredUsers[i].freeze();
+          // 元のリストも更新
+          final originalIndex = users.indexWhere((u) => u.id == filteredUsers[i].id);
+          if (originalIndex != -1) {
+            users[originalIndex].freeze();
+          }
         }
       }
       _updateSelectionState();
@@ -181,7 +245,12 @@ class _UserListScreenState extends State<UserListScreen> {
     setState(() {
       for (int i = 0; i < selectedUsers.length; i++) {
         if (selectedUsers[i]) {
-          filteredUsers[i].unfreeze(); // モデルのメソッドを使用
+          filteredUsers[i].unfreeze();
+          // 元のリストも更新
+          final originalIndex = users.indexWhere((u) => u.id == filteredUsers[i].id);
+          if (originalIndex != -1) {
+            users[originalIndex].unfreeze();
+          }
         }
       }
       _updateSelectionState();
@@ -192,606 +261,652 @@ class _UserListScreenState extends State<UserListScreen> {
   }
 
   Widget _buildFreezeIndicator(bool isFrozen) {
-    return isFrozen
-        ? Icon(Icons.circle, color: Colors.red, size: 16)
-        : Text('-', style: TextStyle(color: Colors.grey));
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isFrozen ? Colors.red : Colors.green,
+      ),
+      child: Center(
+        child: Icon(
+          isFrozen ? Icons.block : Icons.check,
+          color: Colors.white,
+          size: 12,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Melody Connect'),
-        backgroundColor: Colors.blue[700],
-      ),
-      body: Column(
-        children: [
-          // ナビゲーションメニュー
-          _buildNavigationMenu(),
-
-          // 検索条件エリア（縦型レイアウト）
-          Expanded(
-            flex: 0,
-            child: _buildVerticalSearchArea(),
-          ),
-
-          // ユーザー一覧テーブル
-          Expanded(
-            child: _buildUserTable(),
-          ),
-        ],
+      backgroundColor: Colors.grey[100],
+      body: BottomAdminLayout(
+        mainContent: _buildMainContent(),
+        selectedMenu: 'ユーザー管理',
+        showTabs: false,
       ),
     );
   }
 
-  Widget _buildNavigationMenu() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'ユーザー管理',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Row(
-            children: [
-              _buildNavItem('コンテンツ管理'),
-              _buildNavItem('アーティスト管理'),
-              _buildNavItem('お問い合わせ管理'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem(String title) {
-    return Padding(
-      padding: EdgeInsets.only(right: 24),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 16,
-          color: Colors.blue[700],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVerticalSearchArea() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 左側：検索条件（列ごとに縦並び）
-          Expanded(
-            flex: 3,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1列目
-                Expanded(
-                  child: Column(
-                    children: [
-                      _buildVerticalSearchField(
-                          'ID', (value) => idSearch = value),
-                      SizedBox(height: 16),
-                      _buildVerticalSearchField(
-                          'UUID', (value) => uuidSearch = value),
-                      SizedBox(height: 16),
-                      _buildVerticalSearchField(
-                          'ユーザー名', (value) => usernameSearch = value),
-                      SizedBox(height: 16),
-                      _buildVerticalSearchField(
-                          'メールアドレス', (value) => emailSearch = value),
-                    ],
-                  ),
-                ),
-                SizedBox(width: 16),
-
-                // 2列目
-                Expanded(
-                  child: Column(
-                    children: [
-                      _buildVerticalDateField(
-                        'アカウント作成日',
-                        (date) => createdStart = date,
-                        (date) => createdEnd = date,
-                        createdStart,
-                        createdEnd,
-                      ),
-                      SizedBox(height: 16),
-                      _buildVerticalDateField(
-                        '最終ログイン日',
-                        (date) => lastLoginStart = date,
-                        (date) => lastLoginEnd = date,
-                        lastLoginStart,
-                        lastLoginEnd,
-                      ),
-                      SizedBox(height: 16),
-                      _buildVerticalDateField(
-                        'サブスク登録日',
-                        (date) => subscRegistStart = date,
-                        (date) => subscRegistEnd = date,
-                        subscRegistStart,
-                        subscRegistEnd,
-                      ),
-                      SizedBox(height: 16),
-                      _buildVerticalDateField(
-                        'サブスク解約日',
-                        (date) => subscCancelStart = date,
-                        (date) => subscCancelEnd = date,
-                        subscCancelStart,
-                        subscCancelEnd,
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: 16),
-
-                // 3列目
-                Expanded(
-                  child: Column(
-                    children: [
-                      _buildVerticalDropdown('停止中', ['全て', '停止中', '有効'],
-                          (value) => freezeStatus = value),
-                      SizedBox(height: 16),
-                      _buildVerticalDropdown('言語設定', ['全て', '日本語', 'English'],
-                          (value) => language = value),
-                      SizedBox(height: 16),
-                      _buildVerticalDropdown('サブスク', ['全て', '加入中', '解約'],
-                          (value) => subscStatus = value),
-                      SizedBox(height: 16),
-                      // ボタンエリア
-                      Container(
-                        padding: EdgeInsets.only(top: 20), // ラベル部分の高さに合わせる
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end, // 右寄せに変更
-                          children: [
-                            Container(
-                              width: 100,
-                              child: OutlinedButton(
-                                onPressed: _clearSearch,
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.grey[700],
-                                  padding: EdgeInsets.symmetric(vertical: 12),
-                                ),
-                                child: Text('クリア',
-                                    style: TextStyle(color: Colors.black)),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Container(
-                              width: 100,
-                              child: ElevatedButton(
-                                onPressed: _searchUsers,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue[700],
-                                  padding: EdgeInsets.symmetric(vertical: 12),
-                                ),
-                                child: Text('検索',
-                                    style: TextStyle(color: Colors.white)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVerticalSearchField(String label, Function(String) onChanged) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildMainContent() {
+    return Column(
       children: [
-        Container(
-          width: 120, // ラベルの固定幅
-          padding: EdgeInsets.only(top: 12), // 入力フィールドとの高さ調整
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-        ),
-        SizedBox(width: 8),
+        // 検索条件エリア
+        _buildSearchArea(),
+        SizedBox(height: 16),
+        
+        // ユーザー一覧テーブル
         Expanded(
-          child: TextField(
-            decoration: InputDecoration(
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              isDense: true,
-            ),
-            onChanged: onChanged,
-          ),
+          child: _buildUserTable(),
         ),
       ],
     );
   }
 
-  Widget _buildVerticalDateField(
-    String label,
-    Function(DateTime?) onStartChanged,
-    Function(DateTime?) onEndChanged,
-    DateTime? startDate,
-    DateTime? endDate,
-  ) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 120,
-          padding: EdgeInsets.only(top: 12),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-        ),
-        SizedBox(width: 8),
-        Expanded(
-          child: Column(
+  Widget _buildSearchArea() {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        children: [
+          // 1行目: ID + アカウント作成日 + 停止中
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: startDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (date != null) {
-                          onStartChanged(date);
-                          setState(() {});
-                        }
-                      },
-                      child: Container(
-                        height: 40,
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[400]!),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              startDate != null
-                                  ? '${startDate.year}/${startDate.month.toString().padLeft(2, '0')}/${startDate.day.toString().padLeft(2, '0')}'
-                                  : '',
-                              style: TextStyle(
-                                color: startDate != null
-                                    ? Colors.black
-                                    : Colors.grey[600],
-                                fontWeight: startDate != null
-                                    ? FontWeight.normal
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    '〜',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: endDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (date != null) {
-                          onEndChanged(date);
-                          setState(() {});
-                        }
-                      },
-                      child: Container(
-                        height: 40,
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[400]!),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              endDate != null
-                                  ? '${endDate.year}/${endDate.month.toString().padLeft(2, '0')}/${endDate.day.toString().padLeft(2, '0')}'
-                                  : '',
-                              style: TextStyle(
-                                color: endDate != null
-                                    ? Colors.black
-                                    : Colors.grey[600],
-                                fontWeight: endDate != null
-                                    ? FontWeight.normal
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ID', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactTextFieldRow(idController),
+                  ],
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('アカウント作成日', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactDateFieldRow(createdStart, createdEnd, (start) {
+                      setState(() => createdStart = start);
+                    }, (end) {
+                      setState(() => createdEnd = end);
+                    }),
+                  ],
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                flex: 1,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('停止中', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactDropdownRow(freezeStatus, ['全て', '停止中', '有効'], (value) {
+                      setState(() => freezeStatus = value ?? '全て');
+                    }),
+                  ],
+                ),
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
+          SizedBox(height: 12),
 
-  Widget _buildVerticalDropdown(
-      String label, List<String> options, Function(String?) onChanged) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 120, // ラベルの固定幅
-          padding: EdgeInsets.only(top: 12), // 入力フィールドとの高さ調整
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-        ),
-        SizedBox(width: 8),
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            decoration: InputDecoration(
-              border: OutlineInputBorder(),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            items: options.map((option) {
-              return DropdownMenuItem(
-                value: option == '全て' ? null : option,
-                child: Text(option),
-              );
-            }).toList(),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildUserTable() {
-    return Padding(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // テーブルヘッダー
-          if (filteredUsers.isNotEmpty)
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                border: Border.all(color: Colors.grey[300]!),
+          // 2行目: UUID + 最終ログイン日 + サブスク
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('UUID', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactTextFieldRow(uuidController),
+                  ],
+                ),
               ),
-              child: Row(
-                children: [
-                  _buildTableHeader('', 1), // チェックボックス列
-                  _buildTableHeader('ID', 1),
-                  _buildTableHeader('UUID', 2),
-                  _buildTableHeader('ユーザー名', 2),
-                  _buildTableHeader('メールアドレス', 3),
-                  _buildTableHeader('最終ログイン', 2),
-                  _buildTableHeader('サブスク', 1),
-                  _buildTableHeader('停止中', 1),
-                ],
+              SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('最終ログイン日', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactDateFieldRow(lastLoginStart, lastLoginEnd, (start) {
+                      setState(() => lastLoginStart = start);
+                    }, (end) {
+                      setState(() => lastLoginEnd = end);
+                    }),
+                  ],
+                ),
               ),
-            ),
+              SizedBox(width: 16),
+              Expanded(
+                flex: 1,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('サブスク', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactDropdownRow(subscStatus, ['全て', '加入中', '解約'], (value) {
+                      setState(() => subscStatus = value ?? '全て');
+                    }),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
 
-          // テーブルデータまたは該当なしメッセージ
-          Expanded(
-            child: filteredUsers.isEmpty
-                ? _buildNoUsersFound()
-                : ListView.builder(
-                    itemCount: filteredUsers.length,
-                    itemBuilder: (context, index) {
-                      final user = filteredUsers[index];
-                      return Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            left: BorderSide(color: Colors.grey[300]!),
-                            right: BorderSide(color: Colors.grey[300]!),
-                            bottom: BorderSide(color: Colors.grey[300]!),
-                          ),
-                        ),
-                        child: InkWell(
-                          // 詳細画面への遷移部分を修正
-// 詳細画面への遷移部分を修正
-                          onTap: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    UserDetailScreen(user: user),
-                              ),
-                            );
+          // 3行目: ユーザー名 + サブスク登録日
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ユーザー名', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactTextFieldRow(usernameController),
+                  ],
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('サブスク登録日', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactDateFieldRow(subscRegistStart, subscRegistEnd, (start) {
+                      setState(() => subscRegistStart = start);
+                    }, (end) {
+                      setState(() => subscRegistEnd = end);
+                    }),
+                  ],
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(flex: 1, child: SizedBox()),
+            ],
+          ),
+          SizedBox(height: 12),
 
-                            // 詳細画面からの結果を処理
-                            if (result != null &&
-                                result['action'] == 'delete') {
-                              // 削除されたユーザーをリストから削除
-                              setState(() {
-                                users.remove(result['user']);
-                                filteredUsers.remove(result['user']);
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('ユーザーを削除しました')),
-                              );
-                            } else {
-                              // 停止/復旧状態を反映するためにリストを更新
-                              setState(() {});
-                            }
-                          },
-                          child: Row(
-                            children: [
-                              // チェックボックス
-                              _buildTableCell(
-                                '',
-                                1,
-                                TextAlign.center,
-                                child: Checkbox(
-                                  value: selectedUsers[index],
-                                  onChanged: (value) =>
-                                      _toggleUserSelection(index, value),
-                                ),
-                              ),
-                              _buildTableCell(user.id, 1, TextAlign.center),
-                              _buildTableCell(user.uuid, 2, TextAlign.left),
-                              _buildTableCell(user.username, 2, TextAlign.left),
-                              _buildTableCell(user.email, 3, TextAlign.left),
-                              _buildTableCell(
-                                  '${user.lastLogin.year}/${user.lastLogin.month.toString().padLeft(2, '0')}/${user.lastLogin.day.toString().padLeft(2, '0')}',
-                                  2,
-                                  TextAlign.center),
-                              _buildTableCell(
-                                  user.subscription, 1, TextAlign.center),
-                              _buildTableCell('', 1, TextAlign.center,
-                                  child: _buildFreezeIndicator(user.isFrozen)),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+          // 4行目: メールアドレス + サブスク解約日
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('メールアドレス', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactTextFieldRow(emailController),
+                  ],
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('サブスク解約日', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    _buildCompactDateFieldRow(subscCancelStart, subscCancelEnd, (start) {
+                      setState(() => subscCancelStart = start);
+                    }, (end) {
+                      setState(() => subscCancelEnd = end);
+                    }),
+                  ],
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(flex: 1, child: SizedBox()),
+            ],
+          ),
+          SizedBox(height: 20),
+
+          // ボタン行
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                width: 100,
+                child: ElevatedButton(
+                  onPressed: _clearSearch,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[300],
+                    foregroundColor: Colors.grey[700],
+                    elevation: 0,
+                    padding: EdgeInsets.symmetric(vertical: 10),
                   ),
+                  child: Text('クリア', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+              SizedBox(width: 12),
+              Container(
+                width: 100,
+                child: ElevatedButton(
+                  onPressed: _applySearch,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: Text('検索', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+            ],
           ),
-
-          // 選択中の操作ボタン（選択がある場合のみ表示）
-          if (hasSelection) _buildSelectionActionButtons(),
-          SizedBox(height: 16),
         ],
       ),
     );
   }
+
+  // コンパクトなテキストフィールド（行用）
+  Widget _buildCompactTextFieldRow(TextEditingController controller) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+          borderSide: BorderSide(color: Colors.grey[400]!),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+      ),
+      style: TextStyle(fontSize: 12),
+    );
+  }
+
+  // コンパクトな日付フィールド（行用）
+  Widget _buildCompactDateFieldRow(
+    DateTime? startDate,
+    DateTime? endDate,
+    Function(DateTime?) onStartChanged,
+    Function(DateTime?) onEndChanged,
+  ) {
+    return Container(
+      height: 36,
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: startDate ?? DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (date != null) {
+                  onStartChanged(date);
+                  _applySearch();
+                }
+              },
+              child: Container(
+                height: 36,
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[400]!),
+                  borderRadius: BorderRadius.circular(4),
+                  color: Colors.white,
+                ),
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  startDate != null
+                      ? '${startDate.year}/${startDate.month}/${startDate.day}'
+                      : '',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: startDate != null ? Colors.black : Colors.grey[500],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '〜',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: endDate ?? startDate ?? DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (date != null) {
+                  onEndChanged(date);
+                  _applySearch();
+                }
+              },
+              child: Container(
+                height: 36,
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[400]!),
+                  borderRadius: BorderRadius.circular(4),
+                  color: Colors.white,
+                ),
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  endDate != null
+                      ? '${endDate.year}/${endDate.month}/${endDate.day}'
+                      : '',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: endDate != null ? Colors.black : Colors.grey[500],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // コンパクトなドロップダウン（行用）
+  Widget _buildCompactDropdownRow(
+    String value,
+    List<String> items,
+    Function(String?) onChanged,
+  ) {
+    return Container(
+      height: 36,
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(
+          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: BorderSide(color: Colors.grey[400]!),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          isDense: true,
+        ),
+        value: value,
+        items: items.map((item) {
+          return DropdownMenuItem<String>(
+            value: item,
+            child: Text(
+              item,
+              style: TextStyle(fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+        onChanged: (value) {
+          onChanged(value);
+          _applySearch();
+        },
+      ),
+    );
+  }
+
+Widget _buildUserTable() {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(4),
+      border: Border.all(color: Colors.grey[300]!),
+    ),
+    child: Column(
+      children: [
+        // テーブルヘッダー
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            border: Border(
+              bottom: BorderSide(color: Colors.grey[300]!),
+            ),
+          ),
+          child: Row(
+            children: [
+              // チェックボックス列
+              Container(
+                width: 50,
+                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                child: Center(
+                  child: Checkbox(
+                    value: selectedUsers.length == filteredUsers.length && 
+                          selectedUsers.isNotEmpty && 
+                          selectedUsers.every((element) => element),
+                    onChanged: (value) => _toggleAllSelection(value),
+                  ),
+                ),
+              ),
+              
+              // ID列
+              _buildTableHeader('ID', 2),
+              
+              // UUID列
+              _buildTableHeader('UUID', 3),
+              
+              // ユーザー名列
+              _buildTableHeader('ユーザー名', 3),
+              
+              // メールアドレス列
+              _buildTableHeader('メールアドレス', 4),
+              
+              // 最終ログイン日列
+              _buildTableHeader('最終ログイン日', 3),
+              
+              // サブスク列
+              _buildTableHeader('サブスク', 2),
+              
+              // 停止中列 - flex値修正
+              _buildTableHeader('停止中', 2), // こちらはヘッダー用
+            ],
+          ),
+        ),
+        
+        // テーブルデータ
+        Expanded(
+          child: filteredUsers.isEmpty
+              ? _buildNoUsersFound()
+              : ListView.builder(
+                  itemCount: filteredUsers.length,
+                  itemBuilder: (context, index) {
+                    final user = filteredUsers[index];
+                    return Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey[200]!),
+                        ),
+                      ),
+                      child: InkWell(
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => UserDetailAdmin(user: user),
+                            ),
+                          );
+
+                          if (result != null && result['action'] == 'delete') {
+                            setState(() {
+                              users.remove(result['user']);
+                              filteredUsers.remove(result['user']);
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('ユーザーを削除しました')),
+                            );
+                          } else {
+                            setState(() {});
+                          }
+                        },
+                        child: Row(
+                          children: [
+                            // チェックボックス
+                            Container(
+                              width: 50,
+                              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              child: Center(
+                                child: Checkbox(
+                                  value: selectedUsers[index],
+                                  onChanged: (value) => _toggleUserSelection(index, value),
+                                ),
+                              ),
+                            ),
+                            
+                            // ID
+                            _buildTableCell(user.id, 2, TextAlign.center),
+                            
+                            // UUID
+                            _buildTableCell(user.uuid, 3, TextAlign.left),
+                            
+                            // ユーザー名
+                            _buildTableCell(user.username, 3, TextAlign.left),
+                            
+                            // メールアドレス
+                            _buildTableCell(user.email, 4, TextAlign.left),
+                            
+                            // 最終ログイン日
+                            _buildTableCell(
+                              '${user.lastLogin.year}/${user.lastLogin.month.toString().padLeft(2, '0')}/${user.lastLogin.day.toString().padLeft(2, '0')}',
+                              3,
+                              TextAlign.center
+                            ),
+                            
+                            // サブスク
+                            _buildTableCell(user.subscription, 2, TextAlign.center),
+                            
+                            // 停止中 - 修正部分
+                            Expanded(
+                              flex: 2, // flex値を指定
+                              child: Container(
+                                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                child: Center(
+                                  child: _buildFreezeIndicator(user.isFrozen),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        
+        // 選択中の操作ボタン
+        if (hasSelection) _buildSelectionActionButtons(),
+      ],
+    ),
+  );
+}
 
   Widget _buildNoUsersFound() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_off,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          SizedBox(height: 16),
-          Text(
-            '該当ユーザーが見つかりません',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.bold,
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+            SizedBox(height: 12),
+            Text(
+              '該当ユーザーが見つかりません',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            '検索条件を変更して再度お試しください',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
+            SizedBox(height: 8),
+            Text(
+              '検索条件を変更して再度お試しください',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSelectionActionButtons() {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(
+          top: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: Offset(2, 2), // 右下シャドー
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: _freezeSelectedUsers,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8), // ボタンの丸み
-                ),
-                elevation: 0, // デフォルトのシャドーを消す
+          ElevatedButton(
+            onPressed: _freezeSelectedUsers,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: Text('選択中のユーザーのアカウントを停止',
-                  style: TextStyle(color: Colors.white)),
+            ),
+            child: Text(
+              '選択中のユーザーを停止',
+              style: TextStyle(fontSize: 12),
             ),
           ),
-          SizedBox(width: 16),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: Offset(2, 2), // 右下シャドー
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: _unfreezeSelectedUsers,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8), // ボタンの丸み
-                ),
-                elevation: 0, // デフォルトのシャドーを消す
+          SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: _unfreezeSelectedUsers,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: Text('選択中のユーザーのアカウントを復旧',
-                  style: TextStyle(color: Colors.white)),
+            ),
+            child: Text(
+              '選択中のユーザーを復旧',
+              style: TextStyle(fontSize: 12),
             ),
           ),
         ],
@@ -799,50 +914,55 @@ class _UserListScreenState extends State<UserListScreen> {
     );
   }
 
+
+
+
   Widget _buildTableHeader(String text, int flex) {
     return Expanded(
       flex: flex,
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          border: Border(right: BorderSide(color: Colors.grey[300]!)),
+        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        child: text.isEmpty
-            ? Checkbox(
-                value: selectedUsers.every((element) => element) &&
-                    selectedUsers.isNotEmpty,
-                onChanged: _toggleAllSelection,
-              )
-            : Text(
-                text,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[700],
-                ),
-                textAlign: TextAlign.center,
-              ),
       ),
     );
   }
 
-  Widget _buildTableCell(String text, int flex, TextAlign align,
-      {Widget? child}) {
+  Widget _buildTableCell(String text, int flex, TextAlign align) {
     return Expanded(
       flex: flex,
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          border: Border(right: BorderSide(color: Colors.grey[300]!)),
+        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[800],
+          ),
+          textAlign: align,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        child: child ??
-            Text(
-              text,
-              style: TextStyle(
-                color: Colors.grey[700],
-              ),
-              textAlign: align,
-            ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    idController.dispose();
+    uuidController.dispose();
+    usernameController.dispose();
+    emailController.dispose();
+    super.dispose();
   }
 }
