@@ -58,6 +58,7 @@ class _BattleScreenState extends State<BattleScreen> {
 
   // ラウンド結果
   RoundResult? _lastRoundResult;
+  bool _waitingForOpponentNext = false;  // 相手の「次へ」待ち状態
 
   // 試合結果
   BattleResult? _battleResult;
@@ -123,18 +124,34 @@ class _BattleScreenState extends State<BattleScreen> {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
       _battleInfo = BattleStartInfo.fromJson(data);
 
-      // プレイヤー情報を設定
+      // プレイヤー情報を設定（APIから取得したユーザー情報を使用）
       final isPlayer1 = _battleInfo!.user1Id == _myUserId;
-      _myPlayer = BattlePlayer(
-        userId: _myUserId!,
-        username: _myUsername ?? 'あなた',
-        rating: 1500, // TODO: 実際のレートを取得
-      );
-      _opponentPlayer = BattlePlayer(
-        userId: isPlayer1 ? _battleInfo!.user2Id : _battleInfo!.user1Id,
-        username: '対戦相手', // TODO: 相手のユーザー名を取得
-        rating: 1500, // TODO: 実際のレートを取得
-      );
+
+      if (isPlayer1) {
+        // 自分がPlayer1の場合
+        _myPlayer = _battleInfo!.user1Info ?? BattlePlayer(
+          userId: _myUserId!,
+          username: _myUsername ?? 'あなた',
+          rating: 1500,
+        );
+        _opponentPlayer = _battleInfo!.user2Info ?? BattlePlayer(
+          userId: _battleInfo!.user2Id,
+          username: '対戦相手',
+          rating: 1500,
+        );
+      } else {
+        // 自分がPlayer2の場合
+        _myPlayer = _battleInfo!.user2Info ?? BattlePlayer(
+          userId: _myUserId!,
+          username: _myUsername ?? 'あなた',
+          rating: 1500,
+        );
+        _opponentPlayer = _battleInfo!.user1Info ?? BattlePlayer(
+          userId: _battleInfo!.user1Id,
+          username: '対戦相手',
+          rating: 1500,
+        );
+      }
 
       _remainingSeconds = _battleInfo!.roundTimeLimitSeconds;
     } else {
@@ -225,6 +242,9 @@ class _BattleScreenState extends State<BattleScreen> {
       case 'opponent_surrendered':
         _handleOpponentSurrendered(data);
         break;
+      case 'waiting_opponent_next':
+        _handleWaitingOpponentNext(data);
+        break;
       case 'error':
         _handleError(data);
         break;
@@ -253,6 +273,7 @@ class _BattleScreenState extends State<BattleScreen> {
       _myAnswered = false;
       _opponentAnswered = false;
       _isTimedOut = false;
+      _waitingForOpponentNext = false;  // リセット
       _status = BattleStatus.answering;
       _answerController.clear();
       _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
@@ -346,6 +367,14 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
+  /// 相手の「次へ」待ち
+  void _handleWaitingOpponentNext(Map<String, dynamic> data) {
+    if (!mounted) return;
+    setState(() {
+      _waitingForOpponentNext = true;
+    });
+  }
+
   /// ラウンドタイマー開始
   void _startRoundTimer() {
     _roundTimer?.cancel();
@@ -419,9 +448,10 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
-  /// 次のラウンドへ進む
+  /// 次のラウンドへ進む（「次へ」ボタン押下時）
   void _goToNextRound() {
     if (_lastRoundResult == null || !_lastRoundResult!.matchContinues) return;
+    if (_waitingForOpponentNext) return; // 既にリクエスト済み
 
     // サーバーに次のラウンドへ進むリクエストを送信
     _stompClient?.send(
@@ -432,10 +462,10 @@ class _BattleScreenState extends State<BattleScreen> {
       }),
     );
 
-    // ローディング状態に戻す（問題受信を待つ）
+    // 相手の「次へ」待ち状態に設定（問題受信まで待機）
+    // サーバーから両者準備完了またはタイムアウトでquestionが来る
     setState(() {
-      _status = BattleStatus.answering;
-      _currentQuestion = null;
+      _waitingForOpponentNext = true;
     });
   }
 
@@ -472,42 +502,59 @@ class _BattleScreenState extends State<BattleScreen> {
     }
   }
 
-  /// 音声再生
+  /// 音声再生（エラー時も進行を妨げない）
   Future<void> _playAudio() async {
-    if (_currentQuestion == null || _currentQuestion!.audioUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('音声データがありません'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+    if (_currentQuestion == null || _currentQuestion!.audioUrl == null || _currentQuestion!.audioUrl!.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('音声データがありません（回答は可能です）'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
       return;
     }
 
     try {
       String audioUrl = _currentQuestion!.audioUrl!;
+      String originalUrl = audioUrl;  // デバッグ用に元のURLを保存
 
-      // 相対パスの場合、ベースURLを追加
+      // 相対パスの場合、ベースURLを追加（学習側と同じ処理）
       if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://')) {
+        // ./ で始まる場合は除去
         if (audioUrl.startsWith('./')) {
           audioUrl = audioUrl.substring(2);
         }
+        // 先頭に / がない場合は追加
         if (!audioUrl.startsWith('/')) {
           audioUrl = '/$audioUrl';
         }
         audioUrl = '$_apiBaseUrl$audioUrl';
       }
 
-      debugPrint('Playing audio: $audioUrl');
+      // デバッグログ（学習側との比較用）
+      debugPrint('=== Audio Debug ===');
+      debugPrint('Original audioUrl: $originalUrl');
+      debugPrint('Final audioUrl: $audioUrl');
+      debugPrint('API Base URL: $_apiBaseUrl');
+      debugPrint('==================');
+
       await _audioPlayer.play(UrlSource(audioUrl));
     } catch (e) {
+      // 音声再生失敗時もユーザーは回答可能
       debugPrint('Audio play error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('音声の再生に失敗しました: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('音声の再生に失敗しました（回答は可能です）\n$e'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      // エラーを投げずに続行（進行を止めない）
     }
   }
 
@@ -1177,17 +1224,35 @@ class _BattleScreenState extends State<BattleScreen> {
 
             // 次へボタン（試合継続の場合のみ）
             if (result.matchContinues)
-              ElevatedButton.icon(
-                onPressed: _goToNextRound,
-                icon: const Icon(Icons.arrow_forward),
-                label: const Text('次の問題へ'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              )
+              _waitingForOpponentNext
+                  ? Column(
+                      children: [
+                        const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '相手の準備を待っています...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: _goToNextRound,
+                      icon: const Icon(Icons.arrow_forward),
+                      label: const Text('次の問題へ'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    )
             else
               const Text(
                 '試合終了...',

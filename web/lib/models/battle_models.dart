@@ -266,6 +266,10 @@ class BattleStartInfo {
   final int winsRequired;
   final int maxRounds;
 
+  // ユーザー詳細情報
+  final BattlePlayer? user1Info;
+  final BattlePlayer? user2Info;
+
   BattleStartInfo({
     required this.matchId,
     required this.user1Id,
@@ -275,6 +279,8 @@ class BattleStartInfo {
     required this.roundTimeLimitSeconds,
     required this.winsRequired,
     required this.maxRounds,
+    this.user1Info,
+    this.user2Info,
   });
 
   factory BattleStartInfo.fromJson(Map<String, dynamic> json) {
@@ -287,6 +293,12 @@ class BattleStartInfo {
       roundTimeLimitSeconds: json['roundTimeLimitSeconds'] ?? 90,
       winsRequired: json['winsRequired'] ?? 3,
       maxRounds: json['maxRounds'] ?? 10,
+      user1Info: json['user1Info'] != null
+          ? BattlePlayer.fromJson(json['user1Info'])
+          : null,
+      user2Info: json['user2Info'] != null
+          ? BattlePlayer.fromJson(json['user2Info'])
+          : null,
     );
   }
 }

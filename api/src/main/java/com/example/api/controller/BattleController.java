@@ -2,7 +2,10 @@ package com.example.api.controller;
 
 import com.example.api.dto.battle.*;
 import com.example.api.entity.Question;
+import com.example.api.entity.Rate;
 import com.example.api.entity.Result;
+import com.example.api.entity.User;
+import com.example.api.repository.RateRepository;
 import com.example.api.repository.ResultRepository;
 import com.example.api.service.BattleService;
 import com.example.api.service.BattleStateService;
@@ -34,10 +37,16 @@ public class BattleController {
     private ResultRepository resultRepository;
 
     @Autowired
+    private RateRepository rateRepository;
+
+    @Autowired
     private BattleService battleService;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
+
+    /** 現在のシーズン（不明（要確認）：シーズン管理の設定箇所。暫定値を使用） */
+    private static final int CURRENT_SEASON = 1;
 
     // ==================== REST API ====================
 
@@ -65,14 +74,20 @@ public class BattleController {
             }
 
             Result result1 = results.get(0);
+            User player = result1.getPlayer();
+            User enemy = result1.getEnemy();
 
             // 対戦を初期化（問題取得・状態作成）
             BattleStateService.BattleState state = battleService.initializeBattle(
                     matchId,
-                    result1.getPlayer().getId(),
-                    result1.getEnemy().getId(),
+                    player.getId(),
+                    enemy.getId(),
                     result1.getUseLanguage()
             );
+
+            // ユーザーのレート情報を取得
+            Integer player1Rate = getPlayerRate(player);
+            Integer player2Rate = getPlayerRate(enemy);
 
             // バトル情報を返す
             Map<String, Object> battleInfo = new HashMap<>();
@@ -86,6 +101,21 @@ public class BattleController {
             battleInfo.put("maxRounds", BattleStateService.MAX_ROUNDS);
             battleInfo.put("status", "ready");
             battleInfo.put("message", "バトルを開始できます");
+
+            // ユーザー詳細情報を追加
+            Map<String, Object> user1Info = new HashMap<>();
+            user1Info.put("userId", player.getId());
+            user1Info.put("username", player.getUsername());
+            user1Info.put("imageUrl", player.getImageUrl());
+            user1Info.put("rate", player1Rate);
+            battleInfo.put("user1Info", user1Info);
+
+            Map<String, Object> user2Info = new HashMap<>();
+            user2Info.put("userId", enemy.getId());
+            user2Info.put("username", enemy.getUsername());
+            user2Info.put("imageUrl", enemy.getImageUrl());
+            user2Info.put("rate", player2Rate);
+            battleInfo.put("user2Info", user2Info);
 
             return ResponseEntity.ok(battleInfo);
 
@@ -296,13 +326,20 @@ public class BattleController {
     // ==================== Scheduled Tasks ====================
 
     /**
-     * 定期的にラウンドタイムアウトをチェック（5秒ごと）
-     * 注: 本番環境では、対戦ごとにScheduledFutureを使用して個別にタイムアウト管理することを推奨
+     * 定期的にラウンド結果のタイムアウトをチェック（2秒ごと）
+     * 10秒経過しても両者が「次へ」を押していない場合、強制的に次ラウンドへ進む
      */
-    @Scheduled(fixedRate = 5000)
-    public void checkRoundTimeouts() {
-        // 現状の実装では、クライアントからのtimeoutメッセージで処理
-        // 将来的にはサーバー側で能動的にチェックする実装を追加可能
+    @Scheduled(fixedRate = 2000)
+    public void checkRoundResultTimeouts() {
+        try {
+            List<String> timedOutMatches = battleService.getTimedOutRoundResultMatches();
+            for (String matchId : timedOutMatches) {
+                logger.info("ラウンド結果タイムアウト、強制的に次ラウンドへ: matchId={}", matchId);
+                advanceToNextRound(matchId);
+            }
+        } catch (Exception e) {
+            logger.error("ラウンド結果タイムアウトチェックエラー", e);
+        }
     }
 
     // ==================== Private Methods ====================
@@ -354,9 +391,10 @@ public class BattleController {
     /**
      * 次のラウンドへ進む（クライアントからのリクエスト）
      * クライアントがラウンド結果を確認後に /app/battle/next-round を送信
+     * 両者が「次へ」を押した時点、または10秒経過時点で次ラウンドへ進む
      */
     @MessageMapping("/battle/next-round")
-    public void nextRound(@Payload BattleReadyRequest request) {
+    public synchronized void nextRound(@Payload BattleReadyRequest request) {
         try {
             logger.info("次ラウンドリクエスト: matchId={}, userId={}", request.getMatchId(), request.getUserId());
 
@@ -371,13 +409,45 @@ public class BattleController {
                 return;
             }
 
-            // 次の問題を両プレイヤーに送信
-            sendQuestionToPlayers(state);
+            // プレイヤーを準備完了としてマーク
+            boolean shouldAdvance = battleService.markPlayerReadyForNextRound(
+                    request.getMatchId(),
+                    request.getUserId()
+            );
+
+            // 両者が準備完了、または10秒タイムアウトの場合、次ラウンドへ
+            if (shouldAdvance) {
+                advanceToNextRound(request.getMatchId());
+            } else {
+                // 相手待ちの通知を送信
+                Map<String, Object> waitingMessage = new HashMap<>();
+                waitingMessage.put("type", "waiting_opponent_next");
+                waitingMessage.put("matchId", request.getMatchId());
+                messagingTemplate.convertAndSend("/topic/battle/" + request.getUserId(), waitingMessage);
+
+                logger.info("相手の次ラウンド準備を待機中: matchId={}, userId={}",
+                        request.getMatchId(), request.getUserId());
+            }
 
         } catch (Exception e) {
             logger.error("次ラウンド処理エラー: matchId={}", request.getMatchId(), e);
             sendError(request.getUserId(), "エラーが発生しました: " + e.getMessage());
         }
+    }
+
+    /**
+     * 次のラウンドへ進む処理（共通）
+     */
+    private synchronized void advanceToNextRound(String matchId) {
+        BattleStateService.BattleState state = battleService.getBattleState(matchId);
+        if (state == null || state.getStatus() != BattleStateService.Status.IN_PROGRESS) {
+            return;
+        }
+
+        // 次の問題を両プレイヤーに送信
+        sendQuestionToPlayers(state);
+
+        logger.info("次ラウンドへ進行: matchId={}", matchId);
     }
 
     /**
@@ -491,5 +561,21 @@ public class BattleController {
         Map<String, String> error = new HashMap<>();
         error.put("error", message);
         return error;
+    }
+
+    /**
+     * ユーザーのレート情報を取得
+     * @param user ユーザーエンティティ
+     * @return レート値（未登録の場合は初期値1500）
+     */
+    private Integer getPlayerRate(User user) {
+        try {
+            return rateRepository.findByUserAndSeason(user, CURRENT_SEASON)
+                    .map(Rate::getRate)
+                    .orElse(1500);  // 未登録の場合は初期値
+        } catch (Exception e) {
+            logger.warn("レート取得エラー: userId={}", user.getId(), e);
+            return 1500;
+        }
     }
 }

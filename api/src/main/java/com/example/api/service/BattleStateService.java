@@ -96,6 +96,9 @@ public class BattleStateService {
         public boolean isNoCount() { return winnerId == null; }
     }
 
+    /** ラウンド結果表示後の次ラウンドへの遷移待ち時間（秒） */
+    public static final int ROUND_RESULT_TIMEOUT_SECONDS = 10;
+
     /**
      * 対戦状態クラス
      */
@@ -116,6 +119,11 @@ public class BattleStateService {
         // 現在のラウンドの回答（暫定）
         private PlayerAnswer currentPlayer1Answer;
         private PlayerAnswer currentPlayer2Answer;
+
+        // ラウンド結果確認の準備状態（両者が「次へ」を押したかどうか）
+        private boolean player1NextReady;
+        private boolean player2NextReady;
+        private Instant roundResultStartTime; // ラウンド結果表示開始時刻
 
         public BattleState(String matchUuid, Long player1Id, Long player2Id,
                           String language, List<Question> questions) {
@@ -158,6 +166,39 @@ public class BattleStateService {
         void clearCurrentAnswers() {
             this.currentPlayer1Answer = null;
             this.currentPlayer2Answer = null;
+        }
+
+        // ラウンド結果確認状態のgetter/setter
+        public boolean isPlayer1NextReady() { return player1NextReady; }
+        public boolean isPlayer2NextReady() { return player2NextReady; }
+        public Instant getRoundResultStartTime() { return roundResultStartTime; }
+        void setPlayer1NextReady(boolean ready) { this.player1NextReady = ready; }
+        void setPlayer2NextReady(boolean ready) { this.player2NextReady = ready; }
+        void setRoundResultStartTime(Instant time) { this.roundResultStartTime = time; }
+
+        /**
+         * 両者が次ラウンドへ進む準備ができているか
+         */
+        public boolean areBothPlayersReady() {
+            return player1NextReady && player2NextReady;
+        }
+
+        /**
+         * ラウンド結果のタイムアウトが経過したか（10秒）
+         */
+        public boolean isRoundResultTimedOut() {
+            if (roundResultStartTime == null) return false;
+            long elapsedMs = Instant.now().toEpochMilli() - roundResultStartTime.toEpochMilli();
+            return elapsedMs > ROUND_RESULT_TIMEOUT_SECONDS * 1000L;
+        }
+
+        /**
+         * ラウンド結果確認状態をリセット（次ラウンド開始時）
+         */
+        void clearNextReadyState() {
+            this.player1NextReady = false;
+            this.player2NextReady = false;
+            this.roundResultStartTime = null;
         }
 
         /**
@@ -392,10 +433,50 @@ public class BattleStateService {
         state.addRoundResult(result);
         state.clearCurrentAnswers();
 
+        // ラウンド結果表示開始時刻を記録（10秒タイムアウト用）
+        state.setRoundResultStartTime(Instant.now());
+        state.clearNextReadyState();
+
         logger.info("ラウンド確定: matchUuid={}, round={}, winner={}, noCount={}",
                 matchUuid, state.getCurrentRound() + 1, winnerId, noCountReason);
 
         return result;
+    }
+
+    /**
+     * プレイヤーを次ラウンドへ進む準備ができた状態にマーク
+     * @return 両者が準備完了またはタイムアウトで次ラウンドへ進むべき場合true
+     */
+    public synchronized boolean markPlayerReadyForNextRound(String matchUuid, Long userId) {
+        BattleState state = activeBattles.get(matchUuid);
+        if (state == null) {
+            throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
+        }
+        if (!state.isParticipant(userId)) {
+            throw new IllegalArgumentException("参加者ではありません: " + userId);
+        }
+
+        if (state.isPlayer1(userId)) {
+            state.setPlayer1NextReady(true);
+            logger.info("Player1が次ラウンド準備完了: matchUuid={}", matchUuid);
+        } else {
+            state.setPlayer2NextReady(true);
+            logger.info("Player2が次ラウンド準備完了: matchUuid={}", matchUuid);
+        }
+
+        // 両者準備完了またはタイムアウトの場合、次ラウンドへ進む
+        return state.areBothPlayersReady() || state.isRoundResultTimedOut();
+    }
+
+    /**
+     * ラウンド結果のタイムアウトをチェック（10秒経過しているか）
+     */
+    public boolean isRoundResultTimedOut(String matchUuid) {
+        BattleState state = activeBattles.get(matchUuid);
+        if (state == null) {
+            return false;
+        }
+        return state.isRoundResultTimedOut();
     }
 
     /**
@@ -415,6 +496,9 @@ public class BattleStateService {
                     matchUuid, state.getPlayer1Wins(), state.getPlayer2Wins(), state.getWinnerId());
             return false;
         }
+
+        // ラウンド結果確認状態をリセット
+        state.clearNextReadyState();
 
         // 次ラウンドへ
         state.setCurrentRound(state.getCurrentRound() + 1);
@@ -458,6 +542,24 @@ public class BattleStateService {
      */
     public int getActiveBattleCount() {
         return activeBattles.size();
+    }
+
+    /**
+     * ラウンド結果待ちでタイムアウトした対戦のmatchUuidリストを取得
+     * 10秒経過しているが、まだ両者が「次へ」を押していない対戦
+     */
+    public List<String> getTimedOutRoundResultMatches() {
+        List<String> timedOutMatches = new ArrayList<>();
+        for (Map.Entry<String, BattleState> entry : activeBattles.entrySet()) {
+            BattleState state = entry.getValue();
+            if (state.getStatus() == Status.IN_PROGRESS &&
+                state.getRoundResultStartTime() != null &&
+                state.isRoundResultTimedOut() &&
+                !state.areBothPlayersReady()) {
+                timedOutMatches.add(entry.getKey());
+            }
+        }
+        return timedOutMatches;
     }
 
     /**

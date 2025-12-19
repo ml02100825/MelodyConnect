@@ -564,6 +564,28 @@ public class BattleService {
     }
 
     /**
+     * プレイヤーを次ラウンドへ進む準備ができた状態にマーク
+     * @return 両者が準備完了またはタイムアウトで次ラウンドへ進むべき場合true
+     */
+    public boolean markPlayerReadyForNextRound(String matchUuid, Long userId) {
+        return battleStateService.markPlayerReadyForNextRound(matchUuid, userId);
+    }
+
+    /**
+     * ラウンド結果のタイムアウトをチェック（10秒経過しているか）
+     */
+    public boolean isRoundResultTimedOut(String matchUuid) {
+        return battleStateService.isRoundResultTimedOut(matchUuid);
+    }
+
+    /**
+     * ラウンド結果待ちでタイムアウトした対戦のmatchUuidリストを取得
+     */
+    public java.util.List<String> getTimedOutRoundResultMatches() {
+        return battleStateService.getTimedOutRoundResultMatches();
+    }
+
+    /**
      * 降参処理
      */
     @Transactional
