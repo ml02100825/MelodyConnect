@@ -3,8 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:stomp_dart_client/stomp_dart_client.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../services/token_storage_service.dart';
 import '../models/battle_models.dart';
+
+/// APIのベースURL
+const String _apiBaseUrl = String.fromEnvironment(
+  "API_BASE_URL",
+  defaultValue: "http://localhost:8080",
+);
 
 /// バトル画面
 /// ランクマッチの対戦進行を行います
@@ -20,6 +27,7 @@ class BattleScreen extends StatefulWidget {
 class _BattleScreenState extends State<BattleScreen> {
   final _tokenStorage = TokenStorageService();
   final _answerController = TextEditingController();
+  final _audioPlayer = AudioPlayer();
 
   // WebSocket
   StompClient? _stompClient;
@@ -46,12 +54,16 @@ class _BattleScreenState extends State<BattleScreen> {
   // タイマー
   Timer? _roundTimer;
   int _remainingSeconds = 90;
+  bool _isTimedOut = false;
 
   // ラウンド結果
   RoundResult? _lastRoundResult;
 
   // 試合結果
   BattleResult? _battleResult;
+
+  // 勝利に必要な勝ち数
+  static const int _winsRequired = 3;
 
   @override
   void initState() {
@@ -64,6 +76,7 @@ class _BattleScreenState extends State<BattleScreen> {
     _roundTimer?.cancel();
     _stompClient?.deactivate();
     _answerController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -99,7 +112,7 @@ class _BattleScreenState extends State<BattleScreen> {
     }
 
     final response = await http.get(
-      Uri.parse('http://localhost:8080/api/battle/start/${widget.matchId}'),
+      Uri.parse('$_apiBaseUrl/api/battle/start/${widget.matchId}'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -239,6 +252,7 @@ class _BattleScreenState extends State<BattleScreen> {
 
       _myAnswered = false;
       _opponentAnswered = false;
+      _isTimedOut = false;
       _status = BattleStatus.answering;
       _answerController.clear();
       _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
@@ -287,19 +301,12 @@ class _BattleScreenState extends State<BattleScreen> {
         _opponentWins = _lastRoundResult!.player1Wins;
       }
 
+      // 必ずラウンド結果表示状態に遷移（スキップしない）
       _status = BattleStatus.roundResult;
     });
 
-    // 一定時間後に次のラウンドへ（試合継続の場合）
-    if (_lastRoundResult!.matchContinues) {
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted && _status == BattleStatus.roundResult) {
-          setState(() {
-            _status = BattleStatus.answering;
-          });
-        }
-      });
-    }
+    // 試合継続の場合は、ユーザーが「次へ」を押すまで待機
+    // 自動遷移しない（ラウンド結果がスキップされないようにするため）
   }
 
   /// 試合結果
@@ -361,6 +368,10 @@ class _BattleScreenState extends State<BattleScreen> {
 
   /// タイムアウト処理
   void _onTimeout() {
+    setState(() {
+      _isTimedOut = true;
+    });
+
     if (_status == BattleStatus.answering && !_myAnswered) {
       // 未回答の場合、サーバーにタイムアウトを通知
       _stompClient?.send(
@@ -408,6 +419,26 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
+  /// 次のラウンドへ進む
+  void _goToNextRound() {
+    if (_lastRoundResult == null || !_lastRoundResult!.matchContinues) return;
+
+    // サーバーに次のラウンドへ進むリクエストを送信
+    _stompClient?.send(
+      destination: '/app/battle/next-round',
+      body: jsonEncode({
+        'matchId': widget.matchId,
+        'userId': _myUserId,
+      }),
+    );
+
+    // ローディング状態に戻す（問題受信を待つ）
+    setState(() {
+      _status = BattleStatus.answering;
+      _currentQuestion = null;
+    });
+  }
+
   /// 降参
   Future<void> _surrender() async {
     final confirmed = await showDialog<bool>(
@@ -441,15 +472,43 @@ class _BattleScreenState extends State<BattleScreen> {
     }
   }
 
-  /// リザルト画面へ遷移
-  void _navigateToResult() {
-    if (_battleResult == null) return;
+  /// 音声再生
+  Future<void> _playAudio() async {
+    if (_currentQuestion == null || _currentQuestion!.audioUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('音声データがありません'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
-    Navigator.pushReplacementNamed(
-      context,
-      '/battle-result',
-      arguments: _battleResult,
-    );
+    try {
+      String audioUrl = _currentQuestion!.audioUrl!;
+
+      // 相対パスの場合、ベースURLを追加
+      if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://')) {
+        if (audioUrl.startsWith('./')) {
+          audioUrl = audioUrl.substring(2);
+        }
+        if (!audioUrl.startsWith('/')) {
+          audioUrl = '/$audioUrl';
+        }
+        audioUrl = '$_apiBaseUrl$audioUrl';
+      }
+
+      debugPrint('Playing audio: $audioUrl');
+      await _audioPlayer.play(UrlSource(audioUrl));
+    } catch (e) {
+      debugPrint('Audio play error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('音声の再生に失敗しました: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -545,7 +604,7 @@ class _BattleScreenState extends State<BattleScreen> {
   Widget _buildBattleContent() {
     return Column(
       children: [
-        // ヘッダー（プレイヤー情報）
+        // ヘッダー（プレイヤー情報とスコア）
         _buildHeader(),
 
         // タイマー
@@ -563,7 +622,7 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
-  /// ヘッダー（プレイヤー情報）
+  /// ヘッダー（プレイヤー情報とスコア）
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -580,26 +639,30 @@ class _BattleScreenState extends State<BattleScreen> {
             ),
           ),
 
-          // VS
+          // VS とスコア
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Column(
               children: [
                 const Text(
                   'VS',
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.red,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$_myWins - $_opponentWins',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const SizedBox(height: 8),
+                // スコア表示（○→✓形式）
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildScoreIndicator(_myWins, true),
+                    const SizedBox(width: 8),
+                    const Text('-', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    _buildScoreIndicator(_opponentWins, false),
+                  ],
                 ),
               ],
             ),
@@ -619,6 +682,36 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
+  /// スコア表示（○○○ → ✓○○ → ✓✓○ → ✓✓✓）
+  Widget _buildScoreIndicator(int wins, bool isMe) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(_winsRequired, (index) {
+        final isWon = index < wins;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isWon
+                ? (isMe ? Colors.blue : Colors.orange)
+                : Colors.grey[300],
+            border: Border.all(
+              color: isWon
+                  ? (isMe ? Colors.blue[700]! : Colors.orange[700]!)
+                  : Colors.grey[400]!,
+              width: 2,
+            ),
+          ),
+          child: isWon
+              ? const Icon(Icons.check, color: Colors.white, size: 14)
+              : null,
+        );
+      }),
+    );
+  }
+
   /// プレイヤー情報
   Widget _buildPlayerInfo({
     required BattlePlayer? player,
@@ -632,15 +725,15 @@ class _BattleScreenState extends State<BattleScreen> {
         Stack(
           children: [
             CircleAvatar(
-              radius: 30,
+              radius: 28,
               backgroundColor: isMe ? Colors.blue[100] : Colors.orange[100],
               backgroundImage: player?.iconUrl != null
-                  ? NetworkImage('http://localhost:8080/images/${player!.iconUrl}')
+                  ? NetworkImage('$_apiBaseUrl/images/${player!.iconUrl}')
                   : null,
               child: player?.iconUrl == null
                   ? Icon(
                       Icons.person,
-                      size: 32,
+                      size: 28,
                       color: isMe ? Colors.blue : Colors.orange,
                     )
                   : null,
@@ -658,18 +751,18 @@ class _BattleScreenState extends State<BattleScreen> {
                   child: const Icon(
                     Icons.check,
                     color: Colors.white,
-                    size: 16,
+                    size: 14,
                   ),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         // ユーザー名
         Text(
           isMe ? 'あなた' : (player?.username ?? '対戦相手'),
           style: const TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.bold,
           ),
           maxLines: 1,
@@ -680,7 +773,7 @@ class _BattleScreenState extends State<BattleScreen> {
           Text(
             'Rate: ${player!.rating}',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               color: Colors.grey[600],
             ),
           ),
@@ -691,31 +784,47 @@ class _BattleScreenState extends State<BattleScreen> {
   /// タイマー
   Widget _buildTimer() {
     final isWarning = _remainingSeconds <= 10;
+    final isTimeout = _remainingSeconds <= 0;
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      color: isWarning ? Colors.red[50] : Colors.blue[50],
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      color: isTimeout
+          ? Colors.grey[300]
+          : isWarning
+              ? Colors.red[50]
+              : Colors.blue[50],
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.timer,
-            color: isWarning ? Colors.red : Colors.blue,
+            isTimeout ? Icons.timer_off : Icons.timer,
+            color: isTimeout ? Colors.grey : (isWarning ? Colors.red : Colors.blue),
           ),
           const SizedBox(width: 8),
-          Text(
-            '残り ${_remainingSeconds}秒',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: isWarning ? Colors.red : Colors.blue,
+          if (isTimeout)
+            Text(
+              '時間切れ。結果確定を待っています...',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            )
+          else
+            Text(
+              '残り ${_remainingSeconds}秒',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isWarning ? Colors.red : Colors.blue,
+              ),
             ),
-          ),
-          if (_currentQuestion != null) ...[
-            const SizedBox(width: 24),
+          if (_currentQuestion != null && !isTimeout) ...[
+            const SizedBox(width: 20),
             Text(
               'Round ${_currentQuestion!.roundNumber} / ${_currentQuestion!.totalRounds}',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 14,
                 color: Colors.grey[700],
               ),
             ),
@@ -730,6 +839,9 @@ class _BattleScreenState extends State<BattleScreen> {
     if (_currentQuestion == null) {
       return const Center(child: CircularProgressIndicator());
     }
+
+    // 問題タイプに応じて表示を切り替え
+    final isListening = _currentQuestion!.isListening;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -746,57 +858,20 @@ class _BattleScreenState extends State<BattleScreen> {
             ),
           ),
 
+          const SizedBox(height: 12),
+
+          // 問題タイプ表示
+          _buildQuestionTypeChip(isListening),
+
           const SizedBox(height: 16),
 
-          // 問題文
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Text(
-                  '問題 ${_currentQuestion!.roundNumber}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _currentQuestion!.text,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                if (_currentQuestion!.translationJa != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    _currentQuestion!.translationJa!,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ],
-            ),
-          ),
+          // 問題表示領域
+          if (isListening)
+            _buildListeningQuestion()
+          else
+            _buildFillInBlankQuestion(),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
 
           // 状態メッセージ
           if (_status == BattleStatus.waitingOpponent)
@@ -831,9 +906,11 @@ class _BattleScreenState extends State<BattleScreen> {
             // 解答入力欄
             TextField(
               controller: _answerController,
-              enabled: _status == BattleStatus.answering && !_myAnswered,
+              enabled: _status == BattleStatus.answering && !_myAnswered && !_isTimedOut,
               decoration: InputDecoration(
-                hintText: '答えを入力してください',
+                hintText: isListening
+                    ? '聞こえた文を入力してください'
+                    : '答えを入力してください',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -845,11 +922,11 @@ class _BattleScreenState extends State<BattleScreen> {
               onSubmitted: (_) => _submitAnswer(),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             // 解答ボタン
             ElevatedButton(
-              onPressed: _status == BattleStatus.answering && !_myAnswered
+              onPressed: _status == BattleStatus.answering && !_myAnswered && !_isTimedOut
                   ? _submitAnswer
                   : null,
               style: ElevatedButton.styleFrom(
@@ -864,6 +941,135 @@ class _BattleScreenState extends State<BattleScreen> {
                 '解答する',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 問題タイプ表示チップ
+  Widget _buildQuestionTypeChip(bool isListening) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isListening ? Colors.blue[100] : Colors.green[100],
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isListening ? Icons.headphones : Icons.edit,
+              size: 20,
+              color: isListening ? Colors.blue : Colors.green,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              isListening ? 'リスニング問題' : '虫食い問題',
+              style: TextStyle(
+                color: isListening ? Colors.blue : Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// リスニング問題表示（問題文は非表示）
+  Widget _buildListeningQuestion() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.headphones,
+            size: 64,
+            color: Colors.blue,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '音声を聞いて入力してください',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          // 音声再生ボタン
+          ElevatedButton.icon(
+            onPressed: _playAudio,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('再生'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 虫食い問題表示
+  Widget _buildFillInBlankQuestion() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            '問題 ${_currentQuestion!.roundNumber}',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _currentQuestion!.text,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w500,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (_currentQuestion!.translationJa != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _currentQuestion!.translationJa!,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ],
@@ -938,7 +1144,7 @@ class _BattleScreenState extends State<BattleScreen> {
                   Text(
                     result.correctAnswer,
                     style: const TextStyle(
-                      fontSize: 24,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Colors.blue,
                     ),
@@ -949,22 +1155,44 @@ class _BattleScreenState extends State<BattleScreen> {
 
             const SizedBox(height: 24),
 
-            // 現在のスコア
-            Text(
-              'スコア: $_myWins - $_opponentWins',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+            // 現在のスコア（○→✓形式）
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildScoreIndicator(_myWins, true),
+                const SizedBox(width: 16),
+                Text(
+                  '$_myWins - $_opponentWins',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                _buildScoreIndicator(_opponentWins, false),
+              ],
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 32),
 
+            // 次へボタン（試合継続の場合のみ）
             if (result.matchContinues)
+              ElevatedButton.icon(
+                onPressed: _goToNextRound,
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('次の問題へ'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              )
+            else
               const Text(
-                '次の問題を準備中...',
+                '試合終了...',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   color: Colors.grey,
                 ),
               ),
@@ -1029,13 +1257,22 @@ class _BattleScreenState extends State<BattleScreen> {
 
             const SizedBox(height: 32),
 
-            // スコア
-            Text(
-              '${result.myScore} - ${result.opponentScore}',
-              style: const TextStyle(
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
-              ),
+            // スコア（○→✓形式）
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildScoreIndicator(result.myScore, true),
+                const SizedBox(width: 16),
+                Text(
+                  '${result.myScore} - ${result.opponentScore}',
+                  style: const TextStyle(
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                _buildScoreIndicator(result.opponentScore, false),
+              ],
             ),
 
             const SizedBox(height: 24),

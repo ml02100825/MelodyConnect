@@ -1,6 +1,7 @@
 package com.example.api.service;
 
 import com.example.api.entity.Question;
+import com.example.api.enums.QuestionFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -285,7 +286,9 @@ public class BattleStateService {
         }
 
         // 正誤判定（大文字小文字を無視）
-        boolean isCorrect = currentQuestion.getAnswer().equalsIgnoreCase(answer.trim());
+        // LISTENING問題はcomplete_sentenceを参照、FILL_IN_THE_BLANK問題はanswerを参照
+        String correctAnswer = getCorrectAnswer(currentQuestion);
+        boolean isCorrect = correctAnswer.equalsIgnoreCase(answer.trim());
 
         PlayerAnswer playerAnswer = new PlayerAnswer(userId, answer, now, isCorrect, responseTimeMs);
 
@@ -467,5 +470,29 @@ public class BattleStateService {
         }
         long elapsedMs = Instant.now().toEpochMilli() - state.getRoundStartTime().toEpochMilli();
         return elapsedMs > ROUND_TIME_LIMIT_SECONDS * 1000L;
+    }
+
+    /**
+     * 問題タイプに応じた正解を取得
+     * LISTENING問題: complete_sentenceカラム
+     * FILL_IN_THE_BLANK問題: answerカラム
+     */
+    public static String getCorrectAnswer(Question question) {
+        if (question == null) {
+            return "";
+        }
+
+        if (question.getQuestionFormat() == QuestionFormat.LISTENING) {
+            // LISTENING問題はcomplete_sentenceを使用
+            String completeSentence = question.getCompleteSentence();
+            if (completeSentence != null && !completeSentence.isEmpty()) {
+                return completeSentence;
+            }
+            // fallback: complete_sentenceがない場合はanswerを使用
+            return question.getAnswer() != null ? question.getAnswer() : "";
+        } else {
+            // FILL_IN_THE_BLANK問題はanswerを使用
+            return question.getAnswer() != null ? question.getAnswer() : "";
+        }
     }
 }

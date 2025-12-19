@@ -320,8 +320,9 @@ public class BattleController {
         }
 
         // ラウンド確定前の問題を保存（正解表示用）
+        // 問題タイプに応じた正解を取得（LISTENING→complete_sentence、FILL_IN_BLANK→answer）
         Question currentQuestion = state.getCurrentQuestion();
-        String correctAnswer = currentQuestion != null ? currentQuestion.getAnswer() : "";
+        String correctAnswer = BattleStateService.getCorrectAnswer(currentQuestion);
 
         // ラウンド確定
         BattleStateService.RoundResult roundResult = battleService.processRound(matchId);
@@ -345,9 +346,37 @@ public class BattleController {
             BattleService.BattleResultDto battleResult =
                     battleService.finalizeBattle(matchId, Result.OutcomeReason.normal);
             sendBattleResult(battleResult);
-        } else {
-            // 次の問題を送信
+        }
+        // 試合継続の場合は、クライアントからのnext_roundリクエストを待つ
+        // ラウンド結果がスキップされないよう、ここで自動的に次の問題を送信しない
+    }
+
+    /**
+     * 次のラウンドへ進む（クライアントからのリクエスト）
+     * クライアントがラウンド結果を確認後に /app/battle/next-round を送信
+     */
+    @MessageMapping("/battle/next-round")
+    public void nextRound(@Payload BattleReadyRequest request) {
+        try {
+            logger.info("次ラウンドリクエスト: matchId={}, userId={}", request.getMatchId(), request.getUserId());
+
+            BattleStateService.BattleState state = battleService.getBattleState(request.getMatchId());
+            if (state == null) {
+                sendError(request.getUserId(), "対戦が見つかりません");
+                return;
+            }
+
+            if (state.getStatus() != BattleStateService.Status.IN_PROGRESS) {
+                sendError(request.getUserId(), "対戦は進行中ではありません");
+                return;
+            }
+
+            // 次の問題を両プレイヤーに送信
             sendQuestionToPlayers(state);
+
+        } catch (Exception e) {
+            logger.error("次ラウンド処理エラー: matchId={}", request.getMatchId(), e);
+            sendError(request.getUserId(), "エラーが発生しました: " + e.getMessage());
         }
     }
 

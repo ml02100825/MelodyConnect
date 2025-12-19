@@ -9,6 +9,22 @@ enum BattleStatus {
   matchFinished,    // 試合終了
 }
 
+/// 問題形式
+enum QuestionFormat {
+  listening,        // リスニング問題
+  fillInTheBlank,   // 虫食い問題
+}
+
+/// 問題形式をパース
+QuestionFormat parseQuestionFormat(String? format) {
+  if (format == null) return QuestionFormat.fillInTheBlank;
+  final lowerFormat = format.toLowerCase().trim();
+  if (lowerFormat == 'listening') {
+    return QuestionFormat.listening;
+  }
+  return QuestionFormat.fillInTheBlank;
+}
+
 /// プレイヤー情報
 class BattlePlayer {
   final int userId;
@@ -70,6 +86,12 @@ class BattleQuestion {
       roundTimeLimitMs: json['roundTimeLimitMs'] ?? 90000,
     );
   }
+
+  /// リスニング問題かどうか
+  bool get isListening => parseQuestionFormat(questionFormat) == QuestionFormat.listening;
+
+  /// 問題形式（enum）
+  QuestionFormat get format => parseQuestionFormat(questionFormat);
 }
 
 /// ラウンド結果
