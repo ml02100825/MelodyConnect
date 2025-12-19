@@ -199,8 +199,11 @@ public class BattleService {
             return existing;
         }
 
+        // 言語コードを変換（マッチング時のコードをDB用に変換）
+        String dbLanguageCode = convertToDbLanguageCode(language);
+
         // 問題を取得（言語でフィルタしてランダムに10問選択）
-        List<Question> allQuestions = questionRepository.findByLanguage(language);
+        List<Question> allQuestions = questionRepository.findByLanguage(dbLanguageCode);
 
         if (allQuestions.size() < QUESTION_COUNT) {
             logger.warn("問題数が不足: language={}, available={}, required={}",
@@ -611,5 +614,25 @@ public class BattleService {
         }
 
         return finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
+    }
+
+    /**
+     * マッチング時の言語コードをDB用の言語コードに変換
+     * @param matchingLanguage マッチング時の言語コード（"english", "korean" 等）
+     * @return DB用の言語コード（"en", "ko" 等）
+     */
+    private String convertToDbLanguageCode(String matchingLanguage) {
+        if (matchingLanguage == null) {
+            return "en"; // デフォルト
+        }
+        switch (matchingLanguage.toLowerCase()) {
+            case "english":
+                return "en";
+            case "korean":
+                return "ko";
+            default:
+                // 既に短縮形の場合はそのまま返す
+                return matchingLanguage;
+        }
     }
 }
