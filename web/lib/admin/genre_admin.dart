@@ -367,19 +367,7 @@ class _GenreAdminState extends State<GenreAdmin> {
       backgroundColor: Colors.grey[100],
       body: BottomAdminLayout(
         selectedMenu: selectedMenu,
-        onMenuSelected: (menu) {
-          setState(() {
-            selectedMenu = menu;
-          });
-        },
         selectedTab: selectedTab,
-        onTabSelected: (tab) {
-          if (tab != null) {
-            setState(() {
-              selectedTab = tab;
-            });
-          }
-        },
         showTabs: true,
         mainContent: _buildMainContent(),
       ),
@@ -390,7 +378,7 @@ class _GenreAdminState extends State<GenreAdmin> {
     return Column(
       children: [
         // 検索条件エリア
-        _buildVerticalSearchArea(),
+        _buildSearchArea(),
         const SizedBox(height: 16),
         
         // ジャンル一覧テーブル
@@ -401,7 +389,7 @@ class _GenreAdminState extends State<GenreAdmin> {
     );
   }
 
-  Widget _buildVerticalSearchArea() {
+  Widget _buildSearchArea() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -440,7 +428,7 @@ class _GenreAdminState extends State<GenreAdmin> {
                         addedStart,
                         addedEnd,
                       ),
-                      const SizedBox(height: 32), // 高さ調整用
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
@@ -450,9 +438,8 @@ class _GenreAdminState extends State<GenreAdmin> {
                 Expanded(
                   child: Column(
                     children: [
-                      // ボタンエリア
                       Container(
-                        padding: const EdgeInsets.only(top: 68), // 高さ調整
+                        padding: const EdgeInsets.only(top: 68),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
@@ -653,7 +640,6 @@ class _GenreAdminState extends State<GenreAdmin> {
       ),
       child: Column(
         children: [
-          // テーブルヘッダー
           if (filteredGenres.isNotEmpty)
             Container(
               decoration: BoxDecoration(
@@ -674,7 +660,6 @@ class _GenreAdminState extends State<GenreAdmin> {
               ),
             ),
           
-          // テーブルデータまたは該当なしメッセージ
           Expanded(
             child: filteredGenres.isEmpty
                 ? _buildNoGenresFound()
@@ -714,9 +699,6 @@ class _GenreAdminState extends State<GenreAdmin> {
                     },
                   ),
           ),
-          
-          // 全てのボタンを同じ行に表示
-          _buildButtonsArea(),
         ],
       ),
     );
@@ -749,7 +731,6 @@ class _GenreAdminState extends State<GenreAdmin> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // 選択中のジャンルを無効化ボタン
           if (hasSelection)
             Container(
               margin: const EdgeInsets.only(right: 8),
@@ -775,7 +756,6 @@ class _GenreAdminState extends State<GenreAdmin> {
               ),
             ),
           
-          // 選択中のジャンルを有効化ボタン
           if (hasSelection)
             Container(
               decoration: BoxDecoration(

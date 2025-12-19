@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'badge_detail_admin.dart';
-import 'touroku_admin.dart'; // 追加
+import 'touroku_admin.dart';
 
 class Badge {
   final String id;
@@ -430,19 +430,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
       backgroundColor: Colors.grey[100],
       body: BottomAdminLayout(
         selectedMenu: selectedMenu,
-        onMenuSelected: (menu) {
-          setState(() {
-            selectedMenu = menu;
-          });
-        },
         selectedTab: selectedTab,
-        onTabSelected: (tab) {
-          if (tab != null) {
-            setState(() {
-              selectedTab = tab;
-            });
-          }
-        },
         showTabs: true,
         mainContent: _buildMainContent(),
       ),

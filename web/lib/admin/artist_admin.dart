@@ -428,19 +428,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
       backgroundColor: Colors.grey[100],
       body: BottomAdminLayout(
         selectedMenu: selectedMenu,
-        onMenuSelected: (menu) {
-          setState(() {
-            selectedMenu = menu;
-          });
-        },
         selectedTab: selectedTab,
-        onTabSelected: (tab) {
-          if (tab != null) {
-            setState(() {
-              selectedTab = tab;
-            });
-          }
-        },
         showTabs: true,
         mainContent: _buildMainContent(),
       ),

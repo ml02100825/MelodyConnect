@@ -1,5 +1,5 @@
 // artist_detail_admin.dart（アーティスト詳細画面）
-import 'package:flutter/material.dart' hide Artist;
+import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'artist_admin.dart';
 
@@ -31,7 +31,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
   late TextEditingController genreController;
   late TextEditingController genreIdController;
   late TextEditingController artistApiIdController;
-  late TextEditingController descriptionController;
   late TextEditingController imageUrlController;
   
   // 元の値（キャンセル用）
@@ -39,7 +38,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
   late String _originalGenre;
   late String _originalGenreId;
   late String _originalArtistApiId;
-  late String _originalDescription;
   late String _originalImageUrl;
   late String _originalStatus;
   
@@ -93,19 +91,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       backgroundColor: Colors.grey[100],
       body: BottomAdminLayout(
         selectedMenu: selectedMenu,
-        onMenuSelected: (menu) {
-          setState(() {
-            selectedMenu = menu;
-          });
-        },
         selectedTab: selectedTab,
-        onTabSelected: (tab) {
-          if (tab != null) {
-            setState(() {
-              selectedTab = tab;
-            });
-          }
-        },
         showTabs: false,
         mainContent: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -488,7 +474,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       genreController.text = _originalGenre;
       genreIdController.text = _originalGenreId;
       artistApiIdController.text = _originalArtistApiId;
-      descriptionController.text = _originalDescription;
       imageUrlController.text = _originalImageUrl;
       selectedStatus = _originalStatus;
     });
@@ -544,7 +529,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     _originalGenre = genreController.text;
     _originalGenreId = genreIdController.text;
     _originalArtistApiId = artistApiIdController.text;
-    _originalDescription = descriptionController.text;
     _originalImageUrl = imageUrlController.text;
     _originalStatus = selectedStatus;
 
@@ -718,7 +702,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     genreController.dispose();
     genreIdController.dispose();
     artistApiIdController.dispose();
-    descriptionController.dispose();
     imageUrlController.dispose();
     super.dispose();
   }

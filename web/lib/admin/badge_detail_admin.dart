@@ -29,14 +29,10 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
   // 編集用コントローラー
   late TextEditingController nameController;
   late TextEditingController conditionController;
-  late TextEditingController descriptionController;
-  late TextEditingController imageUrlController;
   
   // 元の値（キャンセル用）
   late String _originalName;
   late String _originalCondition;
-  late String _originalDescription;
-  late String _originalImageUrl;
   late String _originalMode;
   late String _originalStatus;
   
@@ -89,19 +85,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       backgroundColor: Colors.grey[100],
       body: BottomAdminLayout(
         selectedMenu: selectedMenu,
-        onMenuSelected: (menu) {
-          setState(() {
-            selectedMenu = menu;
-          });
-        },
         selectedTab: selectedTab,
-        onTabSelected: (tab) {
-          if (tab != null) {
-            setState(() {
-              selectedTab = tab;
-            });
-          }
-        },
         showTabs: false,
         mainContent: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -159,26 +143,11 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
                           borderRadius: BorderRadius.circular(40), // 円形に
                           border: Border.all(color: Colors.grey[300]!),
                         ),
-                        child: imageUrlController.text.isNotEmpty
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(40),
-                                child: Image.network(
-                                  imageUrlController.text,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Icon(
-                                      Icons.emoji_events,
-                                      size: 40,
-                                      color: Colors.amber[700],
-                                    );
-                                  },
-                                ),
-                              )
-                            : Icon(
-                                Icons.emoji_events,
-                                size: 40,
-                                color: Colors.amber[700],
-                              ),
+                        child: Icon(
+                          Icons.emoji_events,
+                          size: 40,
+                          color: Colors.amber[700],
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -337,6 +306,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       case '取得条件':
         return TextField(
           controller: conditionController,
+          maxLines: 3, // 複数行対応
           decoration: InputDecoration(
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
@@ -702,8 +672,6 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
   void dispose() {
     nameController.dispose();
     conditionController.dispose();
-    descriptionController.dispose();
-    imageUrlController.dispose();
     super.dispose();
   }
 }

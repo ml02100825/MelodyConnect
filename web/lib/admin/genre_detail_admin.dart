@@ -28,13 +28,9 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
   
   // 編集用コントローラー
   late TextEditingController nameController;
-  late TextEditingController descriptionController;
-  late TextEditingController imageUrlController;
   
   // 元の値（キャンセル用）
   late String _originalName;
-  late String _originalDescription;
-  late String _originalImageUrl;
   late String _originalStatus;
   
   // 選択用状態
@@ -70,19 +66,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
       backgroundColor: Colors.grey[100],
       body: BottomAdminLayout(
         selectedMenu: selectedMenu,
-        onMenuSelected: (menu) {
-          setState(() {
-            selectedMenu = menu;
-          });
-        },
         selectedTab: selectedTab,
-        onTabSelected: (tab) {
-          if (tab != null) {
-            setState(() {
-              selectedTab = tab;
-            });
-          }
-        },
         showTabs: false,
         mainContent: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -140,26 +124,11 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
                           borderRadius: BorderRadius.circular(40),
                           border: Border.all(color: Colors.grey[300]!),
                         ),
-                        child: imageUrlController.text.isNotEmpty
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(40),
-                                child: Image.network(
-                                  imageUrlController.text,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Icon(
-                                      Icons.category,
-                                      size: 40,
-                                      color: Colors.purple[700],
-                                    );
-                                  },
-                                ),
-                              )
-                            : Icon(
-                                Icons.category,
-                                size: 40,
-                                color: Colors.purple[700],
-                              ),
+                        child: Icon(
+                          Icons.category,
+                          size: 40,
+                          color: Colors.purple[700],
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -422,8 +391,6 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
       
       // 元の値に戻す
       nameController.text = _originalName;
-      descriptionController.text = _originalDescription;
-      imageUrlController.text = _originalImageUrl;
       selectedStatus = _originalStatus;
     });
     
@@ -467,8 +434,6 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
 
     // 元の値を更新
     _originalName = nameController.text;
-    _originalDescription = descriptionController.text;
-    _originalImageUrl = imageUrlController.text;
     _originalStatus = selectedStatus;
 
     setState(() {
@@ -621,8 +586,6 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
   @override
   void dispose() {
     nameController.dispose();
-    descriptionController.dispose();
-    imageUrlController.dispose();
     super.dispose();
   }
 }
