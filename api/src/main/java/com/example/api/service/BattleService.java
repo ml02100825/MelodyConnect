@@ -1,5 +1,7 @@
 package com.example.api.service;
 
+import com.example.api.dto.battle.BattleStartResponseDto;
+import com.example.api.dto.battle.PlayerInfoDto;
 import com.example.api.entity.Question;
 import com.example.api.entity.Rate;
 import com.example.api.entity.Result;
@@ -224,6 +226,91 @@ public class BattleService {
         logger.info("対戦初期化: matchUuid={}, questions={}", matchUuid, selectedQuestions.size());
 
         return battleStateService.createBattle(matchUuid, player1Id, player2Id, language, selectedQuestions);
+    }
+
+    /**
+     * バトル開始（ユーザー情報付き）
+     * Controller層でLazy Entityを直接参照しないようにするため、
+     * @Transactional 範囲内でUser情報を取得してDTOで返す
+     *
+     * @param matchId マッチID
+     * @return バトル開始レスポンスDTO
+     */
+    @Transactional(readOnly = true)
+    public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
+        // fetch joinでResult + Userを一括取得（LazyInitializationException回避）
+        List<Result> results = resultRepository.findAllByMatchUuidWithUsers(matchId);
+
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException("マッチ情報が見つかりません: " + matchId);
+        }
+
+        if (results.size() != 2) {
+            throw new IllegalArgumentException("マッチ情報が不正です: expected 2, got " + results.size());
+        }
+
+        Result result1 = results.get(0);
+        User player = result1.getPlayer();  // fetch join済みなので安全にアクセス可能
+        User enemy = result1.getEnemy();    // fetch join済みなので安全にアクセス可能
+
+        // 対戦を初期化（問題取得・状態作成）
+        BattleStateService.BattleState state = initializeBattle(
+                matchId,
+                player.getId(),
+                enemy.getId(),
+                result1.getUseLanguage()
+        );
+
+        // トランザクション内でレート情報を取得
+        Integer player1Rate = getPlayerRate(player);
+        Integer player2Rate = getPlayerRate(enemy);
+
+        // トランザクション内でUser情報をDTOに変換
+        PlayerInfoDto user1Info = new PlayerInfoDto(
+                player.getId(),
+                player.getUsername(),
+                player.getImageUrl(),
+                player1Rate
+        );
+
+        PlayerInfoDto user2Info = new PlayerInfoDto(
+                enemy.getId(),
+                enemy.getUsername(),
+                enemy.getImageUrl(),
+                player2Rate
+        );
+
+        return BattleStartResponseDto.builder()
+                .matchId(matchId)
+                .user1Id(state.getPlayer1Id())
+                .user2Id(state.getPlayer2Id())
+                .language(state.getLanguage())
+                .questionCount(state.getQuestions().size())
+                .roundTimeLimitSeconds(BattleStateService.ROUND_TIME_LIMIT_SECONDS)
+                .winsRequired(BattleStateService.WINS_TO_VICTORY)
+                .maxRounds(BattleStateService.MAX_ROUNDS)
+                .status("ready")
+                .message("バトルを開始できます")
+                .user1Info(user1Info)
+                .user2Info(user2Info)
+                .build();
+    }
+
+    /**
+     * ユーザーのレート情報を取得（Service層で使用）
+     * @param user ユーザーエンティティ
+     * @return レート値（未登録の場合は初期値1500）
+     */
+    private Integer getPlayerRate(User user) {
+        try {
+            int currentSeason = seasonCalculator.getCurrentSeason();
+            return rateRepository.findByUserAndSeason(user, currentSeason)
+                    .map(Rate::getRate)
+                    .orElse(1500);  // 未登録の場合は初期値
+        } catch (Exception e) {
+            logger.warn("レート取得エラー: userId={}", user.getId(), e);
+            return 1500;
+        }
     }
 
     /**

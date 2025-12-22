@@ -3,6 +3,7 @@ package com.example.api.repository;
 import com.example.api.entity.Result;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -44,6 +45,18 @@ public interface ResultRepository extends JpaRepository<Result, Long> {
      * @return 結果のリスト（通常2件）
      */
     List<Result> findAllByMatchUuid(String matchUuid);
+
+    /**
+     * マッチUUIDで両方のプレイヤーの結果を検索（User情報をfetch join）
+     * LazyInitializationException回避のため、player/enemyを一括取得
+     * @param matchUuid マッチUUID
+     * @return 結果のリスト（通常2件、User情報初期化済み）
+     */
+    @Query("SELECT r FROM Result r " +
+           "JOIN FETCH r.player " +
+           "JOIN FETCH r.enemy " +
+           "WHERE r.matchUuid = :matchUuid")
+    List<Result> findAllByMatchUuidWithUsers(@Param("matchUuid") String matchUuid);
 
     /**
      * マッチUUIDとプレイヤーIDで結果を検索（重複チェック用）

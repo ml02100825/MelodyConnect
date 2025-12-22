@@ -2,10 +2,8 @@ package com.example.api.controller;
 
 import com.example.api.dto.battle.*;
 import com.example.api.entity.Question;
-import com.example.api.entity.Rate;
 import com.example.api.entity.Result;
 import com.example.api.entity.User;
-import com.example.api.repository.RateRepository;
 import com.example.api.repository.ResultRepository;
 import com.example.api.service.BattleService;
 import com.example.api.service.BattleStateService;
@@ -37,16 +35,10 @@ public class BattleController {
     private ResultRepository resultRepository;
 
     @Autowired
-    private RateRepository rateRepository;
-
-    @Autowired
     private BattleService battleService;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
-
-    /** 現在のシーズン（不明（要確認）：シーズン管理の設定箇所。暫定値を使用） */
-    private static final int CURRENT_SEASON = 1;
 
     // ==================== REST API ====================
 
@@ -55,70 +47,20 @@ public class BattleController {
      * マッチング成立後、このエンドポイントでバトル情報を取得します
      *
      * @param matchId マッチID
-     * @return バトル情報
+     * @return バトル情報（BattleStartResponseDto）
      */
     @GetMapping("/start/{matchId}")
     public ResponseEntity<?> startBattle(@PathVariable String matchId) {
         try {
-            // マッチIDに対応するResultレコードを取得（2件）
-            List<Result> results = resultRepository.findAllByMatchUuid(matchId);
+            // Service層でユーザー情報を含むバトル情報を取得
+            // fetch joinにより、LazyInitializationExceptionを回避
+            BattleStartResponseDto response = battleService.startBattleWithUserInfo(matchId);
+            return ResponseEntity.ok(response);
 
-            if (results.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(createErrorResponse("マッチ情報が見つかりません"));
-            }
-
-            if (results.size() != 2) {
-                return ResponseEntity.badRequest()
-                        .body(createErrorResponse("マッチ情報が不正です"));
-            }
-
-            Result result1 = results.get(0);
-            User player = result1.getPlayer();
-            User enemy = result1.getEnemy();
-
-            // 対戦を初期化（問題取得・状態作成）
-            BattleStateService.BattleState state = battleService.initializeBattle(
-                    matchId,
-                    player.getId(),
-                    enemy.getId(),
-                    result1.getUseLanguage()
-            );
-
-            // ユーザーのレート情報を取得
-            Integer player1Rate = getPlayerRate(player);
-            Integer player2Rate = getPlayerRate(enemy);
-
-            // バトル情報を返す
-            Map<String, Object> battleInfo = new HashMap<>();
-            battleInfo.put("matchId", matchId);
-            battleInfo.put("user1Id", state.getPlayer1Id());
-            battleInfo.put("user2Id", state.getPlayer2Id());
-            battleInfo.put("language", state.getLanguage());
-            battleInfo.put("questionCount", state.getQuestions().size());
-            battleInfo.put("roundTimeLimitSeconds", BattleStateService.ROUND_TIME_LIMIT_SECONDS);
-            battleInfo.put("winsRequired", BattleStateService.WINS_TO_VICTORY);
-            battleInfo.put("maxRounds", BattleStateService.MAX_ROUNDS);
-            battleInfo.put("status", "ready");
-            battleInfo.put("message", "バトルを開始できます");
-
-            // ユーザー詳細情報を追加
-            Map<String, Object> user1Info = new HashMap<>();
-            user1Info.put("userId", player.getId());
-            user1Info.put("username", player.getUsername());
-            user1Info.put("imageUrl", player.getImageUrl());
-            user1Info.put("rate", player1Rate);
-            battleInfo.put("user1Info", user1Info);
-
-            Map<String, Object> user2Info = new HashMap<>();
-            user2Info.put("userId", enemy.getId());
-            user2Info.put("username", enemy.getUsername());
-            user2Info.put("imageUrl", enemy.getImageUrl());
-            user2Info.put("rate", player2Rate);
-            battleInfo.put("user2Info", user2Info);
-
-            return ResponseEntity.ok(battleInfo);
-
+        } catch (IllegalArgumentException e) {
+            logger.warn("バトル開始エラー（バリデーション）: matchId={}, message={}", matchId, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
             logger.error("バトル開始エラー: matchId={}", matchId, e);
             return ResponseEntity.status(500)
@@ -561,21 +503,5 @@ public class BattleController {
         Map<String, String> error = new HashMap<>();
         error.put("error", message);
         return error;
-    }
-
-    /**
-     * ユーザーのレート情報を取得
-     * @param user ユーザーエンティティ
-     * @return レート値（未登録の場合は初期値1500）
-     */
-    private Integer getPlayerRate(User user) {
-        try {
-            return rateRepository.findByUserAndSeason(user, CURRENT_SEASON)
-                    .map(Rate::getRate)
-                    .orElse(1500);  // 未登録の場合は初期値
-        } catch (Exception e) {
-            logger.warn("レート取得エラー: userId={}", user.getId(), e);
-            return 1500;
-        }
     }
 }
