@@ -410,7 +410,8 @@ public class BattleController {
                 question.getTranslationJa(),
                 state.getCurrentRound() + 1,
                 state.getQuestions().size(),
-                BattleStateService.ROUND_TIME_LIMIT_SECONDS * 1000L
+                BattleStateService.ROUND_TIME_LIMIT_SECONDS * 1000L,
+                state.getRoundStartTime().toEpochMilli()
         );
 
         Map<String, Object> questionMessage = new HashMap<>();

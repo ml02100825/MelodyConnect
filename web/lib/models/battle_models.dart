@@ -62,6 +62,7 @@ class BattleQuestion {
   final int roundNumber;
   final int totalRounds;
   final int roundTimeLimitMs;
+  final int roundStartTimestamp;
 
   BattleQuestion({
     required this.questionId,
@@ -72,6 +73,7 @@ class BattleQuestion {
     required this.roundNumber,
     required this.totalRounds,
     required this.roundTimeLimitMs,
+    required this.roundStartTimestamp,
   });
 
   factory BattleQuestion.fromJson(Map<String, dynamic> json) {
@@ -84,7 +86,16 @@ class BattleQuestion {
       roundNumber: json['roundNumber'] ?? 1,
       totalRounds: json['totalRounds'] ?? 10,
       roundTimeLimitMs: json['roundTimeLimitMs'] ?? 90000,
+      roundStartTimestamp: json['roundStartTimestamp'] ?? DateTime.now().millisecondsSinceEpoch,
     );
+  }
+
+  /// サーバー時刻に基づいて残り時間（秒）を計算
+  int calculateRemainingSeconds() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final elapsed = now - roundStartTimestamp;
+    final remaining = (roundTimeLimitMs - elapsed) ~/ 1000;
+    return remaining > 0 ? remaining : 0;
   }
 
   /// リスニング問題かどうか

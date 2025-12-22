@@ -12,12 +12,14 @@ public class QuestionResponse {
     private int roundNumber;
     private int totalRounds;
     private long roundTimeLimitMs;
+    private long roundStartTimestamp;
 
     public QuestionResponse() {}
 
     public QuestionResponse(Integer questionId, String text, String questionFormat,
                            String audioUrl, String translationJa,
-                           int roundNumber, int totalRounds, long roundTimeLimitMs) {
+                           int roundNumber, int totalRounds, long roundTimeLimitMs,
+                           long roundStartTimestamp) {
         this.questionId = questionId;
         this.text = text;
         this.questionFormat = questionFormat;
@@ -26,6 +28,7 @@ public class QuestionResponse {
         this.roundNumber = roundNumber;
         this.totalRounds = totalRounds;
         this.roundTimeLimitMs = roundTimeLimitMs;
+        this.roundStartTimestamp = roundStartTimestamp;
     }
 
     // Getters and Setters
@@ -52,4 +55,7 @@ public class QuestionResponse {
 
     public long getRoundTimeLimitMs() { return roundTimeLimitMs; }
     public void setRoundTimeLimitMs(long roundTimeLimitMs) { this.roundTimeLimitMs = roundTimeLimitMs; }
+
+    public long getRoundStartTimestamp() { return roundStartTimestamp; }
+    public void setRoundStartTimestamp(long roundStartTimestamp) { this.roundStartTimestamp = roundStartTimestamp; }
 }

@@ -276,7 +276,10 @@ class _BattleScreenState extends State<BattleScreen> {
       _waitingForOpponentNext = false;  // リセット
       _status = BattleStatus.answering;
       _answerController.clear();
-      _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
+      // サーバー時刻に基づいて残り時間を計算（画面更新時もリセットされない）
+      _remainingSeconds = _currentQuestion?.calculateRemainingSeconds()
+          ?? _battleInfo?.roundTimeLimitSeconds
+          ?? 90;
     });
 
     // タイマー開始
