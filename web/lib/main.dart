@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/login_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/battle_mode_selection_screen.dart';
 import 'screens/language_selection_screen.dart';
 import 'screens/matching_screen.dart';
@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const LoginScreen(),
+      home: const SplashScreen(),  // セッション検証を行うスプラッシュ画面
       routes: {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),

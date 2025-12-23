@@ -1,6 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+/// セッション無効例外
+/// セッションが失効・revoke済みの場合にスローされます
+class SessionInvalidException implements Exception {
+  final String message;
+  SessionInvalidException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// 認証APIサービス
 /// バックエンドの認証エンドポイントとの通信を行います
 class AuthApiService {
@@ -104,6 +114,38 @@ class AuthApiService {
         rethrow;
       }
       throw Exception('ネットワークエラーが発生しました');
+    }
+  }
+
+  /// セッション検証（アプリ起動時にセッションが有効か確認）
+  ///
+  /// [refreshToken] - リフレッシュトークン
+  ///
+  /// 返り値: AuthResponse（有効な場合）
+  /// セッションが無効な場合は例外をスロー
+  Future<Map<String, dynamic>> validateSession(String refreshToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/validate'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'refreshToken': refreshToken,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        // 401 = セッション無効
+        throw SessionInvalidException('セッションが無効です');
+      }
+    } catch (e) {
+      if (e is SessionInvalidException) {
+        rethrow;
+      }
+      throw Exception('セッション検証中にエラーが発生しました');
     }
   }
 

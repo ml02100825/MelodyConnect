@@ -109,6 +109,28 @@ public class AuthController {
     }
 
     /**
+     * セッション検証エンドポイント
+     * リフレッシュトークンを使ってセッションの有効性を確認する
+     * 有効な場合は新しいアクセストークンを発行する
+     * @param request リフレッシュトークンリクエスト
+     * @return 認証レスポンス（有効な場合）または401（無効な場合）
+     */
+    @PostMapping("/validate")
+    public ResponseEntity<?> validateSession(@Valid @RequestBody RefreshTokenRequest request) {
+        try {
+            AuthResponse response = authService.refreshAccessToken(request.getRefreshToken());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            // セッションが無効（失効、revoke済み、または不正なトークン）
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createErrorResponse("セッションが無効です"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("セッション検証中にエラーが発生しました"));
+        }
+    }
+
+    /**
      * クライアントのIPアドレスを取得
      * @param request HTTPリクエスト
      * @return IPアドレス
