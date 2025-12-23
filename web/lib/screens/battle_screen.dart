@@ -1257,13 +1257,40 @@ class _BattleScreenState extends State<BattleScreen> {
                       ),
                     )
             else
-              const Text(
-                '試合終了...',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.grey,
-                ),
-              ),
+              // 試合終了時：結果が受信済みなら「結果を見る」、まだなら待機表示
+              _battleResult != null
+                  ? ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _status = BattleStatus.matchFinished;
+                        });
+                      },
+                      icon: const Icon(Icons.emoji_events),
+                      label: const Text('結果を見る'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '結果を取得中...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
           ],
         ),
       ),
