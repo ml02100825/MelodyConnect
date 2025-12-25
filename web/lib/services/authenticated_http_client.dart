@@ -17,10 +17,12 @@ class AuthenticatedHttpClient {
 
   /// GETリクエスト
   Future<http.Response> get(String url, {Map<String, String>? headers}) async {
-    return _request(() => http.get(
-      Uri.parse(url),
-      headers: await _buildHeaders(headers),
-    ));
+    return _requestWithRetry(
+      () async => http.get(
+        Uri.parse(url),
+        headers: await _buildHeaders(headers),
+      ),
+    );
   }
 
   /// POSTリクエスト
@@ -29,11 +31,14 @@ class AuthenticatedHttpClient {
     Map<String, String>? headers,
     Object? body,
   }) async {
-    return _request(() => http.post(
-      Uri.parse(url),
-      headers: await _buildHeaders(headers),
-      body: body is String ? body : jsonEncode(body),
-    ));
+    final encodedBody = body is String ? body : jsonEncode(body);
+    return _requestWithRetry(
+      () async => http.post(
+        Uri.parse(url),
+        headers: await _buildHeaders(headers),
+        body: encodedBody,
+      ),
+    );
   }
 
   /// PUTリクエスト
@@ -42,19 +47,24 @@ class AuthenticatedHttpClient {
     Map<String, String>? headers,
     Object? body,
   }) async {
-    return _request(() => http.put(
-      Uri.parse(url),
-      headers: await _buildHeaders(headers),
-      body: body is String ? body : jsonEncode(body),
-    ));
+    final encodedBody = body is String ? body : jsonEncode(body);
+    return _requestWithRetry(
+      () async => http.put(
+        Uri.parse(url),
+        headers: await _buildHeaders(headers),
+        body: encodedBody,
+      ),
+    );
   }
 
   /// DELETEリクエスト
   Future<http.Response> delete(String url, {Map<String, String>? headers}) async {
-    return _request(() => http.delete(
-      Uri.parse(url),
-      headers: await _buildHeaders(headers),
-    ));
+    return _requestWithRetry(
+      () async => http.delete(
+        Uri.parse(url),
+        headers: await _buildHeaders(headers),
+      ),
+    );
   }
 
   /// ヘッダーを構築（Authorizationヘッダーを追加）
@@ -68,17 +78,20 @@ class AuthenticatedHttpClient {
     return headers;
   }
 
-  /// リクエストを実行（401/403時はトークンリフレッシュを試みる）
-  Future<http.Response> _request(Future<http.Response> Function() requestFn) async {
+  /// リクエストを実行（401/403時はトークンリフレッシュを試みて1回だけリトライ）
+  Future<http.Response> _requestWithRetry(
+    Future<http.Response> Function() requestFn,
+  ) async {
     final response = await requestFn();
 
-    // 401/403の場合、トークンリフレッシュを試みる
+    // 401/403の場合、トークンリフレッシュを試みる（1回のみ）
     if ((response.statusCode == 401 || response.statusCode == 403) && !_isRetrying) {
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
-        // リフレッシュ成功、リトライ
+        // リフレッシュ成功、新しいトークンでリトライ
         _isRetrying = true;
         try {
+          // requestFnを再実行すると、_buildHeadersが呼ばれて新しいトークンが使われる
           final retryResponse = await requestFn();
           return retryResponse;
         } finally {
