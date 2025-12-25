@@ -145,22 +145,22 @@ if (!user.isSubscribeFlag() && user.getLife() > 5) {
 ### 8. タスク分解
 
 #### Phase 5-1: バックエンド基盤
-- [ ] Task 5-1-1: `User.java` に `lifeLastRecoveredAt` カラム追加
-- [ ] Task 5-1-2: `LifeStatusResponse.java` DTO作成
-- [ ] Task 5-1-3: `UserRepository.java` に条件付きUPDATEメソッド追加
-- [ ] Task 5-1-4: `LifeService.java` 作成（回復計算、消費処理、状態取得）
-- [ ] Task 5-1-5: `LifeController.java` 作成（GET `/api/life`）
+- [x] Task 5-1-1: `User.java` に `lifeLastRecoveredAt` カラム追加
+- [x] Task 5-1-2: `LifeStatusResponse.java` DTO作成
+- [x] Task 5-1-3: `UserRepository.java` に条件付きUPDATEメソッド追加
+- [x] Task 5-1-4: `LifeService.java` 作成（回復計算、消費処理、状態取得）
+- [x] Task 5-1-5: `LifeController.java` 作成（GET `/api/life`）
 
 #### Phase 5-2: マッチング統合
-- [ ] Task 5-2-1: `MatchingService.joinQueue()` にlife消費処理統合
-- [ ] Task 5-2-2: `MatchingController.joinMatching()` にlife不足エラー追加
+- [x] Task 5-2-1: `MatchingService.joinQueue()` にlife消費処理統合
+- [x] Task 5-2-2: `MatchingController.joinMatching()` にlife不足エラー追加
 
 #### Phase 5-3: フロントエンド
-- [ ] Task 5-3-1: `life_api_service.dart` 作成
-- [ ] Task 5-3-2: `battle_mode_selection_screen.dart` にlife表示追加
-- [ ] Task 5-3-3: life不足時のUI制御（ボタン無効化/メッセージ表示）
-- [ ] Task 5-3-4: `matching_screen.dart` にlife不足エラーハンドリング追加
-- [ ] Task 5-3-5: `home_screen.dart` のlife表示をリアルタイム更新対応
+- [x] Task 5-3-1: `life_api_service.dart` 作成
+- [x] Task 5-3-2: `battle_mode_selection_screen.dart` にlife表示追加
+- [x] Task 5-3-3: life不足時のUI制御（ボタン無効化/メッセージ表示）
+- [x] Task 5-3-4: `matching_screen.dart` にlife不足エラーハンドリング追加
+- [x] Task 5-3-5: `home_screen.dart` のlife表示をリアルタイム更新対応
 
 #### Phase 5-4: テスト・検証
 - [ ] Task 5-4-1: 単体テスト（回復計算、消費処理）
