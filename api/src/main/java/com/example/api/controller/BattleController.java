@@ -379,10 +379,28 @@ public class BattleController {
 
     /**
      * 次のラウンドへ進む処理（共通）
+     * 優先度：1) 試合終了条件（勝/負/引き分け確定）→ 結果確定処理
+     *        2) 試合継続 → 次ラウンドへ進行
      */
     private synchronized void advanceToNextRound(String matchId) {
         BattleStateService.BattleState state = battleService.getBattleState(matchId);
-        if (state == null || state.getStatus() != BattleStateService.Status.IN_PROGRESS) {
+        if (state == null) {
+            return;
+        }
+
+        // 既に終了済みならスキップ
+        if (state.getStatus() != BattleStateService.Status.IN_PROGRESS) {
+            return;
+        }
+
+        // 試合終了条件をチェック（勝/負/引き分け確定）
+        if (state.isMatchDecided()) {
+            // 結果確定処理
+            logger.info("結果確定: matchId={}, player1Wins={}, player2Wins={}, winner={}",
+                    matchId, state.getPlayer1Wins(), state.getPlayer2Wins(), state.getWinnerId());
+            BattleService.BattleResultDto battleResult =
+                    battleService.finalizeBattle(matchId, Result.OutcomeReason.normal);
+            sendBattleResult(battleResult);
             return;
         }
 
