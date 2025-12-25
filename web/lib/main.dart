@@ -5,6 +5,7 @@ import 'screens/language_selection_screen.dart';
 import 'screens/matching_screen.dart';
 import 'screens/battle_screen.dart';
 import 'screens/quiz_selection_screen.dart';
+import 'screens/vocabulary_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -46,6 +47,17 @@ class MyApp extends StatelessWidget {
               settings: settings,
             );
           }
+        }
+
+        // /vocabulary?userId=xxx のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/vocabulary') == true) {
+          final uri = Uri.parse(settings.name!);
+          final userIdStr = uri.queryParameters['userId'];
+          final userId = userIdStr != null ? int.tryParse(userIdStr) ?? 0 : 0;
+          return MaterialPageRoute(
+            builder: (context) => VocabularyScreen(userId: userId),
+            settings: settings,
+          );
         }
 
         return null;

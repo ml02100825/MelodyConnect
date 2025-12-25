@@ -6,6 +6,7 @@ import com.example.api.entity.Question;
 import com.example.api.entity.Rate;
 import com.example.api.entity.Result;
 import com.example.api.entity.User;
+import com.example.api.enums.QuestionFormat;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.RateRepository;
 import com.example.api.repository.ResultRepository;
@@ -56,6 +57,9 @@ public class BattleService {
 
     @Autowired
     private SeasonCalculator seasonCalculator;
+
+    @Autowired
+    private UserVocabularyService userVocabularyService;
 
     /**
      * 対戦結果DTO（リザルト画面用）
@@ -439,6 +443,9 @@ public class BattleService {
         updateResultRecords(matchUuid, state, winnerId, loserId, isDraw,
                 winnerRateChange, loserRateChange, roundSummaries, outcomeReason);
 
+        // 両プレイヤーの単語帳登録（学習と同じルール）
+        registerVocabularyForBothPlayers(state);
+
         // メモリから状態削除
         battleStateService.removeBattle(matchUuid);
 
@@ -743,5 +750,88 @@ public class BattleService {
                 // 既に短縮形の場合はそのまま返す
                 return matchingLanguage;
         }
+    }
+
+    /**
+     * 両プレイヤーの単語帳登録（対戦終了時）
+     * 学習と同じルール：
+     * - FILL_IN_THE_BLANK: 全ての問題のanswerを登録
+     * - LISTENING: 不正解の場合のみ、userAnswerとcorrectAnswerを使って登録
+     *
+     * @param state 対戦状態
+     */
+    private void registerVocabularyForBothPlayers(BattleStateService.BattleState state) {
+        try {
+            Long player1Id = state.getPlayer1Id();
+            Long player2Id = state.getPlayer2Id();
+            List<Question> questions = state.getQuestions();
+            List<BattleStateService.RoundResult> roundResults = state.getRoundResults();
+
+            // questionIdでQuestionをマップ化
+            Map<Integer, Question> questionMap = questions.stream()
+                    .collect(Collectors.toMap(Question::getQuestionId, q -> q));
+
+            int player1Registered = 0;
+            int player2Registered = 0;
+
+            for (BattleStateService.RoundResult rr : roundResults) {
+                Question question = questionMap.get(rr.getQuestionId());
+                if (question == null) continue;
+
+                QuestionFormat format = question.getQuestionFormat();
+                String correctAnswer = BattleStateService.getCorrectAnswer(question);
+
+                // Player1の登録処理
+                BattleStateService.PlayerAnswer p1Answer = rr.getPlayer1Answer();
+                if (p1Answer != null) {
+                    if (registerVocabularyForPlayer(player1Id, question, format, p1Answer, correctAnswer)) {
+                        player1Registered++;
+                    }
+                }
+
+                // Player2の登録処理
+                BattleStateService.PlayerAnswer p2Answer = rr.getPlayer2Answer();
+                if (p2Answer != null) {
+                    if (registerVocabularyForPlayer(player2Id, question, format, p2Answer, correctAnswer)) {
+                        player2Registered++;
+                    }
+                }
+            }
+
+            logger.info("対戦終了時の単語帳登録完了: matchUuid={}, player1登録数={}, player2登録数={}",
+                    state.getMatchUuid(), player1Registered, player2Registered);
+
+        } catch (Exception e) {
+            // 単語帳登録に失敗しても対戦終了処理は続行
+            logger.warn("対戦終了時の単語帳登録でエラーが発生しましたが、処理を続行します: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 個別プレイヤーの単語帳登録
+     *
+     * @return 登録が行われた場合true
+     */
+    private boolean registerVocabularyForPlayer(Long userId, Question question,
+                                                 QuestionFormat format,
+                                                 BattleStateService.PlayerAnswer playerAnswer,
+                                                 String correctAnswer) {
+        try {
+            if (QuestionFormat.FILL_IN_THE_BLANK.equals(format)) {
+                // FILL_IN_THE_BLANK: 全ての問題のanswerを登録
+                userVocabularyService.registerFillInBlankAnswer(userId, question.getAnswer());
+                return true;
+            } else if (QuestionFormat.LISTENING.equals(format) && !playerAnswer.isCorrect()) {
+                // LISTENING: 不正解の場合のみ、間違えた単語を登録
+                String userAnswer = playerAnswer.getAnswer();
+                if (userAnswer != null && !userAnswer.isEmpty()) {
+                    userVocabularyService.registerListeningMistakes(userId, userAnswer, correctAnswer);
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("単語帳登録スキップ: userId={}, error={}", userId, e.getMessage());
+        }
+        return false;
     }
 }
