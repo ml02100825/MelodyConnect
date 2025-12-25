@@ -91,6 +91,7 @@ WHERE user_id = :userId
 | ファイル | 変更内容 |
 |---------|---------|
 | `services/life_api_service.dart` | **新規作成** - life状態取得APIクライアント |
+| `screens/home_screen.dart` | lifeリアルタイム表示（タイマー+復帰時再取得） |
 | `screens/battle_mode_selection_screen.dart` | life表示UI追加、0時の開始不可処理 |
 | `screens/matching_screen.dart` | life不足エラーハンドリング |
 
@@ -159,6 +160,7 @@ if (!user.isSubscribeFlag() && user.getLife() > 5) {
 - [ ] Task 5-3-2: `battle_mode_selection_screen.dart` にlife表示追加
 - [ ] Task 5-3-3: life不足時のUI制御（ボタン無効化/メッセージ表示）
 - [ ] Task 5-3-4: `matching_screen.dart` にlife不足エラーハンドリング追加
+- [ ] Task 5-3-5: `home_screen.dart` のlife表示をリアルタイム更新対応
 
 #### Phase 5-4: テスト・検証
 - [ ] Task 5-4-1: 単体テスト（回復計算、消費処理）
@@ -185,7 +187,135 @@ if (!user.isSubscribeFlag() && user.getLife() > 5) {
 
 ---
 
-### 10. リスク・注意点
+### 10. HomeScreen lifeリアルタイム更新
+
+#### 現状
+`home_screen.dart:154-166` で固定の音符アイコン5個を表示:
+```dart
+Row(
+  children: List.generate(5, (index) {
+    return Icon(Icons.music_note, color: Colors.blue[600], size: 20);
+  }),
+)
+```
+
+#### 更新方式: クライアント側タイマー + 画面復帰時再取得
+
+**方針:**
+- サーバーから取得した `nextRecoveryInSeconds` を使い、クライアント側でカウントダウン
+- 回復タイミングで `currentLife` を +1（上限まで）
+- 画面復帰時（`didChangeAppLifecycleState`）やナビゲーション復帰時に再取得
+- 過剰なAPIコールを避ける（ポーリングは不採用）
+
+#### 実装詳細
+
+**1. State変数追加:**
+```dart
+int _currentLife = 5;
+int _maxLife = 5;
+int _nextRecoveryInSeconds = 0;
+Timer? _recoveryTimer;
+```
+
+**2. ライフサイクル管理:**
+```dart
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _fetchLifeStatus();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _recoveryTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _fetchLifeStatus(); // バックグラウンドから戻ったら再取得
+    }
+  }
+}
+```
+
+**3. クライアント側タイマー:**
+```dart
+void _startRecoveryTimer() {
+  _recoveryTimer?.cancel();
+  if (_currentLife >= _maxLife || _nextRecoveryInSeconds <= 0) return;
+
+  _recoveryTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+    setState(() {
+      _nextRecoveryInSeconds--;
+      if (_nextRecoveryInSeconds <= 0 && _currentLife < _maxLife) {
+        _currentLife++;
+        _nextRecoveryInSeconds = 600; // 10分
+        if (_currentLife >= _maxLife) {
+          timer.cancel();
+        }
+      }
+    });
+  });
+}
+```
+
+**4. UI更新（AppBar内）:**
+```dart
+Row(
+  children: [
+    // life表示（例: 3/5）
+    ...List.generate(_maxLife, (index) {
+      final isFilled = index < _currentLife;
+      return Icon(
+        Icons.music_note,
+        color: isFilled ? Colors.blue[600] : Colors.grey[300],
+        size: 20,
+      );
+    }),
+    const SizedBox(width: 8),
+    // 次回回復までの時間（life < maxのとき）
+    if (_currentLife < _maxLife)
+      Text(
+        _formatRecoveryTime(_nextRecoveryInSeconds),
+        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+      ),
+  ],
+)
+```
+
+**5. 他画面からの復帰時:**
+```dart
+// Navigator.pop後に再取得
+Navigator.push(...).then((_) => _fetchLifeStatus());
+```
+
+#### 表示仕様
+
+| 状態 | 表示例 |
+|------|--------|
+| life満タン | ♪♪♪♪♪ (青5個) |
+| life=3/5 | ♪♪♪♫♫ (青3個+灰2個) + "7:30" |
+| life=0/5 | ♫♫♫♫♫ (灰5個) + "9:45" |
+| サブスク満タン | ♪♪♪♪♪♪♪♪♪♪ (青10個) |
+
+#### Done条件（Task 5-3-5）
+
+1. HomeScreen表示時にAPIからlife状態を取得
+2. 現在life/上限に応じて音符アイコンの色を切り替え
+3. life < 上限のとき、次回回復までの残り時間を表示
+4. クライアント側タイマーで残り時間をカウントダウン
+5. 回復タイミングでlife表示が+1される
+6. バックグラウンド復帰時に再取得して同期
+7. 対戦画面から戻った際にも再取得
+
+---
+
+### 11. リスク・注意点
 
 | リスク | 対策 |
 |--------|------|
