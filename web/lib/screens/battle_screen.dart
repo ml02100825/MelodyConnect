@@ -1404,19 +1404,77 @@ class _BattleScreenState extends State<BattleScreen> {
 
             const SizedBox(height: 48),
 
-            // ホームに戻るボタン
-            ElevatedButton.icon(
-              onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-              icon: const Icon(Icons.home),
-              label: const Text('ホームに戻る'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                textStyle: const TextStyle(fontSize: 18),
-              ),
+            // ボタン群（3つ横並び、または縦並び）
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              runSpacing: 12,
+              children: [
+                // 再キューボタン
+                ElevatedButton.icon(
+                  onPressed: _goToRematch,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('再キュー'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+
+                // 単語帳ボタン
+                ElevatedButton.icon(
+                  onPressed: _goToVocabulary,
+                  icon: const Icon(Icons.book),
+                  label: const Text('単語帳'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+
+                // ホームに戻るボタン
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                  icon: const Icon(Icons.home),
+                  label: const Text('ホーム'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    textStyle: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// 再キュー（同じ設定で再マッチング）
+  void _goToRematch() {
+    // WebSocket接続を切断
+    _stompClient?.deactivate();
+    _roundTimer?.cancel();
+
+    // 直前のマッチ設定（言語）を使って再マッチへ遷移
+    final language = _battleInfo?.language ?? 'english';
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/matching?language=$language',
+      (route) => route.isFirst,
+    );
+  }
+
+  /// 単語帳画面へ遷移
+  void _goToVocabulary() {
+    // ホームに戻ってから単語帳画面へ
+    Navigator.popUntil(context, (route) => route.isFirst);
+    // ボトムナビのインデックス3が単語帳画面
+    // ただし直接遷移が難しい場合は、VocabularyScreenへpushする
+    Navigator.pushNamed(context, '/vocabulary');
   }
 }
