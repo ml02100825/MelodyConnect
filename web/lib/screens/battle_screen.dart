@@ -1473,8 +1473,7 @@ class _BattleScreenState extends State<BattleScreen> {
   void _goToVocabulary() {
     // ホームに戻ってから単語帳画面へ
     Navigator.popUntil(context, (route) => route.isFirst);
-    // ボトムナビのインデックス3が単語帳画面
-    // ただし直接遷移が難しい場合は、VocabularyScreenへpushする
-    Navigator.pushNamed(context, '/vocabulary');
+    // userIdをクエリパラメータとして渡す
+    Navigator.pushNamed(context, '/vocabulary?userId=$_myUserId');
   }
 }

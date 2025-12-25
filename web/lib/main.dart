@@ -25,7 +25,6 @@ class MyApp extends StatelessWidget {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),
         '/learning': (context) => const QuizSelectionScreen(),
-        '/vocabulary': (context) => const VocabularyScreen(),
       },
       onGenerateRoute: (settings) {
         // /matching?language=english のようなクエリパラメータ付きルートを処理
@@ -48,6 +47,17 @@ class MyApp extends StatelessWidget {
               settings: settings,
             );
           }
+        }
+
+        // /vocabulary?userId=xxx のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/vocabulary') == true) {
+          final uri = Uri.parse(settings.name!);
+          final userIdStr = uri.queryParameters['userId'];
+          final userId = userIdStr != null ? int.tryParse(userIdStr) ?? 0 : 0;
+          return MaterialPageRoute(
+            builder: (context) => VocabularyScreen(userId: userId),
+            settings: settings,
+          );
         }
 
         return null;
