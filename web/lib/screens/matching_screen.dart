@@ -135,6 +135,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
   /// マッチングメッセージを処理
   void _handleMatchingMessage(Map<String, dynamic> data) {
     final status = data['status'];
+    final code = data['code'];
 
     if (status == 'joined') {
       // キュー参加成功
@@ -170,13 +171,79 @@ class _MatchingScreenState extends State<MatchingScreen> {
       });
     } else if (status == 'error') {
       // エラー
+      _waitTimer?.cancel();
       if (!mounted) return;
 
-      setState(() {
-        _isMatching = false;
-        _statusMessage = 'エラー: ${data['message']}';
-      });
+      if (code == 'INSUFFICIENT_LIFE') {
+        // ライフ不足エラー
+        _handleInsufficientLife(data);
+      } else {
+        setState(() {
+          _isMatching = false;
+          _statusMessage = 'エラー: ${data['message']}';
+        });
+      }
     }
+  }
+
+  /// ライフ不足エラーを処理
+  void _handleInsufficientLife(Map<String, dynamic> data) {
+    final currentLife = data['currentLife'] ?? 0;
+    final nextRecoveryInSeconds = data['nextRecoveryInSeconds'] ?? 600;
+
+    setState(() {
+      _isMatching = false;
+      _statusMessage = 'ライフが不足しています';
+    });
+
+    // ダイアログを表示
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('ライフが不足しています'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.music_off,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'ランクマッチにはライフが必要です\n現在のライフ: $currentLife',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '次の回復まで: ${_formatRecoveryTime(nextRecoveryInSeconds)}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // ダイアログを閉じる
+              Navigator.pop(context); // マッチング画面を閉じる
+            },
+            child: const Text('戻る'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 秒数を分:秒形式にフォーマット
+  String _formatRecoveryTime(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
   /// マッチング成立時の処理

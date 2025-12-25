@@ -65,6 +65,9 @@ public class User {
     @Column(name = "life", nullable = false)
     private int life = 5;
 
+    @Column(name = "life_last_recovered_at")
+    private LocalDateTime lifeLastRecoveredAt;
+
     @Column(name = "delete_flag", nullable = false)
     private boolean deleteFlag = false;
 
@@ -137,6 +140,9 @@ public class User {
 
     public int getLife() { return life; }
     public void setLife(int life) { this.life = life; }
+
+    public LocalDateTime getLifeLastRecoveredAt() { return lifeLastRecoveredAt; }
+    public void setLifeLastRecoveredAt(LocalDateTime lifeLastRecoveredAt) { this.lifeLastRecoveredAt = lifeLastRecoveredAt; }
 
     public boolean isDeleteFlag() { return deleteFlag; }
     public void setDeleteFlag(boolean deleteFlag) { this.deleteFlag = deleteFlag; }

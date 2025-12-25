@@ -1,5 +1,6 @@
 package com.example.api.service;
 
+import com.example.api.dto.LifeStatusResponse;
 import com.example.api.entity.Rate;
 import com.example.api.entity.Result;
 import com.example.api.entity.User;
@@ -39,6 +40,58 @@ public class MatchingService {
     @Autowired
     private SeasonCalculator seasonCalculator;
 
+    @Autowired
+    private LifeService lifeService;
+
+    /**
+     * キュー参加結果
+     */
+    public static class JoinQueueResult {
+        private final boolean success;
+        private final String errorCode;
+        private final String message;
+        private final LifeStatusResponse lifeStatus;
+
+        private JoinQueueResult(boolean success, String errorCode, String message, LifeStatusResponse lifeStatus) {
+            this.success = success;
+            this.errorCode = errorCode;
+            this.message = message;
+            this.lifeStatus = lifeStatus;
+        }
+
+        public static JoinQueueResult success() {
+            return new JoinQueueResult(true, null, null, null);
+        }
+
+        public static JoinQueueResult insufficientLife(LifeStatusResponse lifeStatus) {
+            return new JoinQueueResult(false, "INSUFFICIENT_LIFE", "ライフが不足しています", lifeStatus);
+        }
+
+        public static JoinQueueResult alreadyInQueue() {
+            return new JoinQueueResult(false, "ALREADY_IN_QUEUE", "既にキューに参加しています", null);
+        }
+
+        public static JoinQueueResult error(String message) {
+            return new JoinQueueResult(false, "ERROR", message, null);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getErrorCode() {
+            return errorCode;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public LifeStatusResponse getLifeStatus() {
+            return lifeStatus;
+        }
+    }
+
     /**
      * マッチング結果
      */
@@ -73,33 +126,48 @@ public class MatchingService {
     }
 
     /**
-     * プレイヤーをマッチングキューに追加
+     * プレイヤーをマッチングキューに追加（ライフ消費あり - ランクマッチ用）
      * @param userId ユーザーID
      * @param language 言語
-     * @return 追加成功時true
+     * @return キュー参加結果
      */
-    @Transactional(readOnly = true)
-    public boolean joinQueue(Long userId, String language) {
-        // logger.info("キュー参加処理開始: userId={}, language={}", userId, language);
+    @Transactional
+    public JoinQueueResult joinQueue(Long userId, String language) {
+        logger.info("キュー参加処理開始: userId={}, language={}", userId, language);
 
         // ユーザーのレーティングを取得
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
 
+        // ライフを消費（ランクマッチのみ）
+        boolean lifeConsumed = lifeService.consumeLife(userId);
+        if (!lifeConsumed) {
+            // ライフ不足
+            LifeStatusResponse lifeStatus = lifeService.getLifeStatusAfterConsume(userId);
+            logger.info("ライフ不足によりキュー参加拒否: userId={}, life={}", userId, lifeStatus.getCurrentLife());
+            return JoinQueueResult.insufficientLife(lifeStatus);
+        }
+
         Integer currentSeason = seasonCalculator.getCurrentSeason();
         Rate rate = rateRepository.findByUserAndSeason(user, currentSeason)
                 .orElseGet(() -> {
                     // レーティングが存在しない場合は作成
-                    // logger.info("新規Rateレコード作成: userId={}, season={}", userId, currentSeason);
                     Rate newRate = new Rate(user, currentSeason);
                     return rateRepository.save(newRate);
                 });
 
-        // logger.info("プレイヤー情報: userId={}, rating={}, language={}", userId, rate.getRate(), language);
+        logger.info("プレイヤー情報: userId={}, rating={}, language={}", userId, rate.getRate(), language);
         boolean result = queueService.addToQueue(userId, rate.getRate(), language);
-        // logger.info("キュー追加結果: userId={}, success={}", userId, result);
 
-        return result;
+        if (!result) {
+            // 既にキューに参加している場合
+            // 注: この場合、ライフは既に消費されているが、既存の参加を優先
+            logger.warn("既にキューに参加中: userId={}", userId);
+            return JoinQueueResult.alreadyInQueue();
+        }
+
+        logger.info("キュー参加成功: userId={}", userId);
+        return JoinQueueResult.success();
     }
 
     /**

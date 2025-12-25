@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/artist_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../services/life_api_service.dart';
 import '../widgets/genre_selection_dialog.dart';
 import '../widgets/artist_selection_dialog.dart';
 import '../bottom_nav.dart';
@@ -21,19 +23,42 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _authApiService = AuthApiService();
   final _artistApiService = ArtistApiService();
   final _tokenStorage = TokenStorageService();
+  final _lifeApiService = LifeApiService();
 
   bool _isLoading = true;
   bool _showedArtistDialog = false;
   int? _userId;
 
+  // ライフ関連
+  int _currentLife = 5;
+  int _maxLife = 5;
+  int _nextRecoveryInSeconds = 0;
+  Timer? _recoveryTimer;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _recoveryTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // バックグラウンドから戻ったら再取得
+      _fetchLifeStatus();
+    }
   }
 
   /// ユーザー情報を読み込む
@@ -47,6 +72,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
 
+      // ライフ状態を取得
+      _fetchLifeStatus();
+
       // 初期設定完了状態をチェックし、未完了ならダイアログを表示
       _checkInitialSetup();
     } catch (e) {
@@ -54,6 +82,62 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  /// ライフ状態を取得
+  Future<void> _fetchLifeStatus() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (userId != null && accessToken != null) {
+        final lifeStatus = await _lifeApiService.getLifeStatus(
+          userId: userId,
+          accessToken: accessToken,
+        );
+        if (mounted) {
+          setState(() {
+            _currentLife = lifeStatus.currentLife;
+            _maxLife = lifeStatus.maxLife;
+            _nextRecoveryInSeconds = lifeStatus.nextRecoveryInSeconds;
+          });
+          _startRecoveryTimer();
+        }
+      }
+    } catch (e) {
+      debugPrint('ライフ状態取得エラー: $e');
+    }
+  }
+
+  /// 回復タイマーを開始
+  void _startRecoveryTimer() {
+    _recoveryTimer?.cancel();
+    if (_currentLife >= _maxLife || _nextRecoveryInSeconds <= 0) return;
+
+    _recoveryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        _nextRecoveryInSeconds--;
+        if (_nextRecoveryInSeconds <= 0 && _currentLife < _maxLife) {
+          _currentLife++;
+          _nextRecoveryInSeconds = 600; // 10分
+          if (_currentLife >= _maxLife) {
+            timer.cancel();
+          }
+        }
+      });
+    });
+  }
+
+  /// 秒数を分:秒形式にフォーマット
+  String _formatRecoveryTime(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
   /// 初期設定完了状態を確認
@@ -151,19 +235,25 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         title: Row(
           children: [
-            // ライフ表示（音符5個）
-            Row(
-              children: List.generate(5, (index) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Icon(
-                    Icons.music_note,
-                    color: Colors.blue[600],
-                    size: 20,
-                  ),
-                );
-              }),
-            ),
+            // ライフ表示
+            ...List.generate(_maxLife, (index) {
+              final isFilled = index < _currentLife;
+              return Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(
+                  Icons.music_note,
+                  color: isFilled ? Colors.blue[600] : Colors.grey[300],
+                  size: 20,
+                ),
+              );
+            }),
+            const SizedBox(width: 8),
+            // 次回回復までの時間（life < maxのとき）
+            if (_currentLife < _maxLife)
+              Text(
+                _formatRecoveryTime(_nextRecoveryInSeconds),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
           ],
         ),
         actions: [
@@ -188,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         MaterialPageRoute(
                           builder: (context) => const MyProfile(),
                         ),
-                      );
+                      ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
                     },
                     child: Container(
                       width: 80,
@@ -205,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                
+
                 // メインコンテンツ（中央寄せ）
                 Expanded(
                   child: Center(
@@ -228,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     MaterialPageRoute(
                                       builder: (context) => const BattleModeSelectionScreen(),
                                     ),
-                                  );
+                                  ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
                                 },
                               ),
                               const SizedBox(width: 12),
@@ -243,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       MaterialPageRoute(
                                         builder: (context) => VocabularyScreen(userId: _userId!),
                                       ),
-                                    );
+                                    ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -270,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     MaterialPageRoute(
                                       builder: (context) => const ShopScreen(),
                                     ),
-                                  );
+                                  ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
                                 },
                               ),
                               const SizedBox(width: 12),
@@ -285,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     MaterialPageRoute(
                                       builder: (context) => const BadgeScreen(),
                                     ),
-                                  );
+                                  ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
                                 },
                               ),
                             ],
@@ -301,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 MaterialPageRoute(
                                   builder: (context) => const RankingScreen(),
                                 ),
-                              );
+                              ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
                             },
                           ),
                         ],

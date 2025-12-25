@@ -78,17 +78,33 @@ public class MatchingController {
     public void joinMatching(@Payload MatchRequest request) {
         try {
             logger.info("マッチングキュー参加リクエスト: userId={}, language={}", request.getUserId(), request.getLanguage());
-            boolean success = matchingService.joinQueue(request.getUserId(), request.getLanguage());
+            MatchingService.JoinQueueResult result = matchingService.joinQueue(request.getUserId(), request.getLanguage());
 
             Map<String, Object> response = new HashMap<>();
-            if (success) {
+            if (result.isSuccess()) {
                 response.put("status", "joined");
                 response.put("message", "マッチングキューに参加しました");
                 logger.info("マッチングキュー参加成功: userId={}", request.getUserId());
+            } else if ("INSUFFICIENT_LIFE".equals(result.getErrorCode())) {
+                // ライフ不足エラー
+                response.put("status", "error");
+                response.put("code", "INSUFFICIENT_LIFE");
+                response.put("message", result.getMessage());
+                if (result.getLifeStatus() != null) {
+                    response.put("currentLife", result.getLifeStatus().getCurrentLife());
+                    response.put("nextRecoveryInSeconds", result.getLifeStatus().getNextRecoveryInSeconds());
+                }
+                logger.info("ライフ不足によりマッチング拒否: userId={}", request.getUserId());
+            } else if ("ALREADY_IN_QUEUE".equals(result.getErrorCode())) {
+                response.put("status", "error");
+                response.put("code", "ALREADY_IN_QUEUE");
+                response.put("message", result.getMessage());
+                logger.warn("マッチングキュー参加失敗（既に参加中）: userId={}", request.getUserId());
             } else {
                 response.put("status", "error");
-                response.put("message", "既にキューに参加しています");
-                logger.warn("マッチングキュー参加失敗（既に参加中）: userId={}", request.getUserId());
+                response.put("code", result.getErrorCode());
+                response.put("message", result.getMessage());
+                logger.warn("マッチングキュー参加失敗: userId={}, code={}", request.getUserId(), result.getErrorCode());
             }
 
             // 個別のユーザーに送信
@@ -100,6 +116,7 @@ public class MatchingController {
             logger.error("マッチングキュー参加エラー: userId={}, error={}", request.getUserId(), e.getMessage(), e);
             Map<String, Object> error = new HashMap<>();
             error.put("status", "error");
+            error.put("code", "ERROR");
             error.put("message", e.getMessage());
 
             messagingTemplate.convertAndSend(
