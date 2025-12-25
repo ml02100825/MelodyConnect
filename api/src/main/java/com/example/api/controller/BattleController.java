@@ -319,12 +319,15 @@ public class BattleController {
         // 更新後の状態を取得
         state = battleService.getBattleState(matchId);
 
-        // 試合終了かチェック
-        if (state == null || state.getStatus() == BattleStateService.Status.FINISHED) {
-            // 試合終了処理
+        // 試合終了かチェック（ステータスがFINISHEDまたは終了条件成立）
+        if (state == null || state.getStatus() == BattleStateService.Status.FINISHED || state.isMatchDecided()) {
+            // 試合終了処理（10問終了/3勝確定/引き分け確定）
+            logger.info("試合終了（processRoundEnd）: matchId={}, player1Wins={}, player2Wins={}",
+                    matchId, state != null ? state.getPlayer1Wins() : 0, state != null ? state.getPlayer2Wins() : 0);
             BattleService.BattleResultDto battleResult =
                     battleService.finalizeBattle(matchId, Result.OutcomeReason.normal);
             sendBattleResult(battleResult);
+            return;
         }
         // 試合継続の場合は、クライアントからのnext_roundリクエストを待つ
         // ラウンド結果がスキップされないよう、ここで自動的に次の問題を送信しない
