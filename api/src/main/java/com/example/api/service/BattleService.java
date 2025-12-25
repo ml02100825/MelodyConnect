@@ -1,0 +1,747 @@
+package com.example.api.service;
+
+import com.example.api.dto.battle.BattleStartResponseDto;
+import com.example.api.dto.battle.PlayerInfoDto;
+import com.example.api.entity.Question;
+import com.example.api.entity.Rate;
+import com.example.api.entity.Result;
+import com.example.api.entity.User;
+import com.example.api.repository.QuestionRepository;
+import com.example.api.repository.RateRepository;
+import com.example.api.repository.ResultRepository;
+import com.example.api.repository.UserRepository;
+import com.example.api.util.SeasonCalculator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * 対戦サービス
+ * 対戦ロジック、勝敗判定、ELOレート計算、結果保存を管理します
+ */
+@Service
+public class BattleService {
+
+    private static final Logger logger = LoggerFactory.getLogger(BattleService.class);
+
+    /** ELOレーティングのK係数（変動幅を決定） */
+    private static final double ELO_K_FACTOR = 32.0;
+
+    /** レートの下限 */
+    private static final int MIN_RATE = 100;
+
+    /** 問題数（ランクマッチ） */
+    private static final int QUESTION_COUNT = 10;
+
+    @Autowired
+    private BattleStateService battleStateService;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private ResultRepository resultRepository;
+
+    @Autowired
+    private RateRepository rateRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private SeasonCalculator seasonCalculator;
+
+    /**
+     * 対戦結果DTO（リザルト画面用）
+     */
+    public static class BattleResultDto {
+        private final String matchUuid;
+        private final Long winnerId;
+        private final Long loserId;
+        private final boolean isDraw;
+        private final int winnerScore;
+        private final int loserScore;
+        private final int winnerRateChange;
+        private final int loserRateChange;
+        private final int winnerNewRate;
+        private final int loserNewRate;
+        private final List<RoundSummary> rounds;
+        private final Result.OutcomeReason outcomeReason;
+
+        public BattleResultDto(String matchUuid, Long winnerId, Long loserId, boolean isDraw,
+                              int winnerScore, int loserScore,
+                              int winnerRateChange, int loserRateChange,
+                              int winnerNewRate, int loserNewRate,
+                              List<RoundSummary> rounds, Result.OutcomeReason outcomeReason) {
+            this.matchUuid = matchUuid;
+            this.winnerId = winnerId;
+            this.loserId = loserId;
+            this.isDraw = isDraw;
+            this.winnerScore = winnerScore;
+            this.loserScore = loserScore;
+            this.winnerRateChange = winnerRateChange;
+            this.loserRateChange = loserRateChange;
+            this.winnerNewRate = winnerNewRate;
+            this.loserNewRate = loserNewRate;
+            this.rounds = rounds;
+            this.outcomeReason = outcomeReason;
+        }
+
+        // Getters
+        public String getMatchUuid() { return matchUuid; }
+        public Long getWinnerId() { return winnerId; }
+        public Long getLoserId() { return loserId; }
+        public boolean isDraw() { return isDraw; }
+        public int getWinnerScore() { return winnerScore; }
+        public int getLoserScore() { return loserScore; }
+        public int getWinnerRateChange() { return winnerRateChange; }
+        public int getLoserRateChange() { return loserRateChange; }
+        public int getWinnerNewRate() { return winnerNewRate; }
+        public int getLoserNewRate() { return loserNewRate; }
+        public List<RoundSummary> getRounds() { return rounds; }
+        public Result.OutcomeReason getOutcomeReason() { return outcomeReason; }
+
+        /**
+         * 指定ユーザー視点のリザルト情報を取得
+         */
+        public Map<String, Object> toPlayerView(Long userId) {
+            Map<String, Object> view = new HashMap<>();
+            view.put("matchUuid", matchUuid);
+            view.put("outcomeReason", outcomeReason.name());
+            view.put("rounds", rounds);
+
+            if (isDraw) {
+                view.put("result", "draw");
+                view.put("myScore", winnerId.equals(userId) ? winnerScore : loserScore);
+                view.put("opponentScore", winnerId.equals(userId) ? loserScore : winnerScore);
+                view.put("rateChange", 0);
+                view.put("newRate", winnerId.equals(userId) ? winnerNewRate : loserNewRate);
+            } else if (winnerId.equals(userId)) {
+                view.put("result", "win");
+                view.put("myScore", winnerScore);
+                view.put("opponentScore", loserScore);
+                view.put("rateChange", winnerRateChange);
+                view.put("newRate", winnerNewRate);
+            } else {
+                view.put("result", "lose");
+                view.put("myScore", loserScore);
+                view.put("opponentScore", winnerScore);
+                view.put("rateChange", loserRateChange);
+                view.put("newRate", loserNewRate);
+            }
+
+            return view;
+        }
+    }
+
+    /**
+     * ラウンドサマリー
+     */
+    public static class RoundSummary {
+        private final int roundNumber;
+        private final Integer questionId;
+        private final Long roundWinnerId;
+        private final boolean isNoCount;
+        private final String noCountReason;
+        private final Map<Long, PlayerRoundInfo> playerInfo;
+
+        public RoundSummary(int roundNumber, Integer questionId, Long roundWinnerId,
+                          boolean isNoCount, String noCountReason,
+                          Map<Long, PlayerRoundInfo> playerInfo) {
+            this.roundNumber = roundNumber;
+            this.questionId = questionId;
+            this.roundWinnerId = roundWinnerId;
+            this.isNoCount = isNoCount;
+            this.noCountReason = noCountReason;
+            this.playerInfo = playerInfo;
+        }
+
+        public int getRoundNumber() { return roundNumber; }
+        public Integer getQuestionId() { return questionId; }
+        public Long getRoundWinnerId() { return roundWinnerId; }
+        public boolean isNoCount() { return isNoCount; }
+        public String getNoCountReason() { return noCountReason; }
+        public Map<Long, PlayerRoundInfo> getPlayerInfo() { return playerInfo; }
+    }
+
+    /**
+     * プレイヤーのラウンド情報
+     */
+    public static class PlayerRoundInfo {
+        private final boolean isCorrect;
+        private final long responseTimeMs;
+        private final String answer;
+
+        public PlayerRoundInfo(boolean isCorrect, long responseTimeMs, String answer) {
+            this.isCorrect = isCorrect;
+            this.responseTimeMs = responseTimeMs;
+            this.answer = answer;
+        }
+
+        public boolean isCorrect() { return isCorrect; }
+        public long getResponseTimeMs() { return responseTimeMs; }
+        public String getAnswer() { return answer; }
+    }
+
+    /**
+     * 対戦を初期化（問題取得・状態作成）
+     */
+    @Transactional(readOnly = true)
+    public BattleStateService.BattleState initializeBattle(String matchUuid, Long player1Id,
+                                                           Long player2Id, String language) {
+        // 既に存在する場合はそれを返す
+        BattleStateService.BattleState existing = battleStateService.getBattle(matchUuid);
+        if (existing != null) {
+            return existing;
+        }
+
+        // 言語コードを変換（マッチング時のコードをDB用に変換）
+        String dbLanguageCode = convertToDbLanguageCode(language);
+
+        // 問題を取得（言語でフィルタしてランダムに10問選択）
+        List<Question> allQuestions = questionRepository.findByLanguage(dbLanguageCode);
+
+        if (allQuestions.size() < QUESTION_COUNT) {
+            logger.warn("問題数が不足: language={}, available={}, required={}",
+                    language, allQuestions.size(), QUESTION_COUNT);
+            // 問題が足りない場合は全問使用
+            if (allQuestions.isEmpty()) {
+                throw new IllegalStateException("問題がありません: language=" + language);
+            }
+        }
+
+        // シャッフルして10問選択
+        List<Question> selectedQuestions = new ArrayList<>(allQuestions);
+        Collections.shuffle(selectedQuestions);
+        if (selectedQuestions.size() > QUESTION_COUNT) {
+            selectedQuestions = selectedQuestions.subList(0, QUESTION_COUNT);
+        }
+
+        logger.info("対戦初期化: matchUuid={}, questions={}", matchUuid, selectedQuestions.size());
+
+        return battleStateService.createBattle(matchUuid, player1Id, player2Id, language, selectedQuestions);
+    }
+
+    /**
+     * バトル開始（ユーザー情報付き）
+     * Controller層でLazy Entityを直接参照しないようにするため、
+     * @Transactional 範囲内でUser情報を取得してDTOで返す
+     *
+     * @param matchId マッチID
+     * @return バトル開始レスポンスDTO
+     */
+    @Transactional(readOnly = true)
+    public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
+        // fetch joinでResult + Userを一括取得（LazyInitializationException回避）
+        List<Result> results = resultRepository.findAllByMatchUuidWithUsers(matchId);
+
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException("マッチ情報が見つかりません: " + matchId);
+        }
+
+        if (results.size() != 2) {
+            throw new IllegalArgumentException("マッチ情報が不正です: expected 2, got " + results.size());
+        }
+
+        Result result1 = results.get(0);
+        User player = result1.getPlayer();  // fetch join済みなので安全にアクセス可能
+        User enemy = result1.getEnemy();    // fetch join済みなので安全にアクセス可能
+
+        // 対戦を初期化（問題取得・状態作成）
+        BattleStateService.BattleState state = initializeBattle(
+                matchId,
+                player.getId(),
+                enemy.getId(),
+                result1.getUseLanguage()
+        );
+
+        // トランザクション内でレート情報を取得
+        Integer player1Rate = getPlayerRate(player);
+        Integer player2Rate = getPlayerRate(enemy);
+
+        // トランザクション内でUser情報をDTOに変換
+        PlayerInfoDto user1Info = new PlayerInfoDto(
+                player.getId(),
+                player.getUsername(),
+                player.getImageUrl(),
+                player1Rate
+        );
+
+        PlayerInfoDto user2Info = new PlayerInfoDto(
+                enemy.getId(),
+                enemy.getUsername(),
+                enemy.getImageUrl(),
+                player2Rate
+        );
+
+        return BattleStartResponseDto.builder()
+                .matchId(matchId)
+                .user1Id(state.getPlayer1Id())
+                .user2Id(state.getPlayer2Id())
+                .language(state.getLanguage())
+                .questionCount(state.getQuestions().size())
+                .roundTimeLimitSeconds(BattleStateService.ROUND_TIME_LIMIT_SECONDS)
+                .winsRequired(BattleStateService.WINS_TO_VICTORY)
+                .maxRounds(BattleStateService.MAX_ROUNDS)
+                .status("ready")
+                .message("バトルを開始できます")
+                .user1Info(user1Info)
+                .user2Info(user2Info)
+                .build();
+    }
+
+    /**
+     * ユーザーのレート情報を取得（Service層で使用）
+     * @param user ユーザーエンティティ
+     * @return レート値（未登録の場合は初期値1500）
+     */
+    private Integer getPlayerRate(User user) {
+        try {
+            int currentSeason = seasonCalculator.getCurrentSeason();
+            return rateRepository.findByUserAndSeason(user, currentSeason)
+                    .map(Rate::getRate)
+                    .orElse(1500);  // 未登録の場合は初期値
+        } catch (Exception e) {
+            logger.warn("レート取得エラー: userId={}", user.getId(), e);
+            return 1500;
+        }
+    }
+
+    /**
+     * 対戦開始
+     */
+    public BattleStateService.BattleState startBattle(String matchUuid) {
+        return battleStateService.startBattle(matchUuid);
+    }
+
+    /**
+     * 回答を記録
+     * @return 両者の回答が揃った場合true
+     */
+    public boolean submitAnswer(String matchUuid, Long userId, String answer) {
+        return battleStateService.recordAnswer(matchUuid, userId, answer);
+    }
+
+    /**
+     * ラウンドを確定して次へ進む
+     * @return 対戦が続行可能な場合のラウンド結果、終了した場合はnull
+     */
+    public BattleStateService.RoundResult processRound(String matchUuid) {
+        BattleStateService.RoundResult result = battleStateService.finalizeRound(matchUuid);
+        boolean continues = battleStateService.advanceToNextRound(matchUuid);
+
+        if (!continues) {
+            logger.info("対戦終了確定: matchUuid={}", matchUuid);
+        }
+
+        return result;
+    }
+
+    /**
+     * 対戦を終了して結果を保存
+     * 冪等性：既に終了処理済み（FINISHED状態かつDB保存済み）の場合はスキップ
+     */
+    @Transactional
+    public BattleResultDto finalizeBattle(String matchUuid, Result.OutcomeReason outcomeReason) {
+        BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+        if (state == null) {
+            throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
+        }
+
+        // 冪等性チェック：既にFINISHED状態で、DBに結果が保存済みならスキップ
+        if (state.getStatus() == BattleStateService.Status.FINISHED) {
+            List<Result> existingResults = resultRepository.findAllByMatchUuid(matchUuid);
+            // 結果が保存済みかチェック（resultDetailが設定されている = 終了処理済み）
+            boolean alreadyFinalized = existingResults.stream()
+                    .anyMatch(r -> r.getResultDetail() != null && !r.getResultDetail().isEmpty());
+
+            if (alreadyFinalized) {
+                logger.warn("対戦は既に終了処理済み: matchUuid={}", matchUuid);
+                // 既存の結果からBattleResultDtoを再構築して返す
+                return reconstructBattleResult(matchUuid, existingResults, state);
+            }
+        }
+
+        // 状態を終了に
+        battleStateService.finishBattle(matchUuid);
+
+        // 勝者・敗者を確定
+        Long winnerId = state.getWinnerId();
+        Long loserId = null;
+        boolean isDraw = false;
+
+        if (winnerId == null) {
+            // 引き分け
+            isDraw = true;
+            winnerId = state.getPlayer1Id();
+            loserId = state.getPlayer2Id();
+        } else {
+            loserId = winnerId.equals(state.getPlayer1Id()) ? state.getPlayer2Id() : state.getPlayer1Id();
+        }
+
+        int winnerScore = winnerId.equals(state.getPlayer1Id()) ? state.getPlayer1Wins() : state.getPlayer2Wins();
+        int loserScore = loserId.equals(state.getPlayer1Id()) ? state.getPlayer1Wins() : state.getPlayer2Wins();
+
+        // ELOレート計算
+        int winnerRateChange = 0;
+        int loserRateChange = 0;
+        int winnerNewRate = 0;
+        int loserNewRate = 0;
+
+        User winnerUser = userRepository.findById(winnerId).orElseThrow();
+        User loserUser = userRepository.findById(loserId).orElseThrow();
+        Integer currentSeason = seasonCalculator.getCurrentSeason();
+
+        Rate winnerRate = rateRepository.findByUserAndSeason(winnerUser, currentSeason)
+                .orElseGet(() -> new Rate(winnerUser, currentSeason));
+        Rate loserRate = rateRepository.findByUserAndSeason(loserUser, currentSeason)
+                .orElseGet(() -> new Rate(loserUser, currentSeason));
+
+        int winnerOldRate = winnerRate.getRate();
+        int loserOldRate = loserRate.getRate();
+
+        if (isDraw) {
+            // 引き分けの場合はレート変動なし
+            winnerNewRate = winnerOldRate;
+            loserNewRate = loserOldRate;
+        } else {
+            // ELOレーティング計算
+            double expectedWinner = calculateExpectedScore(winnerOldRate, loserOldRate);
+            double expectedLoser = calculateExpectedScore(loserOldRate, winnerOldRate);
+
+            winnerRateChange = calculateRatingChange(expectedWinner, 1.0); // 勝利 = 1.0
+            loserRateChange = calculateRatingChange(expectedLoser, 0.0);   // 敗北 = 0.0
+
+            winnerNewRate = Math.max(MIN_RATE, winnerOldRate + winnerRateChange);
+            loserNewRate = Math.max(MIN_RATE, loserOldRate + loserRateChange);
+
+            // レート更新
+            winnerRate.setRate(winnerNewRate);
+            loserRate.setRate(loserNewRate);
+            rateRepository.save(winnerRate);
+            rateRepository.save(loserRate);
+        }
+
+        logger.info("レート更新: winner={} ({}→{}), loser={} ({}→{})",
+                winnerId, winnerOldRate, winnerNewRate,
+                loserId, loserOldRate, loserNewRate);
+
+        // ラウンドサマリー作成
+        List<RoundSummary> roundSummaries = createRoundSummaries(state);
+
+        // Result更新（既存の2レコードを更新）
+        updateResultRecords(matchUuid, state, winnerId, loserId, isDraw,
+                winnerRateChange, loserRateChange, roundSummaries, outcomeReason);
+
+        // メモリから状態削除
+        battleStateService.removeBattle(matchUuid);
+
+        return new BattleResultDto(
+                matchUuid, winnerId, loserId, isDraw,
+                winnerScore, loserScore,
+                winnerRateChange, loserRateChange,
+                winnerNewRate, loserNewRate,
+                roundSummaries, outcomeReason
+        );
+    }
+
+    /**
+     * ELO期待勝率を計算
+     */
+    private double calculateExpectedScore(int playerRating, int opponentRating) {
+        return 1.0 / (1.0 + Math.pow(10, (opponentRating - playerRating) / 400.0));
+    }
+
+    /**
+     * ELOレーティング変動を計算
+     */
+    private int calculateRatingChange(double expectedScore, double actualScore) {
+        return (int) Math.round(ELO_K_FACTOR * (actualScore - expectedScore));
+    }
+
+    /**
+     * ラウンドサマリーを作成
+     */
+    private List<RoundSummary> createRoundSummaries(BattleStateService.BattleState state) {
+        return state.getRoundResults().stream()
+                .map(rr -> {
+                    Map<Long, PlayerRoundInfo> playerInfo = new HashMap<>();
+
+                    if (rr.getPlayer1Answer() != null) {
+                        playerInfo.put(state.getPlayer1Id(),
+                                new PlayerRoundInfo(
+                                        rr.getPlayer1Answer().isCorrect(),
+                                        rr.getPlayer1Answer().getResponseTimeMs(),
+                                        rr.getPlayer1Answer().getAnswer()
+                                ));
+                    }
+                    if (rr.getPlayer2Answer() != null) {
+                        playerInfo.put(state.getPlayer2Id(),
+                                new PlayerRoundInfo(
+                                        rr.getPlayer2Answer().isCorrect(),
+                                        rr.getPlayer2Answer().getResponseTimeMs(),
+                                        rr.getPlayer2Answer().getAnswer()
+                                ));
+                    }
+
+                    return new RoundSummary(
+                            rr.getRoundNumber(),
+                            rr.getQuestionId(),
+                            rr.getWinnerId(),
+                            rr.isNoCount(),
+                            rr.getNoCountReason(),
+                            playerInfo
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Resultレコードを更新
+     */
+    private void updateResultRecords(String matchUuid, BattleStateService.BattleState state,
+                                     Long winnerId, Long loserId, boolean isDraw,
+                                     int winnerRateChange, int loserRateChange,
+                                     List<RoundSummary> roundSummaries,
+                                     Result.OutcomeReason outcomeReason) {
+        List<Result> results = resultRepository.findAllByMatchUuid(matchUuid);
+
+        // 問題情報をJSON用に変換
+        List<Map<String, Object>> questionData = state.getQuestions().stream()
+                .map(q -> {
+                    Map<String, Object> qMap = new HashMap<>();
+                    qMap.put("questionId", q.getQuestionId());
+                    qMap.put("text", q.getText());
+                    qMap.put("answer", q.getAnswer());
+                    qMap.put("questionFormat", q.getQuestionFormat().name());
+                    return qMap;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> useQuestion = new HashMap<>();
+        useQuestion.put("questions", questionData);
+
+        // ラウンド詳細をJSON用に変換
+        List<Map<String, Object>> roundDetailData = roundSummaries.stream()
+                .map(rs -> {
+                    Map<String, Object> rdMap = new HashMap<>();
+                    rdMap.put("roundNumber", rs.getRoundNumber());
+                    rdMap.put("questionId", rs.getQuestionId());
+                    rdMap.put("winnerId", rs.getRoundWinnerId());
+                    rdMap.put("isNoCount", rs.isNoCount());
+                    rdMap.put("noCountReason", rs.getNoCountReason());
+                    rdMap.put("playerInfo", rs.getPlayerInfo().entrySet().stream()
+                            .collect(Collectors.toMap(
+                                    e -> e.getKey().toString(),
+                                    e -> {
+                                        Map<String, Object> piMap = new HashMap<>();
+                                        piMap.put("isCorrect", e.getValue().isCorrect());
+                                        piMap.put("responseTimeMs", e.getValue().getResponseTimeMs());
+                                        piMap.put("answer", e.getValue().getAnswer());
+                                        return piMap;
+                                    }
+                            )));
+                    return rdMap;
+                })
+                .collect(Collectors.toList());
+
+        // BO3形式情報
+        Map<String, Object> resultFormat = new HashMap<>();
+        resultFormat.put("format", "BO3");
+        resultFormat.put("winsRequired", BattleStateService.WINS_TO_VICTORY);
+        resultFormat.put("maxRounds", BattleStateService.MAX_ROUNDS);
+
+        LocalDateTime endedAt = LocalDateTime.now();
+
+        for (Result result : results) {
+            Long playerId = result.getPlayer().getId();
+            boolean isWinner = playerId.equals(winnerId);
+
+            result.setResult(isDraw ? false : isWinner);
+            result.setUpdownRate(isWinner ? winnerRateChange : loserRateChange);
+            result.setUseQuestion(useQuestion);
+            result.setOutcomeReason(outcomeReason);
+            result.setEndedAt(endedAt);
+
+            // resultDetailにプレイヤー視点の詳細を追加
+            Map<String, Object> resultDetail = new HashMap<>();
+            resultDetail.put("rounds", roundDetailData);
+            resultDetail.put("myWins", playerId.equals(state.getPlayer1Id()) ?
+                    state.getPlayer1Wins() : state.getPlayer2Wins());
+            resultDetail.put("opponentWins", playerId.equals(state.getPlayer1Id()) ?
+                    state.getPlayer2Wins() : state.getPlayer1Wins());
+            resultDetail.put("isDraw", isDraw);
+            result.setResultDetail(resultDetail);
+
+            result.setResultFormat(resultFormat);
+
+            resultRepository.save(result);
+        }
+
+        logger.info("Result更新完了: matchUuid={}", matchUuid);
+    }
+
+    /**
+     * 既存の結果からBattleResultDtoを再構築（冪等性対応）
+     */
+    private BattleResultDto reconstructBattleResult(String matchUuid, List<Result> results,
+                                                    BattleStateService.BattleState state) {
+        // 勝者のResultを見つける
+        Result winnerResult = results.stream()
+                .filter(r -> r.getResult())
+                .findFirst()
+                .orElse(results.get(0));
+
+        Result loserResult = results.stream()
+                .filter(r -> !r.getResult())
+                .findFirst()
+                .orElse(results.get(1));
+
+        boolean isDraw = results.stream().noneMatch(Result::getResult);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> winnerDetail = winnerResult.getResultDetail();
+        int winnerScore = winnerDetail != null ? ((Number) winnerDetail.getOrDefault("myWins", 0)).intValue() : 0;
+        int loserScore = winnerDetail != null ? ((Number) winnerDetail.getOrDefault("opponentWins", 0)).intValue() : 0;
+
+        // レート情報を取得
+        User winnerUser = winnerResult.getPlayer();
+        User loserUser = loserResult.getPlayer();
+        Integer currentSeason = seasonCalculator.getCurrentSeason();
+
+        Rate winnerRate = rateRepository.findByUserAndSeason(winnerUser, currentSeason)
+                .orElseGet(() -> new Rate(winnerUser, currentSeason));
+        Rate loserRate = rateRepository.findByUserAndSeason(loserUser, currentSeason)
+                .orElseGet(() -> new Rate(loserUser, currentSeason));
+
+        return new BattleResultDto(
+                matchUuid,
+                winnerResult.getPlayer().getId(),
+                loserResult.getPlayer().getId(),
+                isDraw,
+                winnerScore,
+                loserScore,
+                winnerResult.getUpdownRate(),
+                loserResult.getUpdownRate(),
+                winnerRate.getRate(),
+                loserRate.getRate(),
+                Collections.emptyList(), // 詳細はresultDetailに保存済み
+                winnerResult.getOutcomeReason()
+        );
+    }
+
+    /**
+     * 対戦状態を取得
+     */
+    public BattleStateService.BattleState getBattleState(String matchUuid) {
+        return battleStateService.getBattle(matchUuid);
+    }
+
+    /**
+     * ラウンドタイムアウトチェック
+     */
+    public boolean isRoundTimedOut(String matchUuid) {
+        return battleStateService.isRoundTimedOut(matchUuid);
+    }
+
+    /**
+     * プレイヤーを次ラウンドへ進む準備ができた状態にマーク
+     * @return 両者が準備完了またはタイムアウトで次ラウンドへ進むべき場合true
+     */
+    public boolean markPlayerReadyForNextRound(String matchUuid, Long userId) {
+        return battleStateService.markPlayerReadyForNextRound(matchUuid, userId);
+    }
+
+    /**
+     * ラウンド結果のタイムアウトをチェック（10秒経過しているか）
+     */
+    public boolean isRoundResultTimedOut(String matchUuid) {
+        return battleStateService.isRoundResultTimedOut(matchUuid);
+    }
+
+    /**
+     * ラウンド結果待ちでタイムアウトした対戦のmatchUuidリストを取得
+     */
+    public java.util.List<String> getTimedOutRoundResultMatches() {
+        return battleStateService.getTimedOutRoundResultMatches();
+    }
+
+    /**
+     * 降参処理
+     */
+    @Transactional
+    public BattleResultDto surrender(String matchUuid, Long surrenderUserId) {
+        BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+        if (state == null) {
+            throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
+        }
+        if (!state.isParticipant(surrenderUserId)) {
+            throw new IllegalArgumentException("参加者ではありません: " + surrenderUserId);
+        }
+
+        // 降参したユーザーの負けとして処理
+        // 相手に3勝を与える
+        Long winnerId = state.isPlayer1(surrenderUserId) ? state.getPlayer2Id() : state.getPlayer1Id();
+
+        // 強制的に勝敗を確定
+        while (!state.isMatchDecided()) {
+            if (state.isPlayer1(winnerId)) {
+                state.incrementPlayer1Wins();
+            } else {
+                state.incrementPlayer2Wins();
+            }
+        }
+
+        return finalizeBattle(matchUuid, Result.OutcomeReason.surrender);
+    }
+
+    /**
+     * 切断処理
+     */
+    @Transactional
+    public BattleResultDto handleDisconnect(String matchUuid, Long disconnectedUserId) {
+        BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+        if (state == null) {
+            throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
+        }
+
+        // 切断したユーザーの負けとして処理
+        Long winnerId = state.isPlayer1(disconnectedUserId) ? state.getPlayer2Id() : state.getPlayer1Id();
+
+        while (!state.isMatchDecided()) {
+            if (state.isPlayer1(winnerId)) {
+                state.incrementPlayer1Wins();
+            } else {
+                state.incrementPlayer2Wins();
+            }
+        }
+
+        return finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
+    }
+
+    /**
+     * マッチング時の言語コードをDB用の言語コードに変換
+     * @param matchingLanguage マッチング時の言語コード（"english", "korean" 等）
+     * @return DB用の言語コード（"en", "ko" 等）
+     */
+    private String convertToDbLanguageCode(String matchingLanguage) {
+        if (matchingLanguage == null) {
+            return "en"; // デフォルト
+        }
+        switch (matchingLanguage.toLowerCase()) {
+            case "english":
+                return "en";
+            case "korean":
+                return "ko";
+            default:
+                // 既に短縮形の場合はそのまま返す
+                return matchingLanguage;
+        }
+    }
+}
