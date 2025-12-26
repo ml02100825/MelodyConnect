@@ -4,6 +4,7 @@ import com.example.api.entity.Friend;
 import com.example.api.entity.Room;
 import com.example.api.entity.User;
 import com.example.api.repository.UserRepository;
+import com.example.api.service.BattleService;
 import com.example.api.service.RoomService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,13 +27,16 @@ public class RoomController {
     private static final Logger logger = LoggerFactory.getLogger(RoomController.class);
 
     private final RoomService roomService;
+    private final BattleService battleService;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     public RoomController(RoomService roomService,
+                         BattleService battleService,
                          UserRepository userRepository,
                          SimpMessagingTemplate messagingTemplate) {
         this.roomService = roomService;
+        this.battleService = battleService;
         this.userRepository = userRepository;
         this.messagingTemplate = messagingTemplate;
     }
@@ -332,9 +336,37 @@ public class RoomController {
 
             Room room = roomService.startMatch(request.roomId, request.userId);
 
-            // 両者に対戦開始を通知
+            // マッチIDを生成
+            String matchUuid = UUID.randomUUID().toString();
+
+            // 先取数（match_type: 5, 7, 9）
+            int winsToVictory = room.getMatch_type();
+
+            // Result レコードを作成（ルームマッチ用）
+            battleService.createRoomMatchResult(
+                    matchUuid,
+                    room.getHost_id(),
+                    room.getGuest_id(),
+                    room.getSelected_language()
+            );
+
+            // 対戦状態を初期化
+            battleService.initializeRoomBattle(
+                    matchUuid,
+                    room.getHost_id(),
+                    room.getGuest_id(),
+                    room.getSelected_language(),
+                    winsToVictory,
+                    room.getRoom_id()
+            );
+
+            logger.info("ルームマッチ対戦初期化完了: matchUuid={}, roomId={}, winsToVictory={}",
+                    matchUuid, room.getRoom_id(), winsToVictory);
+
+            // 両者に対戦開始を通知（matchIdを含める）
             Map<String, Object> startData = new HashMap<>();
             startData.put("type", "match_start");
+            startData.put("matchId", matchUuid);
             startData.put("roomId", room.getRoom_id());
             startData.put("matchType", room.getMatch_type());
             startData.put("language", room.getSelected_language());
@@ -342,11 +374,13 @@ public class RoomController {
             startData.put("questionFormat", room.getQuestion_format());
             startData.put("hostId", room.getHost_id());
             startData.put("guestId", room.getGuest_id());
+            startData.put("winsToVictory", winsToVictory);
+            startData.put("isRoomMatch", true);
 
             sendRoomNotification(room.getHost_id(), "match_start", startData);
             sendRoomNotification(room.getGuest_id(), "match_start", startData);
 
-            logger.info("ルームマッチ開始通知送信: roomId={}", room.getRoom_id());
+            logger.info("ルームマッチ開始通知送信: roomId={}, matchId={}", room.getRoom_id(), matchUuid);
         } catch (Exception e) {
             logger.error("対戦開始エラー", e);
             sendRoomNotification(request.userId, "error",

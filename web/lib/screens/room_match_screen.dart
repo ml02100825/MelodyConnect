@@ -264,16 +264,11 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
   }
 
   void _onMatchStart(Map<String, dynamic> data) {
+    final matchId = data['matchId'] ?? '';
+    final roomId = data['roomId'];
     Navigator.pushReplacementNamed(
       context,
-      '/battle',
-      arguments: {
-        'matchId': data['matchId'] ?? '',
-        'roomId': data['roomId'],
-        'isRoomMatch': true,
-        'matchType': data['matchType'],
-        'language': data['language'],
-      },
+      '/battle?matchId=$matchId&isRoomMatch=true&roomId=$roomId',
     );
   }
 

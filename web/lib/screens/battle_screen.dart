@@ -14,11 +14,18 @@ const String _apiBaseUrl = String.fromEnvironment(
 );
 
 /// バトル画面
-/// ランクマッチの対戦進行を行います
+/// ランクマッチ/ルームマッチの対戦進行を行います
 class BattleScreen extends StatefulWidget {
   final String matchId;
+  final bool isRoomMatch;
+  final int? roomId;
 
-  const BattleScreen({Key? key, required this.matchId}) : super(key: key);
+  const BattleScreen({
+    Key? key,
+    required this.matchId,
+    this.isRoomMatch = false,
+    this.roomId,
+  }) : super(key: key);
 
   @override
   State<BattleScreen> createState() => _BattleScreenState();
@@ -63,8 +70,8 @@ class _BattleScreenState extends State<BattleScreen> {
   // 試合結果
   BattleResult? _battleResult;
 
-  // 勝利に必要な勝ち数
-  static const int _winsRequired = 3;
+  /// 勝利に必要な勝ち数（動的: ルームマッチは5/7/9、ランクマッチは3）
+  int get _winsRequired => _battleInfo?.winsRequired ?? 3;
 
   @override
   void initState() {
@@ -1410,18 +1417,31 @@ class _BattleScreenState extends State<BattleScreen> {
               spacing: 16,
               runSpacing: 12,
               children: [
-                // 再キューボタン
-                ElevatedButton.icon(
-                  onPressed: _goToRematch,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('再キュー'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                // ルームマッチの場合は「ルームに戻る」、ランクマッチの場合は「再キュー」
+                if (widget.isRoomMatch && widget.roomId != null)
+                  ElevatedButton.icon(
+                    onPressed: _goBackToRoom,
+                    icon: const Icon(Icons.meeting_room),
+                    label: const Text('ルームに戻る'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: _goToRematch,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('再キュー'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
 
                 // 単語帳ボタン
                 ElevatedButton.icon(
@@ -1465,6 +1485,20 @@ class _BattleScreenState extends State<BattleScreen> {
     Navigator.pushNamedAndRemoveUntil(
       context,
       '/matching?language=$language',
+      (route) => route.isFirst,
+    );
+  }
+
+  /// ルームに戻る（ルームマッチ終了後）
+  void _goBackToRoom() {
+    // WebSocket接続を切断
+    _stompClient?.deactivate();
+    _roundTimer?.cancel();
+
+    // ルームマッチ画面にゲストとして戻る（ホストがリセットするまで待機）
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/room-match?roomId=${widget.roomId}&isGuest=true',
       (route) => route.isFirst,
     );
   }

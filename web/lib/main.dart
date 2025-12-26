@@ -26,9 +26,23 @@ class MyApp extends StatelessWidget {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),
         '/learning': (context) => const QuizSelectionScreen(),
-        '/room-match': (context) => const RoomMatchScreen(),
       },
       onGenerateRoute: (settings) {
+        // /room-match?roomId=123&isGuest=true のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/room-match') == true) {
+          final uri = Uri.parse(settings.name!);
+          final roomIdStr = uri.queryParameters['roomId'];
+          final roomId = roomIdStr != null ? int.tryParse(roomIdStr) : null;
+          final isGuest = uri.queryParameters['isGuest'] == 'true';
+          return MaterialPageRoute(
+            builder: (context) => RoomMatchScreen(
+              roomId: roomId,
+              isGuest: isGuest,
+            ),
+            settings: settings,
+          );
+        }
+
         // /matching?language=english のようなクエリパラメータ付きルートを処理
         if (settings.name?.startsWith('/matching') == true) {
           final uri = Uri.parse(settings.name!);
@@ -39,13 +53,20 @@ class MyApp extends StatelessWidget {
           );
         }
 
-        // /battle?matchId=xxx のようなクエリパラメータ付きルートを処理
+        // /battle?matchId=xxx&isRoomMatch=true&roomId=123 のようなクエリパラメータ付きルートを処理
         if (settings.name?.startsWith('/battle') == true) {
           final uri = Uri.parse(settings.name!);
           final matchId = uri.queryParameters['matchId'];
           if (matchId != null) {
+            final isRoomMatch = uri.queryParameters['isRoomMatch'] == 'true';
+            final roomIdStr = uri.queryParameters['roomId'];
+            final roomId = roomIdStr != null ? int.tryParse(roomIdStr) : null;
             return MaterialPageRoute(
-              builder: (context) => BattleScreen(matchId: matchId),
+              builder: (context) => BattleScreen(
+                matchId: matchId,
+                isRoomMatch: isRoomMatch,
+                roomId: roomId,
+              ),
               settings: settings,
             );
           }
