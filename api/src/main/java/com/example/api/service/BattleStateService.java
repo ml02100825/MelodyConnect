@@ -109,6 +109,10 @@ public class BattleStateService {
         private final String language;
         private final List<Question> questions;
         private final List<RoundResult> roundResults;
+        private final int winsToVictory;     // 勝利に必要な勝ち数（動的設定可能）
+        private final int maxRounds;          // 最大ラウンド数（動的設定可能）
+        private final boolean isRoomMatch;    // ルームマッチかどうか
+        private Long roomId;                  // ルームID（ルームマッチの場合）
 
         private Status status;
         private int currentRound;           // 0-indexed
@@ -125,14 +129,30 @@ public class BattleStateService {
         private boolean player2NextReady;
         private Instant roundResultStartTime; // ラウンド結果表示開始時刻
 
+        /**
+         * ランクマッチ用コンストラクタ（既存互換）
+         */
         public BattleState(String matchUuid, Long player1Id, Long player2Id,
                           String language, List<Question> questions) {
+            this(matchUuid, player1Id, player2Id, language, questions, WINS_TO_VICTORY, MAX_ROUNDS, false, null);
+        }
+
+        /**
+         * ルームマッチ用コンストラクタ（先取数を動的に設定）
+         */
+        public BattleState(String matchUuid, Long player1Id, Long player2Id,
+                          String language, List<Question> questions,
+                          int winsToVictory, int maxRounds, boolean isRoomMatch, Long roomId) {
             this.matchUuid = matchUuid;
             this.player1Id = player1Id;
             this.player2Id = player2Id;
             this.language = language;
             this.questions = new ArrayList<>(questions);
             this.roundResults = new ArrayList<>();
+            this.winsToVictory = winsToVictory;
+            this.maxRounds = maxRounds;
+            this.isRoomMatch = isRoomMatch;
+            this.roomId = roomId;
             this.status = Status.WAITING_FOR_PLAYERS;
             this.currentRound = 0;
             this.player1Wins = 0;
@@ -153,6 +173,10 @@ public class BattleStateService {
         public Instant getRoundStartTime() { return roundStartTime; }
         public PlayerAnswer getCurrentPlayer1Answer() { return currentPlayer1Answer; }
         public PlayerAnswer getCurrentPlayer2Answer() { return currentPlayer2Answer; }
+        public int getWinsToVictory() { return winsToVictory; }
+        public int getMaxRounds() { return maxRounds; }
+        public boolean isRoomMatch() { return isRoomMatch; }
+        public Long getRoomId() { return roomId; }
 
         // Setters（パッケージプライベート）
         void setStatus(Status status) { this.status = status; }
@@ -226,22 +250,22 @@ public class BattleStateService {
         }
 
         /**
-         * 勝者が確定したかどうか（3勝または10ラウンド終了）
+         * 勝者が確定したかどうか（先取数に到達または最大ラウンド終了）
          */
         public boolean isMatchDecided() {
-            return player1Wins >= WINS_TO_VICTORY ||
-                   player2Wins >= WINS_TO_VICTORY ||
-                   currentRound >= MAX_ROUNDS;
+            return player1Wins >= winsToVictory ||
+                   player2Wins >= winsToVictory ||
+                   currentRound >= maxRounds;
         }
 
         /**
          * 勝者のユーザーIDを取得（未確定ならnull）
          */
         public Long getWinnerId() {
-            if (player1Wins >= WINS_TO_VICTORY) return player1Id;
-            if (player2Wins >= WINS_TO_VICTORY) return player2Id;
-            if (currentRound >= MAX_ROUNDS) {
-                // 10ラウンド終了時は勝ち数で判定
+            if (player1Wins >= winsToVictory) return player1Id;
+            if (player2Wins >= winsToVictory) return player2Id;
+            if (currentRound >= maxRounds) {
+                // 最大ラウンド終了時は勝ち数で判定
                 if (player1Wins > player2Wins) return player1Id;
                 if (player2Wins > player1Wins) return player2Id;
                 return null; // 引き分け（同点）
@@ -251,7 +275,7 @@ public class BattleStateService {
     }
 
     /**
-     * 新しい対戦状態を作成
+     * 新しい対戦状態を作成（ランクマッチ用）
      */
     public BattleState createBattle(String matchUuid, Long player1Id, Long player2Id,
                                     String language, List<Question> questions) {
@@ -264,6 +288,36 @@ public class BattleStateService {
         activeBattles.put(matchUuid, state);
         logger.info("対戦状態作成: matchUuid={}, player1={}, player2={}, questions={}",
                 matchUuid, player1Id, player2Id, questions.size());
+        return state;
+    }
+
+    /**
+     * 新しい対戦状態を作成（ルームマッチ用・先取数を指定）
+     * @param matchUuid マッチID
+     * @param player1Id プレイヤー1のID
+     * @param player2Id プレイヤー2のID
+     * @param language 言語
+     * @param questions 問題リスト
+     * @param winsToVictory 勝利に必要な勝ち数（5/7/9）
+     * @param roomId ルームID
+     * @return 作成された対戦状態
+     */
+    public BattleState createRoomBattle(String matchUuid, Long player1Id, Long player2Id,
+                                         String language, List<Question> questions,
+                                         int winsToVictory, Long roomId) {
+        if (activeBattles.containsKey(matchUuid)) {
+            logger.warn("対戦状態が既に存在: matchUuid={}", matchUuid);
+            return activeBattles.get(matchUuid);
+        }
+
+        // 最大ラウンド数 = 先取数 + 5
+        int maxRounds = winsToVictory + 5;
+
+        BattleState state = new BattleState(matchUuid, player1Id, player2Id, language, questions,
+                winsToVictory, maxRounds, true, roomId);
+        activeBattles.put(matchUuid, state);
+        logger.info("ルームマッチ対戦状態作成: matchUuid={}, player1={}, player2={}, winsToVictory={}, maxRounds={}, roomId={}, questions={}",
+                matchUuid, player1Id, player2Id, winsToVictory, maxRounds, roomId, questions.size());
         return state;
     }
 

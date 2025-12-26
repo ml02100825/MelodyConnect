@@ -169,22 +169,17 @@ class _BattleModeSelectionScreenState extends State<BattleModeSelectionScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Room Matchボタン（準備中）
+                // Room Matchボタン
                 _buildModeCard(
                   context: context,
                   title: 'Room Match',
                   description: 'フレンドとプライベート対戦',
                   icon: Icons.people,
                   color: Colors.green,
-                  isAvailable: false,
+                  isAvailable: true,
                   isLifeInsufficient: false,
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Room Matchは準備中です'),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
+                    Navigator.pushNamed(context, '/room-match');
                   },
                 ),
               ],

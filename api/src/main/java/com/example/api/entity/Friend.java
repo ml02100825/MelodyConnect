@@ -40,6 +40,19 @@ public class Friend {
     @Column(name = "invite_flag", nullable = false)
     private Boolean inviteFlag;
 
+    /** ルーム招待先のルームID（nullの場合は招待なし） */
+    @Column(name = "invite_room_id")
+    private Long inviteRoomId;
+
+    /** ルーム招待送信日時 */
+    @Column(name = "invite_sent_at")
+    private LocalDateTime inviteSentAt;
+
+    /** ルーム招待者（招待を送った側のユーザー） */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_inviter_id")
+    private User roomInviter;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requester_id", nullable = false)
     private User requester;
@@ -84,4 +97,23 @@ public class Friend {
 
     public LocalDateTime getRequestedAt() { return requestedAt; }
     public void setRequestedAt(LocalDateTime requestedAt) { this.requestedAt = requestedAt; }
+
+    public Long getInviteRoomId() { return inviteRoomId; }
+    public void setInviteRoomId(Long inviteRoomId) { this.inviteRoomId = inviteRoomId; }
+
+    public LocalDateTime getInviteSentAt() { return inviteSentAt; }
+    public void setInviteSentAt(LocalDateTime inviteSentAt) { this.inviteSentAt = inviteSentAt; }
+
+    public User getRoomInviter() { return roomInviter; }
+    public void setRoomInviter(User roomInviter) { this.roomInviter = roomInviter; }
+
+    /**
+     * ルーム招待をクリアする
+     */
+    public void clearRoomInvitation() {
+        this.inviteFlag = false;
+        this.inviteRoomId = null;
+        this.inviteSentAt = null;
+        this.roomInviter = null;
+    }
 }

@@ -233,6 +233,99 @@ public class BattleService {
     }
 
     /**
+     * ルームマッチ用対戦を初期化（問題取得・状態作成）
+     * @param matchUuid マッチID
+     * @param player1Id プレイヤー1のID（ホスト）
+     * @param player2Id プレイヤー2のID（ゲスト）
+     * @param language 言語
+     * @param winsToVictory 勝利に必要な勝ち数（先取数: 5/7/9）
+     * @param roomId ルームID
+     * @return 作成された対戦状態
+     */
+    @Transactional(readOnly = true)
+    public BattleStateService.BattleState initializeRoomBattle(String matchUuid, Long player1Id,
+                                                                Long player2Id, String language,
+                                                                int winsToVictory, Long roomId) {
+        // 既に存在する場合はそれを返す
+        BattleStateService.BattleState existing = battleStateService.getBattle(matchUuid);
+        if (existing != null) {
+            return existing;
+        }
+
+        // 言語コードを変換（マッチング時のコードをDB用に変換）
+        String dbLanguageCode = convertToDbLanguageCode(language);
+
+        // 問題数 = 先取数 + 5
+        int questionCount = winsToVictory + 5;
+
+        // 問題を取得（言語でフィルタしてランダムに選択）
+        List<Question> allQuestions = questionRepository.findByLanguage(dbLanguageCode);
+
+        if (allQuestions.size() < questionCount) {
+            logger.warn("問題数が不足: language={}, available={}, required={}",
+                    language, allQuestions.size(), questionCount);
+            // 問題が足りない場合は全問使用
+            if (allQuestions.isEmpty()) {
+                throw new IllegalStateException("問題がありません: language=" + language);
+            }
+        }
+
+        // シャッフルして必要問題数を選択
+        List<Question> selectedQuestions = new ArrayList<>(allQuestions);
+        Collections.shuffle(selectedQuestions);
+        if (selectedQuestions.size() > questionCount) {
+            selectedQuestions = selectedQuestions.subList(0, questionCount);
+        }
+
+        logger.info("ルームマッチ対戦初期化: matchUuid={}, roomId={}, winsToVictory={}, questions={}",
+                matchUuid, roomId, winsToVictory, selectedQuestions.size());
+
+        return battleStateService.createRoomBattle(matchUuid, player1Id, player2Id, language,
+                selectedQuestions, winsToVictory, roomId);
+    }
+
+    /**
+     * ルームマッチ用の初期Resultレコードを作成
+     * ランクマッチと異なり、matchType = room
+     */
+    @Transactional
+    public void createRoomMatchResult(String matchUuid, Long hostId, Long guestId, String language) {
+        // 既に存在するかチェック
+        if (resultRepository.existsByMatchUuidAndPlayerId(matchUuid, hostId)) {
+            logger.warn("ルームマッチ結果レコードが既に存在: matchUuid={}, hostId={}", matchUuid, hostId);
+            return;
+        }
+
+        User host = userRepository.findById(hostId)
+                .orElseThrow(() -> new IllegalArgumentException("ホストユーザーが見つかりません: " + hostId));
+        User guest = userRepository.findById(guestId)
+                .orElseThrow(() -> new IllegalArgumentException("ゲストユーザーが見つかりません: " + guestId));
+
+        // ホスト用Resultレコード
+        Result hostResult = new Result();
+        hostResult.setPlayer(host);
+        hostResult.setEnemy(guest);
+        hostResult.setUseLanguage(language);
+        hostResult.setMatchUuid(matchUuid);
+        hostResult.setMatchType(Result.MatchType.room);  // ルームマッチ
+        hostResult.setUpdownRate(0);  // レート変動なし
+        resultRepository.save(hostResult);
+
+        // ゲスト用Resultレコード
+        Result guestResult = new Result();
+        guestResult.setPlayer(guest);
+        guestResult.setEnemy(host);
+        guestResult.setUseLanguage(language);
+        guestResult.setMatchUuid(matchUuid);
+        guestResult.setMatchType(Result.MatchType.room);  // ルームマッチ
+        guestResult.setUpdownRate(0);  // レート変動なし
+        resultRepository.save(guestResult);
+
+        logger.info("ルームマッチ結果レコード作成: matchUuid={}, hostId={}, guestId={}",
+                matchUuid, hostId, guestId);
+    }
+
+    /**
      * バトル開始（ユーザー情報付き）
      * Controller層でLazy Entityを直接参照しないようにするため、
      * @Transactional 範囲内でUser情報を取得してDTOで返す
@@ -392,11 +485,12 @@ public class BattleService {
         int winnerScore = winnerId.equals(state.getPlayer1Id()) ? state.getPlayer1Wins() : state.getPlayer2Wins();
         int loserScore = loserId.equals(state.getPlayer1Id()) ? state.getPlayer1Wins() : state.getPlayer2Wins();
 
-        // ELOレート計算
+        // ELOレート計算（ルームマッチの場合は変動なし）
         int winnerRateChange = 0;
         int loserRateChange = 0;
         int winnerNewRate = 0;
         int loserNewRate = 0;
+        boolean isRoomMatch = state.isRoomMatch();
 
         User winnerUser = userRepository.findById(winnerId).orElseThrow();
         User loserUser = userRepository.findById(loserId).orElseThrow();
@@ -410,12 +504,17 @@ public class BattleService {
         int winnerOldRate = winnerRate.getRate();
         int loserOldRate = loserRate.getRate();
 
-        if (isDraw) {
+        if (isRoomMatch) {
+            // ルームマッチの場合はレート変動なし
+            winnerNewRate = winnerOldRate;
+            loserNewRate = loserOldRate;
+            logger.info("ルームマッチのためレート変動なし: winner={}, loser={}", winnerId, loserId);
+        } else if (isDraw) {
             // 引き分けの場合はレート変動なし
             winnerNewRate = winnerOldRate;
             loserNewRate = loserOldRate;
         } else {
-            // ELOレーティング計算
+            // ELOレーティング計算（ランクマッチのみ）
             double expectedWinner = calculateExpectedScore(winnerOldRate, loserOldRate);
             double expectedLoser = calculateExpectedScore(loserOldRate, winnerOldRate);
 
@@ -432,9 +531,11 @@ public class BattleService {
             rateRepository.save(loserRate);
         }
 
-        logger.info("レート更新: winner={} ({}→{}), loser={} ({}→{})",
-                winnerId, winnerOldRate, winnerNewRate,
-                loserId, loserOldRate, loserNewRate);
+        if (!isRoomMatch) {
+            logger.info("レート更新: winner={} ({}→{}), loser={} ({}→{})",
+                    winnerId, winnerOldRate, winnerNewRate,
+                    loserId, loserOldRate, loserNewRate);
+        }
 
         // ラウンドサマリー作成
         List<RoundSummary> roundSummaries = createRoundSummaries(state);
@@ -558,11 +659,15 @@ public class BattleService {
                 })
                 .collect(Collectors.toList());
 
-        // BO3形式情報
+        // 対戦形式情報（動的な先取数を使用）
         Map<String, Object> resultFormat = new HashMap<>();
-        resultFormat.put("format", "BO3");
-        resultFormat.put("winsRequired", BattleStateService.WINS_TO_VICTORY);
-        resultFormat.put("maxRounds", BattleStateService.MAX_ROUNDS);
+        resultFormat.put("format", state.isRoomMatch() ? "Room" : "Rank");
+        resultFormat.put("winsRequired", state.getWinsToVictory());
+        resultFormat.put("maxRounds", state.getMaxRounds());
+        resultFormat.put("isRoomMatch", state.isRoomMatch());
+        if (state.isRoomMatch() && state.getRoomId() != null) {
+            resultFormat.put("roomId", state.getRoomId());
+        }
 
         LocalDateTime endedAt = LocalDateTime.now();
 
