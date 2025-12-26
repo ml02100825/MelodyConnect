@@ -1,9 +1,106 @@
 import 'package:flutter/material.dart';
+import '../services/life_api_service.dart';
+import '../services/token_storage_service.dart';
 
 /// バトルモード選択画面
 /// Ranked MatchとRoom Matchを選択します
-class BattleModeSelectionScreen extends StatelessWidget {
+class BattleModeSelectionScreen extends StatefulWidget {
   const BattleModeSelectionScreen({Key? key}) : super(key: key);
+
+  @override
+  State<BattleModeSelectionScreen> createState() => _BattleModeSelectionScreenState();
+}
+
+class _BattleModeSelectionScreenState extends State<BattleModeSelectionScreen> {
+  final _lifeApiService = LifeApiService();
+  final _tokenStorage = TokenStorageService();
+
+  LifeStatus? _lifeStatus;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLifeStatus();
+  }
+
+  Future<void> _fetchLifeStatus() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (userId != null && accessToken != null) {
+        final lifeStatus = await _lifeApiService.getLifeStatus(
+          userId: userId,
+          accessToken: accessToken,
+        );
+        if (mounted) {
+          setState(() {
+            _lifeStatus = lifeStatus;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('ライフ状態取得エラー: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  String _formatRecoveryTime(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  void _showInsufficientLifeDialog() {
+    final nextRecovery = _lifeStatus?.nextRecoveryInSeconds ?? 600;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ライフが不足しています'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.music_off,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'ランクマッチにはライフが必要です',
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '次の回復まで: ${_formatRecoveryTime(nextRecovery)}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,6 +108,8 @@ class BattleModeSelectionScreen extends StatelessWidget {
     final isWideScreen = screenWidth > 600;
     final padding = isWideScreen ? 48.0 : 24.0;
     final maxWidth = isWideScreen ? 600.0 : double.infinity;
+
+    final hasLife = _lifeStatus != null && _lifeStatus!.currentLife > 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -26,6 +125,11 @@ class BattleModeSelectionScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // ライフ表示
+                if (!_isLoading && _lifeStatus != null)
+                  _buildLifeDisplay(),
+                const SizedBox(height: 24),
+
                 // タイトル
                 const Text(
                   'バトルモードを選択',
@@ -53,9 +157,14 @@ class BattleModeSelectionScreen extends StatelessWidget {
                   description: 'レーティングをかけて戦う',
                   icon: Icons.emoji_events,
                   color: Colors.amber,
-                  isAvailable: true,
+                  isAvailable: hasLife || _isLoading,
+                  isLifeInsufficient: !_isLoading && !hasLife,
                   onTap: () {
-                    Navigator.pushNamed(context, '/language-selection');
+                    if (!hasLife && !_isLoading) {
+                      _showInsufficientLifeDialog();
+                    } else {
+                      Navigator.pushNamed(context, '/language-selection');
+                    }
                   },
                 ),
                 const SizedBox(height: 24),
@@ -68,6 +177,7 @@ class BattleModeSelectionScreen extends StatelessWidget {
                   icon: Icons.people,
                   color: Colors.green,
                   isAvailable: false,
+                  isLifeInsufficient: false,
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -85,6 +195,65 @@ class BattleModeSelectionScreen extends StatelessWidget {
     );
   }
 
+  /// ライフ表示ウィジェット
+  Widget _buildLifeDisplay() {
+    final currentLife = _lifeStatus!.currentLife;
+    final maxLife = _lifeStatus!.maxLife;
+    final nextRecovery = _lifeStatus!.nextRecoveryInSeconds;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'ライフ: ',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              ...List.generate(maxLife, (index) {
+                final isFilled = index < currentLife;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.music_note,
+                    color: isFilled ? Colors.blue[600] : Colors.grey[300],
+                    size: 24,
+                  ),
+                );
+              }),
+            ],
+          ),
+          if (currentLife < maxLife) ...[
+            const SizedBox(height: 8),
+            Text(
+              '次の回復まで: ${_formatRecoveryTime(nextRecovery)}',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   /// モード選択カードを構築
   Widget _buildModeCard({
     required BuildContext context,
@@ -93,6 +262,7 @@ class BattleModeSelectionScreen extends StatelessWidget {
     required IconData icon,
     required Color color,
     required bool isAvailable,
+    required bool isLifeInsufficient,
     required VoidCallback onTap,
   }) {
     return Card(
@@ -113,9 +283,15 @@ class BattleModeSelectionScreen extends StatelessWidget {
                     size: 80,
                     color: isAvailable ? color : Colors.grey,
                   ),
-                  if (!isAvailable)
+                  if (!isAvailable && !isLifeInsufficient)
                     const Icon(
                       Icons.lock,
+                      size: 40,
+                      color: Colors.white,
+                    ),
+                  if (isLifeInsufficient)
+                    const Icon(
+                      Icons.music_off,
                       size: 40,
                       color: Colors.white,
                     ),
@@ -146,7 +322,7 @@ class BattleModeSelectionScreen extends StatelessWidget {
               ),
 
               // ステータス
-              if (!isAvailable) ...[
+              if (!isAvailable && !isLifeInsufficient) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -163,6 +339,27 @@ class BattleModeSelectionScreen extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.orange,
+                    ),
+                  ),
+                ),
+              ],
+              if (isLifeInsufficient) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red[100],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'ライフ不足',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
                     ),
                   ),
                 ),
