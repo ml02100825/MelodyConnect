@@ -427,10 +427,6 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ルーム情報
-          _buildRoomInfo(),
-          const SizedBox(height: 24),
-
           // プレイヤー情報
           _buildPlayersInfo(),
           const SizedBox(height: 24),
@@ -452,41 +448,6 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
           // アクションボタン
           _buildActionButtons(),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRoomInfo() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(
-              '先取 $_matchType 本勝負',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '言語: ${_language == 'english' ? '英語' : '韓国語'}',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-            if (_room != null)
-              Text(
-                'Room ID: ${_room!['roomId']}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[400],
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
