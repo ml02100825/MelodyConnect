@@ -677,19 +677,197 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
   }
 
   void _showInviteFriendDialog() {
-    // TODO: フレンド一覧から選択するダイアログを実装
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('フレンドを招待'),
-        content: const Text('フレンド一覧機能は準備中です'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
+      builder: (context) => _FriendInviteDialog(
+        userId: _userId!,
+        roomId: _room!['roomId'],
+        accessToken: _accessToken!,
+        roomApiService: _roomApiService,
+        onInviteSent: (friendId) {
+          // 招待送信後の処理
+          _loadInvitedUsers();
+        },
       ),
+    );
+  }
+}
+
+/// フレンド招待ダイアログ
+class _FriendInviteDialog extends StatefulWidget {
+  final int userId;
+  final int roomId;
+  final String accessToken;
+  final RoomApiService roomApiService;
+  final Function(int friendId)? onInviteSent;
+
+  const _FriendInviteDialog({
+    required this.userId,
+    required this.roomId,
+    required this.accessToken,
+    required this.roomApiService,
+    this.onInviteSent,
+  });
+
+  @override
+  State<_FriendInviteDialog> createState() => _FriendInviteDialogState();
+}
+
+class _FriendInviteDialogState extends State<_FriendInviteDialog> {
+  List<Map<String, dynamic>> _friends = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  Set<int> _invitingIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFriends();
+  }
+
+  Future<void> _loadFriends() async {
+    try {
+      final friends = await widget.roomApiService.getFriends(
+        userId: widget.userId,
+        accessToken: widget.accessToken,
+      );
+      if (mounted) {
+        setState(() {
+          _friends = friends;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _inviteFriend(int friendUserId) async {
+    if (_invitingIds.contains(friendUserId)) return;
+
+    setState(() {
+      _invitingIds.add(friendUserId);
+    });
+
+    try {
+      final result = await widget.roomApiService.inviteFriend(
+        roomId: widget.roomId,
+        hostId: widget.userId,
+        friendId: friendUserId,
+        accessToken: widget.accessToken,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? '招待を送信しました'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        widget.onInviteSent?.call(friendUserId);
+        // フレンド一覧を再読み込みして招待状態を更新
+        await _loadFriends();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('招待エラー: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _invitingIds.remove(friendUserId);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('フレンドを招待'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? Center(child: Text(_errorMessage!))
+                : _friends.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'フレンドがいません\n\nフレンド画面で友達を追加してください',
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _friends.length,
+                        itemBuilder: (context, index) {
+                          final friend = _friends[index];
+                          final friendUserId = friend['userId'] as int;
+                          final username = friend['username'] as String?;
+                          final imageUrl = friend['imageUrl'] as String?;
+                          final isInvited = friend['isInvited'] as bool? ?? false;
+                          final canReceiveNow = friend['canReceiveNow'] as bool? ?? true;
+                          final isInviting = _invitingIds.contains(friendUserId);
+
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundImage: imageUrl != null
+                                  ? NetworkImage('http://localhost:8080/images/$imageUrl')
+                                  : null,
+                              child: imageUrl == null
+                                  ? const Icon(Icons.person)
+                                  : null,
+                            ),
+                            title: Text(username ?? 'ユーザー'),
+                            subtitle: Text(
+                              canReceiveNow
+                                  ? (isInvited ? '招待済み' : 'オンライン')
+                                  : 'バトル中',
+                              style: TextStyle(
+                                color: isInvited
+                                    ? Colors.orange
+                                    : canReceiveNow
+                                        ? Colors.green
+                                        : Colors.grey,
+                              ),
+                            ),
+                            trailing: isInviting
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : isInvited
+                                    ? const Icon(Icons.check, color: Colors.orange)
+                                    : ElevatedButton(
+                                        onPressed: () => _inviteFriend(friendUserId),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('招待'),
+                                      ),
+                          );
+                        },
+                      ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('閉じる'),
+        ),
+      ],
     );
   }
 }

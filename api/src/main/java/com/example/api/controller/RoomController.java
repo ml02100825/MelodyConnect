@@ -249,12 +249,33 @@ public class RoomController {
     @GetMapping("/friends")
     public ResponseEntity<?> getFriends(@RequestParam Long userId) {
         try {
-            List<Friend> friends = roomService.getPendingInvitations(userId);
-            // Note: 実際にはFriendServiceからフレンド一覧を取得すべき
-            // ここでは簡易的にFriendRepositoryの結果を返す
-            // TODO: FriendServiceの実装後に修正
+            List<Friend> friends = roomService.getFriendsForInvitation(userId);
+            List<Map<String, Object>> result = new ArrayList<>();
 
-            return ResponseEntity.ok(new ArrayList<>());
+            for (Friend f : friends) {
+                // 自分ではない方のユーザーを取得
+                User friendUser = f.getUserLow().getId().equals(userId) ? f.getUserHigh() : f.getUserLow();
+
+                Map<String, Object> friendInfo = new HashMap<>();
+                friendInfo.put("friendId", f.getId());
+                friendInfo.put("userId", friendUser.getId());
+                friendInfo.put("username", friendUser.getUsername());
+                friendInfo.put("imageUrl", friendUser.getImageUrl());
+
+                // 招待状態を確認
+                boolean isInvited = f.getInviteFlag() && f.getInviteRoomId() != null
+                        && f.getRoomInviter() != null && f.getRoomInviter().getId().equals(userId);
+                friendInfo.put("isInvited", isInvited);
+                friendInfo.put("inviteRoomId", isInvited ? f.getInviteRoomId() : null);
+
+                // オンライン状態やステータスを確認（簡易実装）
+                boolean canReceiveNow = roomService.canReceiveInvitation(friendUser.getId());
+                friendInfo.put("canReceiveNow", canReceiveNow);
+
+                result.add(friendInfo);
+            }
+
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             logger.error("フレンド一覧取得エラー", e);
             return ResponseEntity.status(500).body(errorResponse("フレンド一覧の取得に失敗しました"));

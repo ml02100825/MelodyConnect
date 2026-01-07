@@ -43,13 +43,13 @@ public class RoomService {
     }
 
     /**
-     * 部屋を作成
+     * 部屋を作成（既存のアクティブな部屋がある場合はそれを返す）
      * @param hostId ホストのユーザーID
      * @param matchType 先取数（5/7/9）
      * @param language 言語
      * @param problemType 問題タイプ
      * @param questionFormat 問題形式
-     * @return 作成された部屋
+     * @return 作成された部屋または既存のアクティブな部屋
      */
     @Transactional
     public Room createRoom(Long hostId, Integer matchType, String language,
@@ -57,7 +57,13 @@ public class RoomService {
         // 既存のアクティブな部屋があるかチェック
         List<Room> existingRooms = roomRepository.findActiveByUserId(hostId);
         if (!existingRooms.isEmpty()) {
-            throw new IllegalStateException("既にアクティブな部屋が存在します");
+            // 既存の部屋を返す（ホストとして作成した部屋を優先）
+            Room existingRoom = existingRooms.stream()
+                    .filter(r -> r.getHost_id().equals(hostId))
+                    .findFirst()
+                    .orElse(existingRooms.get(0));
+            logger.info("既存のアクティブな部屋に再接続: roomId={}, hostId={}", existingRoom.getRoom_id(), hostId);
+            return existingRoom;
         }
 
         // ランクマッチ待機中かチェック
@@ -78,6 +84,23 @@ public class RoomService {
         Room savedRoom = roomRepository.save(room);
         logger.info("部屋を作成しました: roomId={}, hostId={}", savedRoom.getRoom_id(), hostId);
         return savedRoom;
+    }
+
+    /**
+     * ユーザーのアクティブな部屋を取得
+     * @param userId ユーザーID
+     * @return アクティブな部屋（存在する場合）
+     */
+    public Optional<Room> getActiveRoom(Long userId) {
+        List<Room> rooms = roomRepository.findActiveByUserId(userId);
+        if (rooms.isEmpty()) {
+            return Optional.empty();
+        }
+        // ホストとして作成した部屋を優先
+        return rooms.stream()
+                .filter(r -> r.getHost_id().equals(userId))
+                .findFirst()
+                .or(() -> Optional.of(rooms.get(0)));
     }
 
     /**
@@ -471,6 +494,15 @@ public class RoomService {
      */
     public List<Friend> getInvitedUsers(Long roomId) {
         return friendRepository.findAllRoomInvitationsByRoomId(roomId);
+    }
+
+    /**
+     * ユーザーのフレンド一覧を取得（招待用）
+     * @param userId ユーザーID
+     * @return フレンド一覧
+     */
+    public List<Friend> getFriendsForInvitation(Long userId) {
+        return friendRepository.findFriendsByUserId(userId);
     }
 
     /**
