@@ -39,6 +39,14 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     @Query("SELECT f FROM Friend f WHERE (f.userLow = :user OR f.userHigh = :user) AND f.friendFlag = true")
     List<Friend> findFriendsByUser(@Param("user") User user);
 
+        /**
+     * ユーザーのフレンド一覧を取得（friend_flag = true）
+     * @param user ユーザー
+     * @return フレンド一覧
+     */
+    @Query("SELECT f FROM Friend f WHERE (f.userLow = :user OR f.userHigh = :user) AND f.friendFlag = true")
+    List<Friend> findFriendsByUserId(@Param("user") Long userId);
+
     /**
      * ユーザーへのフレンド申請一覧を取得（friend_flag = false, 自分が申請者でない）
      * @param user ユーザー
