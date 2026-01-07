@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../bottom_nav.dart';
+import '../services/friend_api_service.dart';
+import '../services/token_storage_service.dart';
 
 class FriendRequestsScreen extends StatefulWidget {
   const FriendRequestsScreen({Key? key}) : super(key: key);
@@ -9,40 +10,116 @@ class FriendRequestsScreen extends StatefulWidget {
 }
 
 class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
-  // ダミーの申請リスト（将来 API で取得）
-  final List<Map<String, String>> _requests = [
-    {
-      'id': 'r1',
-      'name': '斎藤１２３',
-      'lastLogin': '最終ログイン  2時間前',
-    },{
-      'id': 'r2',
-      'name': '斎藤４５６',
-      'lastLogin': '最終ログイン  1時間前',
-    },
-  ];
+  final FriendApiService _friendApiService = FriendApiService();
+  final TokenStorageService _tokenStorage = TokenStorageService();
 
-  String? _toastMessage; // '許可しました' / '拒否しました'
+  List<dynamic> _requests = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  void _showToast(String message) {
-    setState(() => _toastMessage = message);
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _toastMessage = null);
-    });
+  @override
+  void initState() {
+    super.initState();
+    _loadRequests();
   }
 
-  void _acceptRequest(String id) {
+  Future<void> _loadRequests() async {
     setState(() {
-      _requests.removeWhere((r) => r['id'] == id);
+      _isLoading = true;
+      _errorMessage = null;
     });
-    _showToast('許可しました');
+
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      final userId = await _tokenStorage.getUserId();
+
+      if (accessToken == null || userId == null) {
+        throw Exception('ログインが必要です');
+      }
+
+      final requests = await _friendApiService.getPendingRequests(userId, accessToken);
+      setState(() {
+        _requests = requests;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
-  void _declineRequest(String id) {
-    setState(() {
-      _requests.removeWhere((r) => r['id'] == id);
-    });
-    _showToast('拒否しました');
+  Future<void> _acceptRequest(int friendId) async {
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      final userId = await _tokenStorage.getUserId();
+
+      if (accessToken == null || userId == null) {
+        throw Exception('ログインが必要です');
+      }
+
+      await _friendApiService.acceptFriendRequest(userId, friendId, accessToken);
+
+      setState(() {
+        _requests.removeWhere((r) => r['friendId'] == friendId);
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('フレンド申請を承認しました'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _rejectRequest(int friendId) async {
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      final userId = await _tokenStorage.getUserId();
+
+      if (accessToken == null || userId == null) {
+        throw Exception('ログインが必要です');
+      }
+
+      await _friendApiService.rejectFriendRequest(userId, friendId, accessToken);
+
+      setState(() {
+        _requests.removeWhere((r) => r['friendId'] == friendId);
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('フレンド申請を拒否しました'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -57,53 +134,51 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
         ),
         title: const Text('フレンド申請一覧', style: TextStyle(color: Colors.black)),
         centerTitle: true,
-      ),
-      body: Stack(
-        children: [
-          _requests.isEmpty
-              ? Center(
-                  child: Text(
-                    'まだ何も来ていません...',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _requests.length,
-                  itemBuilder: (context, index) {
-                    final r = _requests[index];
-                    return _requestCard(r['id']!, r['name']!, r['lastLogin']!);
-                  },
-                ),
-
-          // トースト風バナー（上部中央）
-          if (_toastMessage != null)
-            Positioned(
-              top: 12,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.grey.shade600),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(_toastMessage!),
-                ),
-              ),
-            ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            onPressed: _loadRequests,
+          ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: 3,
-        onTap: (index) {},
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadRequests,
+                        child: const Text('再読み込み'),
+                      ),
+                    ],
+                  ),
+                )
+              : _requests.isEmpty
+                  ? Center(
+                      child: Text(
+                        'フレンド申請がありません',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadRequests,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _requests.length,
+                        itemBuilder: (context, index) {
+                          final request = _requests[index] as Map<String, dynamic>;
+                          return _requestCard(request);
+                        },
+                      ),
+                    ),
     );
   }
 
-  Widget _requestCard(String id, String name, String lastLogin) {
+  Widget _requestCard(Map<String, dynamic> request) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -117,7 +192,12 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
           CircleAvatar(
             radius: 24,
             backgroundColor: Colors.blue.shade50,
-            child: const Icon(Icons.person, color: Colors.purple),
+            backgroundImage: (request['requesterImageUrl'] != null && request['requesterImageUrl'].toString().isNotEmpty)
+                ? NetworkImage(request['requesterImageUrl'])
+                : null,
+            child: (request['requesterImageUrl'] == null || request['requesterImageUrl'].toString().isEmpty)
+                ? const Icon(Icons.person, color: Colors.purple)
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -125,12 +205,12 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  request['requesterUsername'] ?? '',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  lastLogin,
+                  '@${request['requesterUserUuid'] ?? ''}',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
@@ -144,10 +224,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
               style: OutlinedButton.styleFrom(
                 shape: const CircleBorder(),
                 padding: EdgeInsets.zero,
-                side: BorderSide(color: Colors.grey.shade400),
+                side: const BorderSide(color: Colors.green),
               ),
-              onPressed: () => _acceptRequest(id),
-              child: const Icon(Icons.check),
+              onPressed: () => _acceptRequest(request['friendId']),
+              child: const Icon(Icons.check, color: Colors.green),
             ),
           ),
           const SizedBox(width: 8),
@@ -159,10 +239,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
               style: OutlinedButton.styleFrom(
                 shape: const CircleBorder(),
                 padding: EdgeInsets.zero,
-                side: BorderSide(color: Colors.grey.shade400),
+                side: const BorderSide(color: Colors.red),
               ),
-              onPressed: () => _declineRequest(id),
-              child: const Icon(Icons.close),
+              onPressed: () => _rejectRequest(request['friendId']),
+              child: const Icon(Icons.close, color: Colors.red),
             ),
           ),
         ],

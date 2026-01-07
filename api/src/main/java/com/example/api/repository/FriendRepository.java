@@ -12,56 +12,60 @@ import java.util.Optional;
 
 /**
  * フレンドリポジトリインターフェース
- * Friendエンティティのデータベース操作を提供します
+ * フレンドエンティティのデータベース操作を提供します
  */
 @Repository
 public interface FriendRepository extends JpaRepository<Friend, Long> {
 
     /**
-     * ユーザーの確定済みフレンド一覧を取得
-     * @param userId ユーザーID
-     * @return フレンド関係のリスト
-     */
-    @Query("SELECT f FROM Friend f " +
-           "LEFT JOIN FETCH f.userLow " +
-           "LEFT JOIN FETCH f.userHigh " +
-           "WHERE (f.userLow.id = :userId OR f.userHigh.id = :userId) AND f.friendFlag = true")
-    List<Friend> findFriendsByUserId(@Param("userId") Long userId);
-
-    /**
-     * 2人のユーザー間のフレンド関係を取得
-     * @param userIdLow 小さい方のユーザーID
-     * @param userIdHigh 大きい方のユーザーID
+     * 2人のユーザー間のフレンド関係を検索（ID順序を考慮） - エンティティ版
+     * @param userLow ID小のユーザー
+     * @param userHigh ID大のユーザー
      * @return フレンド関係（存在する場合）
      */
-    @Query("SELECT f FROM Friend f WHERE f.userLow.id = :userIdLow AND f.userHigh.id = :userIdHigh")
-    Optional<Friend> findByUserPair(@Param("userIdLow") Long userIdLow, @Param("userIdHigh") Long userIdHigh);
+    Optional<Friend> findByUserLowAndUserHigh(User userLow, User userHigh);
 
     /**
-     * ユーザーへのフレンド申請を取得（未承認）
-     * @param userId ユーザーID
-     * @return フレンド申請のリスト
+     * 2人のユーザー間のフレンド関係を検索（ID順序を考慮） - ID版
+     * userLow.id / userHigh.id を直接指定して検索したいとき用
      */
-    @Query("SELECT f FROM Friend f " +
-           "LEFT JOIN FETCH f.userLow " +
-           "LEFT JOIN FETCH f.userHigh " +
-           "LEFT JOIN FETCH f.requester " +
-           "WHERE ((f.userLow.id = :userId OR f.userHigh.id = :userId) " +
-           "AND f.friendFlag = false AND f.requester.id != :userId)")
-    List<Friend> findPendingRequestsToUser(@Param("userId") Long userId);
+    Optional<Friend> findByUserLow_IdAndUserHigh_Id(Long userLowId, Long userHighId);
 
     /**
-     * ユーザーからのフレンド申請を取得（未承認）
-     * @param userId ユーザーID
-     * @return フレンド申請のリスト
+     * ユーザーのフレンド一覧を取得（friend_flag = true）
+     * @param user ユーザー
+     * @return フレンド一覧
      */
-    @Query("SELECT f FROM Friend f " +
-           "LEFT JOIN FETCH f.userLow " +
-           "LEFT JOIN FETCH f.userHigh " +
-           "WHERE f.requester.id = :userId AND f.friendFlag = false")
-    List<Friend> findPendingRequestsFromUser(@Param("userId") Long userId);
+    @Query("SELECT f FROM Friend f WHERE (f.userLow = :user OR f.userHigh = :user) AND f.friendFlag = true")
+    List<Friend> findFriendsByUser(@Param("user") User user);
 
     /**
+     * ユーザーへのフレンド申請一覧を取得（friend_flag = false, 自分が申請者でない）
+     * @param user ユーザー
+     * @return フレンド申請一覧
+     */
+    @Query("SELECT f FROM Friend f WHERE (f.userLow = :user OR f.userHigh = :user) AND f.friendFlag = false AND f.requester != :user")
+    List<Friend> findPendingRequestsForUser(@Param("user") User user);
+
+    /**
+     * ユーザーが送信したフレンド申請一覧を取得
+     * @param user ユーザー
+     * @return 送信した申請一覧
+     */
+    @Query("SELECT f FROM Friend f WHERE f.requester = :user AND f.friendFlag = false")
+    List<Friend> findSentRequestsByUser(@Param("user") User user);
+
+    /**
+     * 2人のユーザー間に既存のフレンド関係があるか確認（エンティティ版）
+     */
+    boolean existsByUserLowAndUserHigh(User userLow, User userHigh);
+
+    /**
+     * 2人のユーザー間に既存のフレンド関係があるか確認（ID版）
+     */
+    boolean existsByUserLow_IdAndUserHigh_Id(Long userLowId, Long userHighId);
+
+     /**
      * ルーム招待一覧を取得（inviteFlag = true かつ inviteRoomId が設定されているもの）
      * @param userId 招待を受けたユーザーID
      * @return ルーム招待のリスト
@@ -98,6 +102,7 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
            "WHERE f.inviteRoomId = :roomId AND f.inviteFlag = true")
     List<Friend> findAllRoomInvitationsByRoomId(@Param("roomId") Long roomId);
 
+    
     /**
      * 2人のユーザーがフレンドかどうかを確認
      * @param userId1 ユーザーID1
@@ -108,4 +113,15 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
            "WHERE ((f.userLow.id = :userId1 AND f.userHigh.id = :userId2) " +
            "OR (f.userLow.id = :userId2 AND f.userHigh.id = :userId1)) AND f.friendFlag = true")
     boolean areFriends(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+
+
+    
+    /**
+     * 2人のユーザー間のフレンド関係を取得
+     * @param userIdLow 小さい方のユーザーID
+     * @param userIdHigh 大きい方のユーザーID
+     * @return フレンド関係（存在する場合）
+     */
+    @Query("SELECT f FROM Friend f WHERE f.userLow.id = :userIdLow AND f.userHigh.id = :userIdHigh")
+    Optional<Friend> findByUserPair(@Param("userIdLow") Long userIdLow, @Param("userIdHigh") Long userIdHigh);
 }
