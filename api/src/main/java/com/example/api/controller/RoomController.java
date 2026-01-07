@@ -245,6 +245,10 @@ public class RoomController {
 
     /**
      * フレンド一覧を取得（招待用）
+     * フィルタリング：
+     * - アクティブな部屋に参加中のユーザーは除外
+     * - 誰かから招待を受けているユーザーは除外
+     * - このホストが既に招待済みのユーザーは除外
      */
     @GetMapping("/friends")
     public ResponseEntity<?> getFriends(@RequestParam Long userId) {
@@ -255,21 +259,28 @@ public class RoomController {
             for (Friend f : friends) {
                 // 自分ではない方のユーザーを取得
                 User friendUser = f.getUserLow().getId().equals(userId) ? f.getUserHigh() : f.getUserLow();
+                Long friendUserId = friendUser.getId();
+
+                // フィルタリング1: アクティブな部屋に参加中のユーザーは除外
+                if (roomService.hasActiveRoom(friendUserId)) {
+                    continue;
+                }
+
+                // フィルタリング2 & 3: 招待を受けているユーザーは除外（誰からでも）
+                // inviteFlag=true かつ inviteRoomId!=null の場合は招待中
+                if (f.getInviteFlag() != null && f.getInviteFlag()
+                        && f.getInviteRoomId() != null) {
+                    continue;
+                }
 
                 Map<String, Object> friendInfo = new HashMap<>();
                 friendInfo.put("friendId", f.getId());
-                friendInfo.put("userId", friendUser.getId());
+                friendInfo.put("userId", friendUserId);
                 friendInfo.put("username", friendUser.getUsername());
                 friendInfo.put("imageUrl", friendUser.getImageUrl());
 
-                // 招待状態を確認
-                boolean isInvited = f.getInviteFlag() && f.getInviteRoomId() != null
-                        && f.getRoomInviter() != null && f.getRoomInviter().getId().equals(userId);
-                friendInfo.put("isInvited", isInvited);
-                friendInfo.put("inviteRoomId", isInvited ? f.getInviteRoomId() : null);
-
-                // オンライン状態やステータスを確認（簡易実装）
-                boolean canReceiveNow = roomService.canReceiveInvitation(friendUser.getId());
+                // オンライン状態やステータスを確認
+                boolean canReceiveNow = roomService.canReceiveInvitation(friendUserId);
                 friendInfo.put("canReceiveNow", canReceiveNow);
 
                 result.add(friendInfo);

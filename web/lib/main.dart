@@ -7,6 +7,7 @@ import 'screens/battle_screen.dart';
 import 'screens/quiz_selection_screen.dart';
 import 'screens/vocabulary_screen.dart';
 import 'screens/room_match_screen.dart';
+import 'screens/room_invitations_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -26,6 +27,7 @@ class MyApp extends StatelessWidget {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),
         '/learning': (context) => const QuizSelectionScreen(),
+        '/room-invitations': (context) => const RoomInvitationsScreen(),
       },
       onGenerateRoute: (settings) {
         // /room-match?roomId=123&isGuest=true のようなクエリパラメータ付きルートを処理

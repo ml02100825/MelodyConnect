@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/life_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../services/room_invitation_service.dart';
 
 /// バトルモード選択画面
 /// Ranked MatchとRoom Matchを選択します
@@ -14,14 +16,71 @@ class BattleModeSelectionScreen extends StatefulWidget {
 class _BattleModeSelectionScreenState extends State<BattleModeSelectionScreen> {
   final _lifeApiService = LifeApiService();
   final _tokenStorage = TokenStorageService();
+  final _invitationService = RoomInvitationService();
 
   LifeStatus? _lifeStatus;
   bool _isLoading = true;
+  int _invitationCount = 0;
+  StreamSubscription<int>? _countSubscription;
+  StreamSubscription<RoomInvitationEvent>? _eventSubscription;
 
   @override
   void initState() {
     super.initState();
     _fetchLifeStatus();
+    _initInvitationService();
+  }
+
+  Future<void> _initInvitationService() async {
+    await _invitationService.connect();
+
+    // 招待数の更新を購読
+    _countSubscription = _invitationService.countStream.listen((count) {
+      if (mounted) {
+        setState(() {
+          _invitationCount = count;
+        });
+      }
+    });
+
+    // リアルタイム招待通知を購読
+    _eventSubscription = _invitationService.eventStream.listen((event) {
+      if (event.type == RoomInvitationEventType.received && mounted) {
+        _showInvitationSnackBar(event.data);
+      }
+    });
+
+    // 初期値を設定
+    if (mounted) {
+      setState(() {
+        _invitationCount = _invitationService.invitationCount;
+      });
+    }
+  }
+
+  void _showInvitationSnackBar(Map<String, dynamic> data) {
+    final inviterName = data['inviter']?['username'] ?? '誰か';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$inviterName さんから招待が届きました'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(
+          label: '確認',
+          textColor: Colors.white,
+          onPressed: () {
+            Navigator.pushNamed(context, '/room-invitations');
+          },
+        ),
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _countSubscription?.cancel();
+    _eventSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchLifeStatus() async {
@@ -115,6 +174,46 @@ class _BattleModeSelectionScreenState extends State<BattleModeSelectionScreen> {
       appBar: AppBar(
         title: const Text('Battle Mode'),
         centerTitle: true,
+        actions: [
+          // 招待ボタン（バッジ付き）
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.mail_outline),
+                tooltip: '受信した招待',
+                onPressed: () {
+                  Navigator.pushNamed(context, '/room-invitations');
+                },
+              ),
+              if (_invitationCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Text(
+                      _invitationCount > 9 ? '9+' : '$_invitationCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(

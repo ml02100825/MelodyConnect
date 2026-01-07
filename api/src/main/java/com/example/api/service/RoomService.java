@@ -104,6 +104,15 @@ public class RoomService {
     }
 
     /**
+     * ユーザーがアクティブな部屋に参加しているかチェック
+     * @param userId ユーザーID
+     * @return 参加している場合true
+     */
+    public boolean hasActiveRoom(Long userId) {
+        return roomRepository.existsActiveRoomByUserId(userId);
+    }
+
+    /**
      * 部屋情報を取得
      * @param roomId ルームID
      * @return 部屋情報
