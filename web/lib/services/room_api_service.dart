@@ -219,4 +219,25 @@ class RoomApiService {
       throw Exception(error['error'] ?? '招待済みユーザーの取得に失敗しました');
     }
   }
+
+  /// フレンド一覧を取得（招待用）
+  Future<List<Map<String, dynamic>>> getFriends({
+    required int userId,
+    required String accessToken,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/friends?userId=$userId'),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'フレンド一覧の取得に失敗しました');
+    }
+  }
 }
