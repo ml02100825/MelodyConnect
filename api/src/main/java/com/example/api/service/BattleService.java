@@ -959,91 +959,39 @@ public class BattleService {
                 return;
             }
 
-            // 既に終了している場合は何もしない
-            if (state.getStatus() == BattleStateService.Status.FINISHED) {
-                logger.info("対戦は既に終了しています: matchUuid={}", matchUuid);
+            if (winnerId == null || disconnectedUserId == null) {
+                logger.warn("切断処理に必要な情報が不足しています: matchUuid={}", matchUuid);
                 return;
             }
 
-            // Resultレコードを更新
-            Result result = resultRepository.findByMatchUuid(matchUuid).orElse(null);
-            if (result == null) {
-                logger.warn("Resultレコードが見つかりません: matchUuid={}", matchUuid);
+            if (!state.isParticipant(winnerId) || !state.isParticipant(disconnectedUserId)) {
+                logger.warn("切断処理対象が対戦参加者ではありません: matchUuid={}, winnerId={}, disconnectedUserId={}",
+                        matchUuid, winnerId, disconnectedUserId);
                 return;
             }
 
-            // 勝敗設定
-            Long loserId = disconnectedUserId;
-            int winnerScore = state.isPlayer1(winnerId) ? state.getPlayer1Wins() : state.getPlayer2Wins();
-            int loserScore = state.isPlayer1(loserId) ? state.getPlayer1Wins() : state.getPlayer2Wins();
-
-            result.setWinner_id(winnerId);
-            result.setLoser_id(loserId);
-            result.setWinner_score(winnerScore);
-            result.setLoser_score(loserScore);
-            result.setOutcome_reason(Result.OutcomeReason.PLAYER_DISCONNECT);
-            result.setEnded_at(LocalDateTime.now());
-
-            // ルームマッチ以外はレート変動なし
-            if (!state.isRoomMatch()) {
-                // レート更新（ランクマッチの場合のみ）
-                updateRatesAfterDisconnect(winnerId, loserId, result);
+            if (winnerId.equals(disconnectedUserId)) {
+                logger.warn("勝者と切断者が同一です: matchUuid={}, userId={}", matchUuid, winnerId);
+                return;
             }
 
-            resultRepository.save(result);
+            // 勝者が確定するまで強制的に勝利数を加算
+            while (!state.isMatchDecided()) {
+                if (state.isPlayer1(winnerId)) {
+                    state.incrementPlayer1Wins();
+                } else {
+                    state.incrementPlayer2Wins();
+                }
+            }
 
-            // 対戦状態をFINISHEDに
-            state.setStatus(BattleStateService.Status.FINISHED);
+            finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
 
             logger.info("切断による対戦終了処理完了: matchUuid={}, winnerId={}, loserId={}",
-                    matchUuid, winnerId, loserId);
+                    matchUuid, winnerId, disconnectedUserId);
 
         } catch (Exception e) {
             logger.error("切断処理中にエラー: matchUuid={}", matchUuid, e);
             throw e;
-        }
-    }
-
-    /**
-     * 切断時のレート更新（ランクマッチのみ）
-     */
-    private void updateRatesAfterDisconnect(Long winnerId, Long loserId, Result result) {
-        try {
-            int seasonNumber = seasonCalculator.getCurrentSeasonNumber();
-            String language = result.getSelected_language();
-
-            Rate winnerRate = getOrCreateRate(winnerId, language, seasonNumber);
-            Rate loserRate = getOrCreateRate(loserId, language, seasonNumber);
-
-            int winnerOldRate = winnerRate.getRate_value();
-            int loserOldRate = loserRate.getRate_value();
-
-            // ELO計算（勝者100%の期待勝率で計算 - 切断は完全敗北扱い）
-            double expectedWinner = 1.0 / (1.0 + Math.pow(10, (loserOldRate - winnerOldRate) / 400.0));
-            int winnerChange = (int) Math.round(ELO_K_FACTOR * (1.0 - expectedWinner));
-            int loserChange = (int) Math.round(ELO_K_FACTOR * (0.0 - (1.0 - expectedWinner)));
-
-            int winnerNewRate = Math.max(MIN_RATE, winnerOldRate + winnerChange);
-            int loserNewRate = Math.max(MIN_RATE, loserOldRate + loserChange);
-
-            winnerRate.setRate_value(winnerNewRate);
-            loserRate.setRate_value(loserNewRate);
-            winnerRate.setUpdated_at(LocalDateTime.now());
-            loserRate.setUpdated_at(LocalDateTime.now());
-
-            rateRepository.save(winnerRate);
-            rateRepository.save(loserRate);
-
-            result.setWinner_rate_change(winnerChange);
-            result.setLoser_rate_change(loserChange);
-            result.setWinner_new_rate(winnerNewRate);
-            result.setLoser_new_rate(loserNewRate);
-
-            logger.info("切断によるレート更新: winnerId={} (+{}→{}), loserId={} ({}→{})",
-                    winnerId, winnerChange, winnerNewRate, loserId, loserChange, loserNewRate);
-
-        } catch (Exception e) {
-            logger.error("レート更新エラー: winnerId={}, loserId={}", winnerId, loserId, e);
         }
     }
 }
