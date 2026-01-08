@@ -296,7 +296,7 @@ public class GeminiApiClientImpl implements GeminiApiClient {
     private String buildQuestionPrompt(String lyrics, String language, Integer fillInBlankCount, Integer listeningCount) {
         String languageName = getLanguageName(language);
         
-        return String.format"""
+        return String.format("""
 You are a language-learning assistant. Generate quiz questions from song lyrics.
 
 TARGET LANGUAGE: %s
