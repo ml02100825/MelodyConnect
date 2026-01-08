@@ -329,6 +329,24 @@ public class BattleStateService {
     }
 
     /**
+     * ルームIDからマッチUUIDを取得
+     * @param roomId ルームID
+     * @return マッチUUID（見つからなければnull）
+     */
+    public String getMatchUuidByRoomId(Long roomId) {
+        if (roomId == null) return null;
+
+        for (Map.Entry<String, BattleState> entry : activeBattles.entrySet()) {
+            BattleState state = entry.getValue();
+            if (state.isRoomMatch() && roomId.equals(state.getRoomId())
+                    && state.getStatus() == Status.IN_PROGRESS) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    /**
      * 対戦を開始（ラウンド1開始）
      */
     public synchronized BattleState startBattle(String matchUuid) {

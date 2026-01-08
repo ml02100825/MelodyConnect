@@ -10,11 +10,13 @@ import '../services/room_api_service.dart';
 class RoomMatchScreen extends StatefulWidget {
   final int? roomId;  // 招待から参加する場合は roomId を受け取る
   final bool isGuest; // ゲストとして参加する場合 true
+  final bool isReturning; // 対戦後に戻ってきた場合 true
 
   const RoomMatchScreen({
     Key? key,
     this.roomId,
     this.isGuest = false,
+    this.isReturning = false,
   }) : super(key: key);
 
   @override
@@ -34,9 +36,12 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
   bool _isReady = false;
   String _statusMessage = '';
 
-  // 設定（ホストのみ）
-  int _matchType = 5; // 先取数
+  // 設定選択フェーズ
+  bool _showSettingsPhase = false;  // ホストが開始ボタンを押した後の設定選択
+  int _matchType = 5; // 先取数 (5/7/9)
   String _language = 'english';
+  String _questionFormat = 'ALL_RANDOM'; // ALL_RANDOM / LISTENING_ONLY / FILL_IN_BLANK_ONLY
+  String _problemType = 'COMPLETE_RANDOM'; // COMPLETE_RANDOM / FAVORITE_ARTIST / GENRE_RANDOM
 
   @override
   void initState() {
@@ -59,12 +64,17 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
         throw Exception('認証情報が見つかりません');
       }
 
-      if (widget.roomId != null && widget.isGuest) {
-        // 招待から参加する場合
-        await _joinRoom(widget.roomId!);
-      } else if (widget.roomId != null) {
-        // 既存の部屋に戻る場合
-        await _loadRoom(widget.roomId!);
+      if (widget.roomId != null) {
+        if (widget.isReturning) {
+          // 対戦後に戻ってきた場合：部屋情報を再読み込みするだけ
+          await _loadRoomAfterBattle(widget.roomId!);
+        } else if (widget.isGuest) {
+          // 招待から新規参加する場合
+          await _joinRoom(widget.roomId!);
+        } else {
+          // 既存の部屋に戻る場合
+          await _loadRoom(widget.roomId!);
+        }
       } else {
         // 新規部屋作成
         await _createRoom();
@@ -75,7 +85,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _statusMessage = 'エラー: $e';
+        _statusMessage = 'エラー: ${e.toString().replaceAll('Exception: ', '')}';
       });
     }
   }
@@ -87,11 +97,15 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
         hostId: _userId!,
         matchType: _matchType,
         language: _language,
+        problemType: _problemType,
+        questionFormat: _questionFormat,
         accessToken: _accessToken!,
       );
 
       setState(() {
         _room = room;
+        _matchType = room['matchType'] ?? 5;
+        _language = room['language'] ?? 'english';
         _isLoading = false;
         _statusMessage = 'フレンドを招待してください';
       });
@@ -112,6 +126,8 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
         _room = room;
         _matchType = room['matchType'] ?? 5;
         _language = room['language'] ?? 'english';
+        _questionFormat = room['questionFormat'] ?? 'ALL_RANDOM';
+        _problemType = room['problemType'] ?? 'COMPLETE_RANDOM';
         _isLoading = false;
       });
 
@@ -121,7 +137,39 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
     }
   }
 
-  /// 部屋に参加
+  /// 対戦後に部屋情報を読み込む（FINISHEDでもOK、リセットを待つ）
+  Future<void> _loadRoomAfterBattle(int roomId) async {
+    try {
+      final room = await _roomApiService.getRoom(
+        roomId: roomId,
+        accessToken: _accessToken!,
+      );
+
+      final status = room['status'] as String?;
+
+      setState(() {
+        _room = room;
+        _matchType = room['matchType'] ?? 5;
+        _language = room['language'] ?? 'english';
+        _questionFormat = room['questionFormat'] ?? 'ALL_RANDOM';
+        _problemType = room['problemType'] ?? 'COMPLETE_RANDOM';
+        _isReady = false; // 対戦後はreadyリセット
+        _isLoading = false;
+
+        if (status == 'FINISHED') {
+          _statusMessage = '対戦終了！ホストがリセットするのを待っています...';
+        } else if (status == 'WAITING') {
+          _statusMessage = '再戦準備完了！';
+        } else {
+          _statusMessage = '';
+        }
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// 部屋に参加（招待から）
   Future<void> _joinRoom(int roomId) async {
     try {
       final room = await _roomApiService.acceptInvitation(
@@ -134,6 +182,8 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
         _room = room;
         _matchType = room['matchType'] ?? 5;
         _language = room['language'] ?? 'english';
+        _questionFormat = room['questionFormat'] ?? 'ALL_RANDOM';
+        _problemType = room['problemType'] ?? 'COMPLETE_RANDOM';
         _isLoading = false;
         _statusMessage = '部屋に参加しました';
       });
@@ -226,6 +276,9 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
       case 'room_reset':
         _onRoomReset(data);
         break;
+      case 'settings_updated':
+        _onSettingsUpdated(data);
+        break;
     }
   }
 
@@ -286,7 +339,18 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
     setState(() {
       _room = data;
       _isReady = false;
+      _showSettingsPhase = false;
       _statusMessage = '再戦準備完了！';
+    });
+  }
+
+  void _onSettingsUpdated(Map<String, dynamic> data) {
+    setState(() {
+      _room = data;
+      _matchType = data['matchType'] ?? _matchType;
+      _language = data['language'] ?? _language;
+      _questionFormat = data['questionFormat'] ?? _questionFormat;
+      _problemType = data['problemType'] ?? _problemType;
     });
   }
 
@@ -357,17 +421,47 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
     });
   }
 
-  /// 対戦開始（ホストのみ）
-  void _startMatch() {
+  /// 設定選択フェーズへ移行（ホストが開始を押した時）
+  void _showSettingsSelection() {
+    setState(() {
+      _showSettingsPhase = true;
+    });
+  }
+
+  /// 設定を更新してサーバーに送信
+  void _updateSettings() {
     if (_room == null || _stompClient == null) return;
 
     _stompClient!.send(
-      destination: '/app/room/start',
+      destination: '/app/room/update-settings',
       body: jsonEncode({
         'roomId': _room!['roomId'],
         'userId': _userId,
+        'matchType': _matchType,
+        'language': _language,
+        'questionFormat': _questionFormat,
+        'problemType': _problemType,
       }),
     );
+  }
+
+  /// 対戦開始（設定確定後）
+  void _startMatch() {
+    if (_room == null || _stompClient == null) return;
+
+    // まず設定を更新
+    _updateSettings();
+
+    // 少し待ってから開始
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _stompClient?.send(
+        destination: '/app/room/start',
+        body: jsonEncode({
+          'roomId': _room!['roomId'],
+          'userId': _userId,
+        }),
+      );
+    });
   }
 
   /// 退出
@@ -397,6 +491,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
   bool get _hasGuest => _room != null && _room!['guestId'] != null;
   bool get _guestReady => _room != null && (_room!['guestReady'] ?? false);
   bool get _canStart => _isHost && _hasGuest && _guestReady;
+  bool get _isFinished => _room != null && _room!['status'] == 'FINISHED';
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +511,9 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : _buildBody(),
+            : _showSettingsPhase
+                ? _buildSettingsPhase()
+                : _buildBody(),
       ),
     );
   }
@@ -429,6 +526,10 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
         children: [
           // プレイヤー情報
           _buildPlayersInfo(),
+          const SizedBox(height: 24),
+
+          // 現在の設定表示（ホスト以外も見れる）
+          _buildCurrentSettings(),
           const SizedBox(height: 24),
 
           // ステータスメッセージ
@@ -448,6 +549,346 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
           // アクションボタン
           _buildActionButtons(),
         ],
+      ),
+    );
+  }
+
+  /// 現在の設定表示
+  Widget _buildCurrentSettings() {
+    return Card(
+      color: Colors.grey[100],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'ルーム設定',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Divider(),
+            _buildSettingRow('先取数', '$_matchType本'),
+            _buildSettingRow('言語', _language == 'english' ? '英語' : '韓国語'),
+            _buildSettingRow('問題形式', _getFormatLabel(_questionFormat)),
+            _buildSettingRow('出題方法', _getModeLabel(_problemType)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey[700])),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  String _getFormatLabel(String format) {
+    switch (format) {
+      case 'LISTENING_ONLY':
+        return 'リスニングのみ';
+      case 'FILL_IN_BLANK_ONLY':
+        return '虫食いのみ';
+      default:
+        return 'すべてランダム';
+    }
+  }
+
+  String _getModeLabel(String mode) {
+    switch (mode) {
+      case 'FAVORITE_ARTIST':
+        return 'お気に入りアーティスト';
+      case 'GENRE_RANDOM':
+        return 'ジャンル指定';
+      default:
+        return '完全ランダム';
+    }
+  }
+
+  /// 設定選択フェーズUI（quiz_selection_screen参考）
+  Widget _buildSettingsPhase() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ヘッダー
+          const Center(
+            child: Text(
+              '対戦設定',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.green,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 1. 先取数選択
+          _buildSectionTitle('1. 先取数を選択'),
+          _buildMatchTypeSelector(),
+          const SizedBox(height: 24),
+
+          // 2. 言語選択
+          _buildSectionTitle('2. 言語を選択'),
+          _buildLanguageSelector(),
+          const SizedBox(height: 24),
+
+          // 3. 問題形式
+          _buildSectionTitle('3. 問題形式を選択'),
+          _buildFormatSelector(),
+          const SizedBox(height: 24),
+
+          // 4. 出題方法
+          _buildSectionTitle('4. 出題方法を選択'),
+          _buildModeSelector(),
+          const SizedBox(height: 32),
+
+          // 確定ボタン
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _showSettingsPhase = false;
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
+                  child: const Text('戻る'),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: _startMatch,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.all(16),
+                  ),
+                  child: const Text(
+                    '対戦開始！',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.green,
+        ),
+      ),
+    );
+  }
+
+  /// 先取数選択
+  Widget _buildMatchTypeSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildOptionCard(
+            title: '5本',
+            subtitle: '先取5本勝負',
+            icon: Icons.looks_5,
+            isSelected: _matchType == 5,
+            onTap: () => setState(() => _matchType = 5),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildOptionCard(
+            title: '7本',
+            subtitle: '先取7本勝負',
+            icon: Icons.filter_7,
+            isSelected: _matchType == 7,
+            onTap: () => setState(() => _matchType = 7),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildOptionCard(
+            title: '9本',
+            subtitle: '先取9本勝負',
+            icon: Icons.filter_9,
+            isSelected: _matchType == 9,
+            onTap: () => setState(() => _matchType = 9),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 言語選択
+  Widget _buildLanguageSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildOptionCard(
+            title: '英語',
+            subtitle: 'English',
+            icon: Icons.language,
+            isSelected: _language == 'english',
+            onTap: () => setState(() => _language = 'english'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildOptionCard(
+            title: '韓国語',
+            subtitle: 'Korean',
+            icon: Icons.language,
+            isSelected: _language == 'korean',
+            onTap: () => setState(() => _language = 'korean'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 問題形式選択
+  Widget _buildFormatSelector() {
+    return Column(
+      children: [
+        _buildOptionCard(
+          title: 'すべてランダム',
+          subtitle: 'リスニングと虫食いをランダムに出題',
+          icon: Icons.shuffle,
+          isSelected: _questionFormat == 'ALL_RANDOM',
+          onTap: () => setState(() => _questionFormat = 'ALL_RANDOM'),
+        ),
+        const SizedBox(height: 12),
+        _buildOptionCard(
+          title: 'リスニングのみ',
+          subtitle: '音声を聞いて回答',
+          icon: Icons.headphones,
+          isSelected: _questionFormat == 'LISTENING_ONLY',
+          onTap: () => setState(() => _questionFormat = 'LISTENING_ONLY'),
+        ),
+        const SizedBox(height: 12),
+        _buildOptionCard(
+          title: '虫食いのみ',
+          subtitle: '空欄を埋める問題',
+          icon: Icons.edit,
+          isSelected: _questionFormat == 'FILL_IN_BLANK_ONLY',
+          onTap: () => setState(() => _questionFormat = 'FILL_IN_BLANK_ONLY'),
+        ),
+      ],
+    );
+  }
+
+  /// 出題方法選択
+  Widget _buildModeSelector() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildOptionCard(
+                title: 'ランダム',
+                subtitle: '完全ランダム',
+                icon: Icons.shuffle,
+                isSelected: _problemType == 'COMPLETE_RANDOM',
+                onTap: () => setState(() => _problemType = 'COMPLETE_RANDOM'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildOptionCard(
+                title: 'お気に入り',
+                subtitle: 'アーティストから',
+                icon: Icons.favorite,
+                isSelected: _problemType == 'FAVORITE_ARTIST',
+                onTap: () => setState(() => _problemType = 'FAVORITE_ARTIST'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// オプションカード
+  Widget _buildOptionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.green.withOpacity(0.1) : Colors.white,
+          border: Border.all(
+            color: isSelected ? Colors.green : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.green : Colors.grey,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.green : Colors.black,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -589,6 +1030,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // ホストでゲストがいない場合：招待ボタン
         if (_isHost && !_hasGuest)
           ElevatedButton.icon(
             onPressed: _showInviteFriendDialog,
@@ -599,7 +1041,23 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
             ),
           ),
 
-        if (_hasGuest) ...[
+        // FINISHED状態でホストの場合：リセットボタン
+        if (_isFinished && _isHost) ...[
+          ElevatedButton.icon(
+            onPressed: _resetRoom,
+            icon: const Icon(Icons.refresh),
+            label: const Text('再戦する'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.all(16),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // ゲストがいる場合：準備完了ボタン
+        if (_hasGuest && !_isFinished) ...[
           ElevatedButton.icon(
             onPressed: _toggleReady,
             icon: Icon(_isReady ? Icons.close : Icons.check),
@@ -612,11 +1070,12 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
           const SizedBox(height: 16),
         ],
 
-        if (_canStart)
+        // 開始可能（ホストでゲストが準備完了）：設定選択へ
+        if (_canStart && !_isFinished)
           ElevatedButton.icon(
-            onPressed: _startMatch,
+            onPressed: _showSettingsSelection,
             icon: const Icon(Icons.play_arrow),
-            label: const Text('対戦開始！'),
+            label: const Text('対戦設定へ'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               padding: const EdgeInsets.all(16),
@@ -637,6 +1096,23 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
     );
   }
 
+  /// ルームリセット
+  Future<void> _resetRoom() async {
+    if (_room == null) return;
+
+    try {
+      await _roomApiService.resetRoom(
+        roomId: _room!['roomId'],
+        hostId: _userId!,
+        accessToken: _accessToken!,
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('リセットエラー: $e')),
+      );
+    }
+  }
+
   void _showInviteFriendDialog() {
     showDialog(
       context: context,
@@ -646,7 +1122,6 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
         accessToken: _accessToken!,
         roomApiService: _roomApiService,
         onInviteSent: (friendId) {
-          // 招待送信後の処理
           _loadInvitedUsers();
         },
       ),
@@ -731,7 +1206,6 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
           ),
         );
         widget.onInviteSent?.call(friendUserId);
-        // フレンド一覧を再読み込みして招待状態を更新
         await _loadFriends();
       }
     } catch (e) {
@@ -766,7 +1240,7 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                 : _friends.isEmpty
                     ? const Center(
                         child: Text(
-                          'フレンドがいません\n\nフレンド画面で友達を追加してください',
+                          '招待可能なフレンドがいません\n\nフレンドが全員バトル中か、\n既に招待済みの可能性があります',
                           textAlign: TextAlign.center,
                         ),
                       )
@@ -777,7 +1251,6 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                           final friendUserId = friend['userId'] as int;
                           final username = friend['username'] as String?;
                           final imageUrl = friend['imageUrl'] as String?;
-                          final isInvited = friend['isInvited'] as bool? ?? false;
                           final canReceiveNow = friend['canReceiveNow'] as bool? ?? true;
                           final isInviting = _invitingIds.contains(friendUserId);
 
@@ -792,15 +1265,9 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                             ),
                             title: Text(username ?? 'ユーザー'),
                             subtitle: Text(
-                              canReceiveNow
-                                  ? (isInvited ? '招待済み' : 'オンライン')
-                                  : 'バトル中',
+                              canReceiveNow ? 'オンライン' : 'バトル中',
                               style: TextStyle(
-                                color: isInvited
-                                    ? Colors.orange
-                                    : canReceiveNow
-                                        ? Colors.green
-                                        : Colors.grey,
+                                color: canReceiveNow ? Colors.green : Colors.grey,
                               ),
                             ),
                             trailing: isInviting
@@ -809,16 +1276,14 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                                     height: 24,
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
-                                : isInvited
-                                    ? const Icon(Icons.check, color: Colors.orange)
-                                    : ElevatedButton(
-                                        onPressed: () => _inviteFriend(friendUserId),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.blue,
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        child: const Text('招待'),
-                                      ),
+                                : ElevatedButton(
+                                    onPressed: () => _inviteFriend(friendUserId),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: const Text('招待'),
+                                  ),
                           );
                         },
                       ),

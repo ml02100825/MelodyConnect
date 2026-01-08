@@ -8,8 +8,12 @@ import 'screens/quiz_selection_screen.dart';
 import 'screens/vocabulary_screen.dart';
 import 'screens/room_match_screen.dart';
 import 'screens/room_invitations_screen.dart';
+import 'widgets/room_invitation_overlay.dart';
 
 void main() => runApp(const MyApp());
+
+/// ナビゲーターキー（オーバーレイからのナビゲーション用）
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -18,10 +22,18 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MelodyConnect',
+      navigatorKey: navigatorKey,
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        // battle_screen以外で招待通知を表示
+        return RoomInvitationOverlay(
+          navigatorKey: navigatorKey,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const SplashScreen(),  // セッション検証を行うスプラッシュ画面
       routes: {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
@@ -30,16 +42,18 @@ class MyApp extends StatelessWidget {
         '/room-invitations': (context) => const RoomInvitationsScreen(),
       },
       onGenerateRoute: (settings) {
-        // /room-match?roomId=123&isGuest=true のようなクエリパラメータ付きルートを処理
+        // /room-match?roomId=123&isGuest=true&isReturning=true のようなクエリパラメータ付きルートを処理
         if (settings.name?.startsWith('/room-match') == true) {
           final uri = Uri.parse(settings.name!);
           final roomIdStr = uri.queryParameters['roomId'];
           final roomId = roomIdStr != null ? int.tryParse(roomIdStr) : null;
           final isGuest = uri.queryParameters['isGuest'] == 'true';
+          final isReturning = uri.queryParameters['isReturning'] == 'true';
           return MaterialPageRoute(
             builder: (context) => RoomMatchScreen(
               roomId: roomId,
               isGuest: isGuest,
+              isReturning: isReturning,
             ),
             settings: settings,
           );

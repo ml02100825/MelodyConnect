@@ -407,6 +407,49 @@ public class RoomService {
     }
 
     /**
+     * 部屋の設定を更新
+     * @param roomId ルームID
+     * @param hostId ホストのユーザーID
+     * @param matchType 先取数
+     * @param language 言語
+     * @param questionFormat 問題形式
+     * @param problemType 出題方法
+     * @return 更新された部屋
+     */
+    @Transactional
+    public Room updateSettings(Long roomId, Long hostId, Integer matchType, String language,
+                               String questionFormat, String problemType) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("部屋が存在しません"));
+
+        if (!room.getHost_id().equals(hostId)) {
+            throw new IllegalArgumentException("ホストのみが設定を変更できます");
+        }
+
+        if (room.getStatus() == Room.Status.PLAYING) {
+            throw new IllegalStateException("対戦中は設定を変更できません");
+        }
+
+        if (matchType != null) {
+            room.setMatch_type(matchType);
+        }
+        if (language != null) {
+            room.setSelected_language(language);
+        }
+        if (questionFormat != null) {
+            room.setQuestion_format(questionFormat);
+        }
+        if (problemType != null) {
+            room.setProblem_type(problemType);
+        }
+
+        Room updatedRoom = roomRepository.save(room);
+        logger.info("部屋設定を更新: roomId={}, matchType={}, language={}, questionFormat={}, problemType={}",
+                roomId, matchType, language, questionFormat, problemType);
+        return updatedRoom;
+    }
+
+    /**
      * 対戦終了（ステータスをFINISHEDに変更）
      * @param roomId ルームID
      * @return 更新された部屋

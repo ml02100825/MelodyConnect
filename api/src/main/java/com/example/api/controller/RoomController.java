@@ -421,6 +421,28 @@ public class RoomController {
     }
 
     /**
+     * 設定を更新（ホストのみ）
+     */
+    @MessageMapping("/room/update-settings")
+    public void updateSettings(@Payload UpdateSettingsRequest request) {
+        try {
+            Room room = roomService.updateSettings(
+                    request.roomId,
+                    request.userId,
+                    request.matchType,
+                    request.language,
+                    request.questionFormat,
+                    request.problemType
+            );
+            notifyRoomUpdate(room, "settings_updated");
+        } catch (Exception e) {
+            logger.error("設定更新エラー", e);
+            sendRoomNotification(request.userId, "error",
+                    Map.of("message", e.getMessage()));
+        }
+    }
+
+    /**
      * 退出（WebSocket版）
      */
     @MessageMapping("/room/leave")
@@ -567,5 +589,14 @@ public class RoomController {
     public static class LeaveRequest {
         public Long roomId;
         public Long userId;
+    }
+
+    public static class UpdateSettingsRequest {
+        public Long roomId;
+        public Long userId;
+        public Integer matchType;
+        public String language;
+        public String questionFormat;
+        public String problemType;
     }
 }

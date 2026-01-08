@@ -249,6 +249,9 @@ class _BattleScreenState extends State<BattleScreen> {
       case 'opponent_surrendered':
         _handleOpponentSurrendered(data);
         break;
+      case 'opponent_disconnected':
+        _handleOpponentDisconnected(data);
+        break;
       case 'waiting_opponent_next':
         _handleWaitingOpponentNext(data);
         break;
@@ -256,6 +259,50 @@ class _BattleScreenState extends State<BattleScreen> {
         _handleError(data);
         break;
     }
+  }
+
+  /// 相手が切断した場合
+  void _handleOpponentDisconnected(Map<String, dynamic> data) {
+    if (!mounted) return;
+
+    final message = data['message'] ?? '相手が切断しました。あなたの勝利です！';
+
+    _roundTimer?.cancel();
+
+    // 勝利表示
+    setState(() {
+      _battlePhase = BattlePhase.result;
+    });
+
+    // ダイアログ表示
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.signal_wifi_off, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('相手が切断'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // ダイアログを閉じる
+              // リザルト画面の動作をシミュレート（ルームマッチなら戻るボタン表示など）
+              if (widget.isRoomMatch && widget.roomId != null) {
+                _goBackToRoom();
+              } else {
+                _goToHome();
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 問題受信
@@ -1495,10 +1542,11 @@ class _BattleScreenState extends State<BattleScreen> {
     _stompClient?.deactivate();
     _roundTimer?.cancel();
 
-    // ルームマッチ画面にゲストとして戻る（ホストがリセットするまで待機）
+    // ルームマッチ画面に戻る（対戦後なのでisGuest=falseで部屋情報を再読み込み）
+    // isReturning=true で対戦後の復帰であることを示す
     Navigator.pushNamedAndRemoveUntil(
       context,
-      '/room-match?roomId=${widget.roomId}&isGuest=true',
+      '/room-match?roomId=${widget.roomId}&isReturning=true',
       (route) => route.isFirst,
     );
   }
