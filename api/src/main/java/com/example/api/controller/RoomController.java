@@ -280,7 +280,8 @@ public class RoomController {
      * フレンド一覧を取得（招待用）
      * 各フレンドにはオンライン状態を付与：
      * - online: WebSocket接続中でバトルしていない
-     * - in_battle: バトル中（ルームマッチまたはランクマッチ）
+     * - in_battle: ランクマッチのバトル中
+     * - room_match: ルームマッチ参加中
      * - matching: マッチング待機中
      * - offline: WebSocket未接続
      *
@@ -330,7 +331,7 @@ public class RoomController {
     /**
      * ユーザーの状態を判定
      * @param userId ユーザーID
-     * @return "online", "in_battle", "matching", "offline" のいずれか
+     * @return "room_match", "matching", "in_battle", "online", "offline" のいずれか
      */
     private String getUserStatus(Long userId) {
         // オフラインチェック（WebSocket未接続）
@@ -338,15 +339,19 @@ public class RoomController {
             return "offline";
         }
 
-        // バトル中チェック（ルームマッチのPLAYING状態）
-        Optional<Room> playingRoom = roomService.getActiveRoom(userId);
-        if (playingRoom.isPresent() && playingRoom.get().getStatus() == Room.Status.PLAYING) {
-            return "in_battle";
+        // ルームマッチ参加中チェック（WAITING/READY/PLAYING）
+        Optional<Room> activeRoom = roomService.getActiveRoom(userId);
+        if (activeRoom.isPresent()) {
+            return "room_match";
         }
 
         // ランクマッチ待機中または対戦中チェック
         if (matchingQueueService.isInQueue(userId)) {
             return "matching";
+        }
+
+        if (battleService.isUserInRankBattle(userId)) {
+            return "in_battle";
         }
 
         return "online";
@@ -377,6 +382,11 @@ public class RoomController {
 
         // ランクマッチ待機中は招待不可
         if (matchingQueueService.isInQueue(friendUserId)) {
+            return false;
+        }
+
+        // ランクマッチ中は招待不可
+        if (battleService.isUserInRankBattle(friendUserId)) {
             return false;
         }
 

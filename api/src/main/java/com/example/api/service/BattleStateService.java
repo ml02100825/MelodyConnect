@@ -329,6 +329,22 @@ public class BattleStateService {
     }
 
     /**
+     * 指定ユーザーがランクマッチの対戦中かどうか
+     */
+    public boolean isUserInRankBattle(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        for (BattleState state : activeBattles.values()) {
+            if (state.isParticipant(userId) && !state.isRoomMatch()
+                    && state.getStatus() != Status.FINISHED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * ルームIDからマッチUUIDを取得
      * @param roomId ルームID
      * @return マッチUUID（見つからなければnull）

@@ -16,6 +16,9 @@ class FriendNotificationService {
   StompClient? _stompClient;
   final TokenStorageService _tokenStorage = TokenStorageService();
   final FriendApiService _friendApiService = FriendApiService();
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _isConnecting = false;
 
   // 通知を無効にする画面のリスト
   final Set<String> _disabledScreens = {
@@ -44,9 +47,16 @@ class FriendNotificationService {
     if (_stompClient != null && _stompClient!.connected) {
       return;
     }
+    if (_isConnecting) {
+      return;
+    }
+    _isConnecting = true;
 
     final userId = await _tokenStorage.getUserId();
-    if (userId == null) return;
+    if (userId == null) {
+      _isConnecting = false;
+      return;
+    }
 
     _stompClient = StompClient(
       config: StompConfig(
@@ -55,21 +65,26 @@ class FriendNotificationService {
           if (userId != null) 'userId': userId.toString(),
         },
         onConnect: (frame) {
+          _reconnectAttempts = 0;
+          _isConnecting = false;
           _subscribeToFriendNotifications(userId);
         },
         onWebSocketError: (dynamic error) {
           debugPrint('WebSocket Error: $error');
+          _scheduleReconnect();
         },
         onStompError: (frame) {
           debugPrint('STOMP Error: ${frame.body}');
         },
         onDisconnect: (frame) {
           debugPrint('Disconnected from WebSocket');
+          _scheduleReconnect();
         },
       ),
     );
 
     _stompClient!.activate();
+    _isConnecting = false;
   }
 
   /// フレンド通知をサブスクライブ
@@ -104,12 +119,28 @@ class FriendNotificationService {
   void disconnect() {
     _stompClient?.deactivate();
     _stompClient = null;
+    _reconnectTimer?.cancel();
+    _isConnecting = false;
   }
 
   /// リソースを解放
   void dispose() {
     disconnect();
     _notificationController.close();
+  }
+
+  void _scheduleReconnect() {
+    if (_reconnectTimer?.isActive ?? false) {
+      return;
+    }
+    _reconnectAttempts += 1;
+    final delaySeconds = (_reconnectAttempts + 1).clamp(2, 6);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () async {
+      if (_stompClient?.connected ?? false) {
+        return;
+      }
+      await connect();
+    });
   }
 }
 

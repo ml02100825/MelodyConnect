@@ -41,6 +41,9 @@ class _BattleScreenState extends State<BattleScreen>
 
   // WebSocket
   StompClient? _stompClient;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _isConnectingSocket = false;
 
   // 状態
   BattleStatus _status = BattleStatus.answering;
@@ -87,6 +90,7 @@ class _BattleScreenState extends State<BattleScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stompClient?.deactivate();
+    _reconnectTimer?.cancel();
     _roundTimer?.cancel();
     _answerController.dispose();
     _audioPlayer.dispose();
@@ -99,7 +103,7 @@ class _BattleScreenState extends State<BattleScreen>
         state == AppLifecycleState.detached) {
       _stompClient?.deactivate();
     } else if (state == AppLifecycleState.resumed) {
-      _connectWebSocket();
+      _connectWebSocket(forceReconnect: true);
     }
   }
   /// バトル初期化
@@ -186,10 +190,17 @@ class _BattleScreenState extends State<BattleScreen>
   }
 
   /// WebSocket接続
-  void _connectWebSocket() {
-    if (_stompClient != null && _stompClient!.connected) {
+  void _connectWebSocket({bool forceReconnect = false}) {
+    if (!forceReconnect &&
+        _stompClient != null &&
+        _stompClient!.connected) {
       return;
     }
+    if (_isConnectingSocket) {
+      return;
+    }
+    _isConnectingSocket = true;
+    _stompClient?.deactivate();
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
@@ -199,28 +210,48 @@ class _BattleScreenState extends State<BattleScreen>
         webSocketConnectHeaders: {
           'Sec-WebSocket-Protocol': 'v12.stomp',
         },
-        onConnect: _onWebSocketConnect,
+        onConnect: (frame) {
+          _reconnectAttempts = 0;
+          _isConnectingSocket = false;
+          _onWebSocketConnect(frame);
+        },
         onWebSocketError: (error) {
-          if (!mounted) return;
-          setState(() {
-            _errorMessage = 'WebSocket接続エラー: $error';
-            _isLoading = false;
-          });
+          _handleReconnect('WebSocket接続エラー: $error');
         },
         onStompError: (frame) {
-          if (!mounted) return;
-          setState(() {
-            _errorMessage = 'STOMPエラー: ${frame.body}';
-            _isLoading = false;
-          });
+          _handleReconnect('STOMPエラー: ${frame.body}');
         },
         onDisconnect: (frame) {
           _roundTimer?.cancel();
+          _handleReconnect('接続が切断されました。再接続中...');
         },
       ),
     );
 
     _stompClient!.activate();
+    _isConnectingSocket = false;
+  }
+
+  void _handleReconnect(String message) {
+    if (!mounted) return;
+    _isConnectingSocket = false;
+    setState(() {
+      _errorMessage = message;
+    });
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (_reconnectTimer?.isActive ?? false) {
+      return;
+    }
+    _reconnectAttempts += 1;
+    final delaySeconds = (_reconnectAttempts + 1).clamp(2, 6);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (!mounted) return;
+      if (_stompClient?.connected ?? false) return;
+      _connectWebSocket(forceReconnect: true);
+    });
   }
 
   /// WebSocket接続完了
@@ -248,6 +279,7 @@ class _BattleScreenState extends State<BattleScreen>
 
     setState(() {
       _isLoading = false;
+      _errorMessage = null;
     });
   }
 

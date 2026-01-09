@@ -28,6 +28,11 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
       PresenceWebSocketService();
   StompClient? _stompClient;
   int? _userId;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _isConnecting = false;
+  int? _lastInvitationRoomId;
+  DateTime? _lastInvitationAt;
 
   // 表示中の通知
   OverlayEntry? _currentOverlay;
@@ -50,6 +55,7 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   void dispose() {
     _stompClient?.deactivate();
     _hideTimer?.cancel();
+    _reconnectTimer?.cancel();
     _currentOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -89,6 +95,11 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
     if (_stompClient != null && _stompClient!.connected) {
       return;
     }
+    if (_isConnecting) {
+      return;
+    }
+    _isConnecting = true;
+    _stompClient?.deactivate();
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
@@ -96,6 +107,8 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
           if (_userId != null) 'userId': _userId.toString(),
         },
         onConnect: (frame) {
+          _reconnectAttempts = 0;
+          _isConnecting = false;
           _stompClient!.subscribe(
             destination: '/topic/room-invitation/$_userId',
             callback: (StompFrame frame) {
@@ -107,19 +120,16 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
         },
         onWebSocketError: (error) {
           debugPrint('RoomInvitationOverlay WebSocket Error: $error');
+          _scheduleReconnect();
         },
         onDisconnect: (frame) {
-          // 再接続を試みる
-          Future.delayed(const Duration(seconds: 5), () {
-            if (mounted && _stompClient != null && _userId != null) {
-              _stompClient!.activate();
-            }
-          });
+          _scheduleReconnect();
         },
       ),
     );
 
     _stompClient!.activate();
+    _isConnecting = false;
   }
 
   void _handleInvitation(String body) {
@@ -138,12 +148,25 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   /// 招待バナーを表示
   void _showInvitationBanner(Map<String, dynamic> data) {
     // 既存の通知を削除
+    final roomId = data['roomId'];
+    final now = DateTime.now();
+    if (_currentOverlay != null &&
+        _lastInvitationRoomId == roomId &&
+        _lastInvitationAt != null &&
+        now.difference(_lastInvitationAt!).inSeconds < 3) {
+      _hideTimer?.cancel();
+      _hideTimer = Timer(const Duration(seconds: 10), () {
+        _currentOverlay?.remove();
+        _currentOverlay = null;
+      });
+      return;
+    }
+
     _currentOverlay?.remove();
     _hideTimer?.cancel();
 
     final inviter = data['inviter'] as Map<String, dynamic>?;
     final inviterName = inviter?['username'] ?? '誰か';
-    final roomId = data['roomId'];
     final matchType = data['matchType'] ?? 5;
 
     final overlay = OverlayEntry(
@@ -177,6 +200,8 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
     );
 
     _currentOverlay = overlay;
+    _lastInvitationRoomId = roomId;
+    _lastInvitationAt = now;
     Overlay.of(context).insert(overlay);
 
     // 10秒後に自動で消す
@@ -189,6 +214,20 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   @override
   Widget build(BuildContext context) {
     return widget.child;
+  }
+
+  void _scheduleReconnect() {
+    if (!mounted) return;
+    if (_reconnectTimer?.isActive ?? false) {
+      return;
+    }
+    _reconnectAttempts += 1;
+    final delaySeconds = (_reconnectAttempts + 1).clamp(2, 6);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (!mounted) return;
+      if (_stompClient?.connected ?? false) return;
+      _connectWebSocket();
+    });
   }
 }
 

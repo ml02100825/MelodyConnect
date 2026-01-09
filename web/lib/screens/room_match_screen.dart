@@ -32,6 +32,9 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
   final _tokenStorage = TokenStorageService();
   final _roomApiService = RoomApiService();
   StompClient? _stompClient;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _isConnecting = false;
 
   int? _userId;
   String? _accessToken;
@@ -58,6 +61,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
   @override
   void dispose() {
     _stompClient?.deactivate();
+    _reconnectTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -68,7 +72,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         state == AppLifecycleState.detached) {
       _stompClient?.deactivate();
     } else if (state == AppLifecycleState.resumed) {
-      _connectWebSocket();
+      _connectWebSocket(forceReconnect: true);
     }
   }
 
@@ -104,11 +108,11 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         await _createRoom();
       }
 
-      _connectWebSocket();
-
       if (widget.isFromVocabulary) {
         await _updateVocabularyStatus(false);
       }
+
+      _connectWebSocket();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -255,10 +259,17 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
   }
 
   /// WebSocket接続
-  void _connectWebSocket() {
-    if (_stompClient != null && _stompClient!.connected) {
+  void _connectWebSocket({bool forceReconnect = false}) {
+    if (!forceReconnect &&
+        _stompClient != null &&
+        _stompClient!.connected) {
       return;
     }
+    if (_isConnecting) {
+      return;
+    }
+    _isConnecting = true;
+    _stompClient?.deactivate();
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
@@ -270,6 +281,8 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         },
         onConnect: (StompFrame frame) {
           if (!mounted) return;
+          _reconnectAttempts = 0;
+          _isConnecting = false;
 
           // ルーム通知を購読
           _stompClient!.subscribe(
@@ -293,11 +306,30 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         },
         onWebSocketError: (dynamic error) {
           debugPrint('WebSocketエラー: $error');
+          _scheduleReconnect();
+        },
+        onDisconnect: (frame) {
+          _scheduleReconnect();
         },
       ),
     );
 
     _stompClient!.activate();
+    _isConnecting = false;
+  }
+
+  void _scheduleReconnect() {
+    if (!mounted) return;
+    if (_reconnectTimer?.isActive ?? false) {
+      return;
+    }
+    _reconnectAttempts += 1;
+    final delaySeconds = (_reconnectAttempts + 1).clamp(2, 6);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (!mounted) return;
+      if (_stompClient?.connected ?? false) return;
+      _connectWebSocket(forceReconnect: true);
+    });
   }
 
   /// ルームメッセージを処理
@@ -1321,6 +1353,7 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
 
                           // ステータスに応じた表示設定
                           final isOffline = status == 'offline';
+                          final isRoomMatch = status == 'room_match';
                           final isInBattle = status == 'in_battle';
                           final isMatching = status == 'matching';
 
@@ -1329,6 +1362,9 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                           if (isOffline) {
                             statusLabel = 'オフライン';
                             statusColor = Colors.grey;
+                          } else if (isRoomMatch) {
+                            statusLabel = 'ルームマッチ中';
+                            statusColor = Colors.blue;
                           } else if (isMatching) {
                             statusLabel = 'マッチング中';
                             statusColor = Colors.purple;
@@ -1426,7 +1462,13 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                                                   borderRadius: BorderRadius.circular(16),
                                                 ),
                                                 child: Text(
-                                                  isInBattle ? 'バトル中' : '招待不可',
+                                                  isRoomMatch
+                                                      ? 'ルームマッチ中'
+                                                      : isMatching
+                                                          ? 'マッチング中'
+                                                          : isInBattle
+                                                              ? 'バトル中'
+                                                              : '招待不可',
                                                   style: TextStyle(
                                                     color: Colors.grey[600],
                                                     fontSize: 12,
