@@ -412,6 +412,7 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                     ),
                   ],
                 ),
+    )
     );
   }
 
