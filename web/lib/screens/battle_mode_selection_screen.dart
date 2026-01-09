@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/life_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../bottom_nav.dart';
 
 /// バトルモード選択画面
 /// Ranked MatchとRoom Matchを選択します
@@ -191,6 +192,10 @@ class _BattleModeSelectionScreenState extends State<BattleModeSelectionScreen> {
             ),
           ),
         ),
+      ),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 1,
+        onTap: (index) {},
       ),
     );
   }
