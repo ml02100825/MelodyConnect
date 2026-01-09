@@ -23,6 +23,20 @@ public class Genre {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+      /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    /**
+
     /* ===== lifecycle ===== */
     @PrePersist
     void onCreate() {

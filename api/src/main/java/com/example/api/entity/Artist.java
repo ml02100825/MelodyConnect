@@ -59,6 +59,19 @@ public class Artist {
     @Column(name = "last_synced_at")
     private LocalDateTime lastSyncedAt;
 
+      /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    /**
     /**
      * エンティティ保存前に自動的に追加日時を設定
      */

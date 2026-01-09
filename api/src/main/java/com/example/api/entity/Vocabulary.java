@@ -70,6 +70,20 @@ public class Vocabulary {
     @Column(name = "updated_at")
     private LocalDateTime updated_at;
 
+      /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    /* ===== lifecycle ===== */
+
     @PrePersist
     protected void onCreate() {
         if (created_at == null) {
