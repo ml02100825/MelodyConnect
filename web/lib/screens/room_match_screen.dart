@@ -224,6 +224,9 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
+        stompConnectHeaders: {
+          if (_userId != null) 'userId': _userId.toString(),
+        },
         webSocketConnectHeaders: {
           'Sec-WebSocket-Protocol': 'v12.stomp',
         },

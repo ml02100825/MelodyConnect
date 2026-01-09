@@ -43,13 +43,22 @@ class _MatchingScreenState extends State<MatchingScreen> {
     try {
       final userId = await _tokenStorage.getUserId();
       if (userId == null) {
-        throw Exception('ユーザーIDが見つかりません');
+        if (!mounted) return;
+        setState(() {
+          _isConnecting = false;
+          _isMatching = false;
+          _statusMessage = 'ユーザーIDが見つかりません';
+        });
+        return;
       }
 
       // STOMP WebSocket接続
       _stompClient = StompClient(
         config: StompConfig(
           url: 'ws://localhost:8080/ws',
+          stompConnectHeaders: {
+            if (userId != null) 'userId': userId.toString(),
+          },
           webSocketConnectHeaders: {
             'Sec-WebSocket-Protocol': 'v12.stomp',
           },
