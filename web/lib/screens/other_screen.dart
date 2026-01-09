@@ -44,26 +44,6 @@ class _OtherScreenState extends State<OtherScreen> {
             ),
           ],
         ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.person_add,
-                color: Colors.black87,
-                size: 20,
-              ),
-              onPressed: () {},
-            ),
-          ),
-        ],
       ),
 
       body: Padding(
@@ -82,13 +62,6 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.volume_up,
               label: '音量設定',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.language,
-              label: '言語設定',
               onTap: () {},
             ),
             const SizedBox(height: 12),
