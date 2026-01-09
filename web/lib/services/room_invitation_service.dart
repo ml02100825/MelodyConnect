@@ -16,6 +16,9 @@ class RoomInvitationService {
   StompClient? _stompClient;
   final TokenStorageService _tokenStorage = TokenStorageService();
   final RoomApiService _roomApiService = RoomApiService();
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _isConnecting = false;
 
   // 招待数
   int _invitationCount = 0;
@@ -42,9 +45,16 @@ class RoomInvitationService {
     if (_stompClient != null && _stompClient!.connected) {
       return;
     }
+    if (_isConnecting) {
+      return;
+    }
+    _isConnecting = true;
 
     final userId = await _tokenStorage.getUserId();
-    if (userId == null) return;
+    if (userId == null) {
+      _isConnecting = false;
+      return;
+    }
 
     // 初期招待リストを取得
     await _fetchInvitations(userId);
@@ -56,21 +66,26 @@ class RoomInvitationService {
           if (userId != null) 'userId': userId.toString(),
         },
         onConnect: (frame) {
+          _reconnectAttempts = 0;
+          _isConnecting = false;
           _subscribeToRoomInvitations(userId);
         },
         onWebSocketError: (dynamic error) {
           debugPrint('WebSocket Error (Room): $error');
+          _scheduleReconnect();
         },
         onStompError: (frame) {
           debugPrint('STOMP Error (Room): ${frame.body}');
         },
         onDisconnect: (frame) {
           debugPrint('Disconnected from Room WebSocket');
+          _scheduleReconnect();
         },
       ),
     );
 
     _stompClient!.activate();
+    _isConnecting = false;
   }
 
   /// 招待リストを取得
@@ -165,6 +180,7 @@ class RoomInvitationService {
       _invitationCount = _invitations.length;
       _countController.add(_invitationCount);
 
+      await _reconnectAfterAccept();
       return result;
     } catch (e) {
       debugPrint('Error accepting invitation: $e');
@@ -200,6 +216,8 @@ class RoomInvitationService {
   void disconnect() {
     _stompClient?.deactivate();
     _stompClient = null;
+    _reconnectTimer?.cancel();
+    _isConnecting = false;
   }
 
   /// リソースを解放
@@ -207,6 +225,25 @@ class RoomInvitationService {
     disconnect();
     _eventController.close();
     _countController.close();
+  }
+
+  void _scheduleReconnect() {
+    if (_reconnectTimer?.isActive ?? false) {
+      return;
+    }
+    _reconnectAttempts += 1;
+    final delaySeconds = (_reconnectAttempts + 1).clamp(2, 6);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () async {
+      if (_stompClient?.connected ?? false) {
+        return;
+      }
+      await connect();
+    });
+  }
+
+  Future<void> _reconnectAfterAccept() async {
+    disconnect();
+    await connect();
   }
 }
 

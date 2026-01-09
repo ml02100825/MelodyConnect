@@ -25,6 +25,9 @@ class _MatchingScreenState extends State<MatchingScreen>
   String _statusMessage = 'サーバーに接続中...';
   int _waitTime = 0;
   Timer? _waitTimer;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _isConnectingSocket = false;
 
   @override
   void initState() {
@@ -37,6 +40,7 @@ class _MatchingScreenState extends State<MatchingScreen>
   void dispose() {
     _waitTimer?.cancel();
     _stompClient?.deactivate();
+    _reconnectTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -47,16 +51,23 @@ class _MatchingScreenState extends State<MatchingScreen>
         state == AppLifecycleState.detached) {
       _stompClient?.deactivate();
     } else if (state == AppLifecycleState.resumed) {
-      _connectWebSocket();
+      _connectWebSocket(forceReconnect: true);
     }
   }
 
   /// WebSocket接続とマッチングキューへの参加
-  Future<void> _connectWebSocket() async {
+  Future<void> _connectWebSocket({bool forceReconnect = false}) async {
     try {
-      if (_stompClient != null && _stompClient!.connected) {
+      if (!forceReconnect &&
+          _stompClient != null &&
+          _stompClient!.connected) {
         return;
       }
+      if (_isConnectingSocket) {
+        return;
+      }
+      _isConnectingSocket = true;
+      _stompClient?.deactivate();
 
       final userId = await _tokenStorage.getUserId();
       if (userId == null) {
@@ -81,6 +92,8 @@ class _MatchingScreenState extends State<MatchingScreen>
           },
           onConnect: (StompFrame frame) {
             if (!mounted) return;
+            _reconnectAttempts = 0;
+            _isConnectingSocket = false;
 
             setState(() {
               _isConnecting = false;
@@ -112,27 +125,19 @@ class _MatchingScreenState extends State<MatchingScreen>
             _startWaitTimer();
           },
           onWebSocketError: (dynamic error) {
-            if (!mounted) return;
-
-            setState(() {
-              _isConnecting = false;
-              _isMatching = false;
-              _statusMessage = 'WebSocket接続エラー: $error';
-            });
+            _handleReconnect('WebSocket接続エラー: $error');
           },
           onStompError: (StompFrame frame) {
-            if (!mounted) return;
-
-            setState(() {
-              _isConnecting = false;
-              _isMatching = false;
-              _statusMessage = 'STOMPエラー: ${frame.body}';
-            });
+            _handleReconnect('STOMPエラー: ${frame.body}');
+          },
+          onDisconnect: (frame) {
+            _handleReconnect('接続が切断されました。再接続中...');
           },
         ),
       );
 
       _stompClient!.activate();
+      _isConnectingSocket = false;
     } catch (e) {
       if (!mounted) return;
 
@@ -144,8 +149,32 @@ class _MatchingScreenState extends State<MatchingScreen>
     }
   }
 
+  void _handleReconnect(String message) {
+    if (!mounted) return;
+    _isConnectingSocket = false;
+    setState(() {
+      _isConnecting = true;
+      _statusMessage = message;
+    });
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (_reconnectTimer?.isActive ?? false) {
+      return;
+    }
+    _reconnectAttempts += 1;
+    final delaySeconds = (_reconnectAttempts + 1).clamp(2, 6);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (!mounted) return;
+      if (_stompClient?.connected ?? false) return;
+      _connectWebSocket(forceReconnect: true);
+    });
+  }
+
   /// 待機時間タイマーを開始
   void _startWaitTimer() {
+    _waitTimer?.cancel();
     _waitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();

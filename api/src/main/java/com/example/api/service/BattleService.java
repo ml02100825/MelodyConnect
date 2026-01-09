@@ -756,6 +756,13 @@ public class BattleService {
     }
 
     /**
+     * 指定ユーザーがランクマッチの対戦中かどうか
+     */
+    public boolean isUserInRankBattle(Long userId) {
+        return battleStateService.isUserInRankBattle(userId);
+    }
+
+    /**
      * ラウンドタイムアウトチェック
      */
     public boolean isRoundTimedOut(String matchUuid) {
