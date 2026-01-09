@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../services/token_storage_service.dart';
+import '../services/room_api_service.dart';
 import '../models/battle_models.dart';
 
 /// APIのベースURL
@@ -34,6 +35,7 @@ class BattleScreen extends StatefulWidget {
 class _BattleScreenState extends State<BattleScreen>
     with WidgetsBindingObserver {
   final _tokenStorage = TokenStorageService();
+  final _roomApiService = RoomApiService();
   final _answerController = TextEditingController();
   final _audioPlayer = AudioPlayer();
 
@@ -1576,9 +1578,31 @@ class _BattleScreenState extends State<BattleScreen>
   }
 
   /// 単語帳画面へ遷移
-  void _goToVocabulary() {
+  Future<void> _goToVocabulary() async {
     // ホームに戻ってから単語帳画面へ
+    if (widget.isRoomMatch && widget.roomId != null && _myUserId != null) {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken != null) {
+        try {
+          await _roomApiService.updateVocabularyStatus(
+            roomId: widget.roomId!,
+            userId: _myUserId!,
+            inVocabulary: true,
+            accessToken: accessToken,
+          );
+        } catch (e) {
+          debugPrint('単語帳状態更新エラー: $e');
+        }
+      }
+    }
     Navigator.popUntil(context, (route) => route.isFirst);
+    if (widget.isRoomMatch && widget.roomId != null) {
+      Navigator.pushNamed(
+        context,
+        '/vocabulary?userId=$_myUserId&returnRoomId=${widget.roomId}',
+      );
+      return;
+    }
     // userIdをクエリパラメータとして渡す
     Navigator.pushNamed(context, '/vocabulary?userId=$_myUserId');
   }

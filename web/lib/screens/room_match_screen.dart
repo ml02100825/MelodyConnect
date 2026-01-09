@@ -12,6 +12,7 @@ class RoomMatchScreen extends StatefulWidget {
   final bool isGuest; // ゲストとして参加する場合 true
   final bool isReturning; // 対戦後に戻ってきた場合 true
   final bool skipAccept; // 既に招待受理済みなら true
+  final bool isFromVocabulary; // 単語帳から戻った場合 true
 
   const RoomMatchScreen({
     Key? key,
@@ -19,6 +20,7 @@ class RoomMatchScreen extends StatefulWidget {
     this.isGuest = false,
     this.isReturning = false,
     this.skipAccept = false,
+    this.isFromVocabulary = false,
   }) : super(key: key);
 
   @override
@@ -103,6 +105,10 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
       }
 
       _connectWebSocket();
+
+      if (widget.isFromVocabulary) {
+        await _updateVocabularyStatus(false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -232,6 +238,22 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
     }
   }
 
+  Future<void> _updateVocabularyStatus(bool inVocabulary) async {
+    final roomId = _room?['roomId'] ?? widget.roomId;
+    if (roomId == null || _userId == null || _accessToken == null) return;
+
+    try {
+      await _roomApiService.updateVocabularyStatus(
+        roomId: roomId,
+        userId: _userId!,
+        inVocabulary: inVocabulary,
+        accessToken: _accessToken!,
+      );
+    } catch (e) {
+      debugPrint('単語帳状態更新エラー: $e');
+    }
+  }
+
   /// WebSocket接続
   void _connectWebSocket() {
     if (_stompClient != null && _stompClient!.connected) {
@@ -307,6 +329,9 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
       case 'settings_updated':
         _onSettingsUpdated(data);
         break;
+      case 'vocabulary_status':
+        _onVocabularyStatusUpdated(data);
+        break;
     }
   }
 
@@ -330,6 +355,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
       _room = data;
       _statusMessage = 'ゲストが退出しました';
     });
+    _loadInvitedUsers();
   }
 
   void _onPlayerReady(Map<String, dynamic> data) {
@@ -379,6 +405,12 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
       _language = data['language'] ?? _language;
       _questionFormat = data['questionFormat'] ?? _questionFormat;
       _problemType = data['problemType'] ?? _problemType;
+    });
+  }
+
+  void _onVocabularyStatusUpdated(Map<String, dynamic> data) {
+    setState(() {
+      _room = data;
     });
   }
 
@@ -520,6 +552,9 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
   bool get _guestReady => _room != null && (_room!['guestReady'] ?? false);
   bool get _canStart => _isHost && _hasGuest && _guestReady;
   bool get _isFinished => _room != null && _room!['status'] == 'FINISHED';
+  bool get _hostInVocabulary => _room != null && (_room!['hostInVocabulary'] ?? false);
+  bool get _guestInVocabulary => _room != null && (_room!['guestInVocabulary'] ?? false);
+  bool get _anyoneInVocabulary => _hostInVocabulary || _guestInVocabulary;
 
   @override
   Widget build(BuildContext context) {
@@ -1059,7 +1094,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ホストでゲストがいない場合：招待ボタン
-        if (_isHost && !_hasGuest)
+        if (_isHost && !_hasGuest && !_anyoneInVocabulary)
           ElevatedButton.icon(
             onPressed: _showInviteFriendDialog,
             icon: const Icon(Icons.person_add),

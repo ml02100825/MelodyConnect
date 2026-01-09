@@ -13,7 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ルーム管理サービス
@@ -29,6 +32,7 @@ public class RoomService {
     private final UserRepository userRepository;
     private final MatchingQueueService matchingQueueService;
     private final BattleStateService battleStateService;
+    private final Map<Long, Set<Long>> vocabularyUsers = new ConcurrentHashMap<>();
 
     public RoomService(RoomRepository roomRepository,
                        FriendRepository friendRepository,
@@ -512,8 +516,65 @@ public class RoomService {
         room.setGuest_ready(false);
 
         Room updatedRoom = roomRepository.save(room);
+        clearVocabularyStatus(roomId);
         logger.info("部屋をリセット: roomId={}", roomId);
         return updatedRoom;
+    }
+
+    /**
+     * 単語帳閲覧状態を更新
+     * @param roomId ルームID
+     * @param userId ユーザーID
+     * @param inVocabulary 単語帳閲覧中かどうか
+     */
+    public void setVocabularyStatus(Long roomId, Long userId, boolean inVocabulary) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("部屋が存在しません"));
+
+        if (!userId.equals(room.getHost_id()) && !userId.equals(room.getGuest_id())) {
+            throw new IllegalArgumentException("この部屋のメンバーではありません");
+        }
+
+        vocabularyUsers.compute(roomId, (key, users) -> {
+            Set<Long> updated = users == null ? ConcurrentHashMap.newKeySet() : users;
+            if (inVocabulary) {
+                updated.add(userId);
+            } else {
+                updated.remove(userId);
+            }
+            return updated.isEmpty() ? null : updated;
+        });
+    }
+
+    /**
+     * 単語帳閲覧中かどうか
+     * @param roomId ルームID
+     * @param userId ユーザーID
+     * @return 閲覧中ならtrue
+     */
+    public boolean isInVocabulary(Long roomId, Long userId) {
+        Set<Long> users = vocabularyUsers.get(roomId);
+        return users != null && users.contains(userId);
+    }
+
+    /**
+     * 単語帳閲覧状態をクリア
+     * @param roomId ルームID
+     */
+    public void clearVocabularyStatus(Long roomId) {
+        vocabularyUsers.remove(roomId);
+    }
+
+    /**
+     * 単語帳閲覧状態をクリア
+     * @param roomId ルームID
+     * @param userId ユーザーID
+     */
+    public void clearVocabularyStatus(Long roomId, Long userId) {
+        vocabularyUsers.computeIfPresent(roomId, (key, users) -> {
+            users.remove(userId);
+            return users.isEmpty() ? null : users;
+        });
     }
 
     /**
@@ -537,6 +598,7 @@ public class RoomService {
                 f.clearRoomInvitation();
             }
             friendRepository.saveAll(invitations);
+            clearVocabularyStatus(roomId);
 
             logger.info("ホストが退出、部屋を破棄: roomId={}, hostId={}", roomId, userId);
             return new LeaveResult(true, room.getGuest_id());
@@ -550,6 +612,7 @@ public class RoomService {
                 room.setStatus(Room.Status.WAITING);
             }
             roomRepository.save(room);
+            clearVocabularyStatus(roomId, guestId);
 
             logger.info("ゲストが退出: roomId={}, guestId={}", roomId, guestId);
             return new LeaveResult(false, null);

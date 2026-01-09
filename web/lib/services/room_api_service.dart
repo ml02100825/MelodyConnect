@@ -199,6 +199,31 @@ class RoomApiService {
     }
   }
 
+  /// 単語帳遷移状態を更新
+  Future<void> updateVocabularyStatus({
+    required int roomId,
+    required int userId,
+    required bool inVocabulary,
+    required String accessToken,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/$roomId/vocabulary-status'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+      body: jsonEncode({
+        'userId': userId,
+        'inVocabulary': inVocabulary,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? '単語帳状態の更新に失敗しました');
+    }
+  }
+
   /// 招待済みユーザー一覧を取得
   Future<List<Map<String, dynamic>>> getInvitedUsers({
     required int roomId,
