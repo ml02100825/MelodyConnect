@@ -31,7 +31,8 @@ class BattleScreen extends StatefulWidget {
   State<BattleScreen> createState() => _BattleScreenState();
 }
 
-class _BattleScreenState extends State<BattleScreen> {
+class _BattleScreenState extends State<BattleScreen>
+    with WidgetsBindingObserver {
   final _tokenStorage = TokenStorageService();
   final _answerController = TextEditingController();
   final _audioPlayer = AudioPlayer();
@@ -76,18 +77,29 @@ class _BattleScreenState extends State<BattleScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initBattle();
   }
 
   @override
   void dispose() {
-    _roundTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _stompClient?.deactivate();
+    _roundTimer?.cancel();
     _answerController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _stompClient?.deactivate();
+    } else if (state == AppLifecycleState.resumed) {
+      _connectWebSocket();
+    }
+  }
   /// バトル初期化
   Future<void> _initBattle() async {
     try {
@@ -173,6 +185,9 @@ class _BattleScreenState extends State<BattleScreen> {
 
   /// WebSocket接続
   void _connectWebSocket() {
+    if (_stompClient != null && _stompClient!.connected) {
+      return;
+    }
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',

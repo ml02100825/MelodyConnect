@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../services/presence_websocket_service.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
 
@@ -16,6 +17,8 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   final TokenStorageService _tokenStorage = TokenStorageService();
   final AuthApiService _authService = AuthApiService();
+  final PresenceWebSocketService _presenceService =
+      PresenceWebSocketService();
 
   @override
   void initState() {
@@ -46,6 +49,8 @@ class _SplashScreenState extends State<SplashScreen> {
         email: response['email'],
         username: response['username'],
       );
+
+      await _presenceService.connect();
 
       _navigateToHome();
     } on SessionInvalidException {

@@ -25,7 +25,8 @@ class RoomMatchScreen extends StatefulWidget {
   State<RoomMatchScreen> createState() => _RoomMatchScreenState();
 }
 
-class _RoomMatchScreenState extends State<RoomMatchScreen> {
+class _RoomMatchScreenState extends State<RoomMatchScreen>
+    with WidgetsBindingObserver {
   final _tokenStorage = TokenStorageService();
   final _roomApiService = RoomApiService();
   StompClient? _stompClient;
@@ -48,13 +49,25 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialize();
   }
 
   @override
   void dispose() {
     _stompClient?.deactivate();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _stompClient?.deactivate();
+    } else if (state == AppLifecycleState.resumed) {
+      _connectWebSocket();
+    }
   }
 
   Future<void> _initialize() async {
@@ -221,6 +234,9 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
 
   /// WebSocket接続
   void _connectWebSocket() {
+    if (_stompClient != null && _stompClient!.connected) {
+      return;
+    }
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
@@ -1271,12 +1287,16 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                           // ステータスに応じた表示設定
                           final isOffline = status == 'offline';
                           final isInBattle = status == 'in_battle';
+                          final isMatching = status == 'matching';
 
                           String statusLabel;
                           Color statusColor;
                           if (isOffline) {
                             statusLabel = 'オフライン';
                             statusColor = Colors.grey;
+                          } else if (isMatching) {
+                            statusLabel = 'マッチング中';
+                            statusColor = Colors.purple;
                           } else if (isInBattle) {
                             statusLabel = 'バトル中';
                             statusColor = Colors.orange;
