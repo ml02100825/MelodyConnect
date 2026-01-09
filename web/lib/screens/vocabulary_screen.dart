@@ -237,7 +237,6 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                   MaterialPageRoute(
                     builder: (context) => WordListScreen(
                       userId: widget.userId,
-                      vocabularies: vocabularies,
                       returnRoomId: widget.returnRoomId,
                     ),
                   ),
@@ -270,8 +269,8 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                                 Expanded(
                                   child: _buildFilterButton(
                                     label: '言語',
-                                    value: selectedLanguages.contains('すべて') 
-                                        ? 'すべて' 
+                                    value: selectedLanguages.contains('すべて')
+                                        ? 'すべて'
                                         : selectedLanguages.join(', '),
                                     onTap: () => _showLanguageFilter(),
                                   ),
@@ -284,18 +283,18 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                                     onTap: () => _showSortFilter(),
                                   ),
                                 ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _buildFilterButton(
-                                  label: 'フィルター',
-                                  value: selectedFilters.isEmpty 
-                                      ? 'すべて' 
-                                      : selectedFilters.join(', '),
-                                  onTap: () => _showStatusFilter(),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildFilterButton(
+                                    label: 'フィルター',
+                                    value: selectedFilters.isEmpty
+                                        ? 'すべて'
+                                        : selectedFilters.join(', '),
+                                    onTap: () => _showStatusFilter(),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
                           const SizedBox(height: 12),
                           Row(
                             children: [

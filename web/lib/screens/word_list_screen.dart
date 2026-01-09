@@ -5,13 +5,11 @@ import '../services/token_storage_service.dart';
 
 class WordListScreen extends StatefulWidget {
   final int userId;
-  final List<VocabularyCard>? vocabularies; // vocabulary_screenから渡される場合
   final int? returnRoomId;
 
   const WordListScreen({
     Key? key,
     required this.userId,
-    this.vocabularies,
     this.returnRoomId,
   }) : super(key: key);
 
@@ -43,27 +41,6 @@ class _WordListScreenState extends State<WordListScreen> {
   }
 
   Future<void> _loadData() async {
-    // vocabulary_screenからデータが渡されている場合はそれを使用
-    if (widget.vocabularies != null && widget.vocabularies!.isNotEmpty) {
-      setState(() {
-        words = widget.vocabularies!.map((vc) => Word(
-          id: vc.userVocabId,
-          word: vc.foreign,
-          pronunciation: vc.pronunciation ?? '',
-          partOfSpeech: vc.partOfSpeech ?? '',
-          status: vc.isLearned ? '学習済み' : (vc.isFlagged ? 'お気に入り' : '未学習'),
-          meanings: [vc.japanese],
-          exampleSentence: vc.exampleSentence,
-          exampleTranslation: vc.exampleTranslation,
-          isFavorite: vc.isFlagged,
-          isLearned: vc.isLearned,
-        )).toList();
-        filteredWords = List.from(words);
-        _isLoading = false;
-      });
-      return;
-    }
-
     // APIから取得
     setState(() {
       _isLoading = true;
