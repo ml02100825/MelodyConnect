@@ -11,12 +11,14 @@ class RoomMatchScreen extends StatefulWidget {
   final int? roomId;  // 招待から参加する場合は roomId を受け取る
   final bool isGuest; // ゲストとして参加する場合 true
   final bool isReturning; // 対戦後に戻ってきた場合 true
+  final bool skipAccept; // 既に招待受理済みなら true
 
   const RoomMatchScreen({
     Key? key,
     this.roomId,
     this.isGuest = false,
     this.isReturning = false,
+    this.skipAccept = false,
   }) : super(key: key);
 
   @override
@@ -69,8 +71,15 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
           // 対戦後に戻ってきた場合：部屋情報を再読み込みするだけ
           await _loadRoomAfterBattle(widget.roomId!);
         } else if (widget.isGuest) {
-          // 招待から新規参加する場合
-          await _joinRoom(widget.roomId!);
+          if (widget.skipAccept) {
+            await _loadRoom(widget.roomId!);
+            setState(() {
+              _statusMessage = '部屋に参加しました';
+            });
+          } else {
+            // 招待から新規参加する場合
+            await _joinRoom(widget.roomId!);
+          }
         } else {
           // 既存の部屋に戻る場合
           await _loadRoom(widget.roomId!);

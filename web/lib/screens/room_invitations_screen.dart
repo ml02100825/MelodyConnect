@@ -74,11 +74,15 @@ class _RoomInvitationsScreenState extends State<RoomInvitationsScreen> {
 
         // alreadyJoined の場合は isGuest=false で遷移（既に参加済み）
         final bool alreadyJoined = result['alreadyJoined'] ?? false;
+        final String skipAcceptParam =
+            alreadyJoined ? '' : '&skipAccept=true';
 
         // ルームマッチ画面に遷移
         Navigator.pushNamedAndRemoveUntil(
           context,
-          '/room-match?roomId=$roomId${alreadyJoined ? '' : '&isGuest=true'}',
+          '/room-match?roomId=$roomId'
+          '${alreadyJoined ? '' : '&isGuest=true'}'
+          '$skipAcceptParam',
           (route) => route.isFirst,
         );
       }
