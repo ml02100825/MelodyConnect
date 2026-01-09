@@ -49,11 +49,13 @@ class MyApp extends StatelessWidget {
           final roomId = roomIdStr != null ? int.tryParse(roomIdStr) : null;
           final isGuest = uri.queryParameters['isGuest'] == 'true';
           final isReturning = uri.queryParameters['isReturning'] == 'true';
+          final skipAccept = uri.queryParameters['skipAccept'] == 'true';
           return MaterialPageRoute(
             builder: (context) => RoomMatchScreen(
               roomId: roomId,
               isGuest: isGuest,
               isReturning: isReturning,
+              skipAccept: skipAccept,
             ),
             settings: settings,
           );
