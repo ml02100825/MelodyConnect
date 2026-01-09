@@ -216,13 +216,25 @@ public class RoomService {
      * 招待を受理して部屋に参加
      * @param roomId ルームID
      * @param guestId ゲストのユーザーID
-     * @return 参加した部屋
+     * @return 参加結果（部屋と参加ステータス）
      */
     @Transactional
-    public Room acceptInvitation(Long roomId, Long guestId) {
+    public AcceptInvitationResult acceptInvitation(Long roomId, Long guestId) {
         // 部屋の存在確認
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("部屋が存在しません"));
+
+        // 既にこの部屋に自分が参加している場合は、そのまま部屋情報を返す
+        if (guestId.equals(room.getGuest_id())) {
+            logger.info("既にこの部屋に参加済み: roomId={}, guestId={}", roomId, guestId);
+            return new AcceptInvitationResult(room, true);
+        }
+
+        // 既にこの部屋のホストの場合も、そのまま部屋情報を返す
+        if (guestId.equals(room.getHost_id())) {
+            logger.info("自分がホストの部屋です: roomId={}, hostId={}", roomId, guestId);
+            return new AcceptInvitationResult(room, true);
+        }
 
         // 部屋のステータス確認
         if (room.getStatus() != Room.Status.WAITING) {
@@ -253,6 +265,7 @@ public class RoomService {
         // 既に他の部屋に参加中かチェック
         List<Room> existingRooms = roomRepository.findActiveByUserId(guestId);
         if (!existingRooms.isEmpty()) {
+            // この部屋に参加している場合は既にチェック済みなので、ここは他の部屋
             throw new IllegalStateException("既に他の部屋に参加中です");
         }
 
@@ -266,8 +279,15 @@ public class RoomService {
         Room updatedRoom = roomRepository.save(room);
 
         logger.info("部屋に参加しました: roomId={}, guestId={}", roomId, guestId);
-        return updatedRoom;
+        return new AcceptInvitationResult(updatedRoom, false);
     }
+
+    /**
+     * 招待受理結果
+     * @param room 部屋情報
+     * @param alreadyJoined 既に参加済みだったかどうか
+     */
+    public record AcceptInvitationResult(Room room, boolean alreadyJoined) {}
 
     /**
      * 招待を拒否

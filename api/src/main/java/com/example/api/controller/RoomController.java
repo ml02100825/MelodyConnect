@@ -3,8 +3,10 @@ package com.example.api.controller;
 import com.example.api.entity.Friend;
 import com.example.api.entity.Room;
 import com.example.api.entity.User;
+import com.example.api.listener.RoomWebSocketEventListener;
 import com.example.api.repository.UserRepository;
 import com.example.api.service.BattleService;
+import com.example.api.service.MatchingQueueService;
 import com.example.api.service.RoomService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,15 +32,21 @@ public class RoomController {
     private final BattleService battleService;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final RoomWebSocketEventListener webSocketEventListener;
+    private final MatchingQueueService matchingQueueService;
 
     public RoomController(RoomService roomService,
                          BattleService battleService,
                          UserRepository userRepository,
-                         SimpMessagingTemplate messagingTemplate) {
+                         SimpMessagingTemplate messagingTemplate,
+                         RoomWebSocketEventListener webSocketEventListener,
+                         MatchingQueueService matchingQueueService) {
         this.roomService = roomService;
         this.battleService = battleService;
         this.userRepository = userRepository;
         this.messagingTemplate = messagingTemplate;
+        this.webSocketEventListener = webSocketEventListener;
+        this.matchingQueueService = matchingQueueService;
     }
 
     // ========== REST API ==========
@@ -152,12 +160,17 @@ public class RoomController {
     public ResponseEntity<?> acceptInvitation(@PathVariable Long roomId,
                                               @RequestBody AcceptRequest request) {
         try {
-            Room room = roomService.acceptInvitation(roomId, request.userId);
+            RoomService.AcceptInvitationResult result = roomService.acceptInvitation(roomId, request.userId);
+            Room room = result.room();
 
-            // ホストにゲスト参加を通知
-            notifyRoomUpdate(room, "guest_joined");
+            // 新規参加の場合のみホストに通知
+            if (!result.alreadyJoined()) {
+                notifyRoomUpdate(room, "guest_joined");
+            }
 
-            return ResponseEntity.ok(toRoomResponse(room));
+            Map<String, Object> response = toRoomResponse(room);
+            response.put("alreadyJoined", result.alreadyJoined());
+            return ResponseEntity.ok(response);
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(errorResponse(e.getMessage()));
         } catch (Exception e) {
@@ -245,10 +258,13 @@ public class RoomController {
 
     /**
      * フレンド一覧を取得（招待用）
-     * フィルタリング：
-     * - アクティブな部屋に参加中のユーザーは除外
-     * - 誰かから招待を受けているユーザーは除外
-     * - このホストが既に招待済みのユーザーは除外
+     * 各フレンドにはオンライン状態を付与：
+     * - online: WebSocket接続中でバトルしていない
+     * - in_battle: バトル中（ルームマッチまたはランクマッチ）
+     * - offline: WebSocket未接続
+     *
+     * フィルタリング（除外なし、全員表示）：
+     * - offlineユーザーは招待不可として表示
      */
     @GetMapping("/friends")
     public ResponseEntity<?> getFriends(@RequestParam Long userId) {
@@ -261,27 +277,24 @@ public class RoomController {
                 User friendUser = f.getUserLow().getId().equals(userId) ? f.getUserHigh() : f.getUserLow();
                 Long friendUserId = friendUser.getId();
 
-                // フィルタリング1: アクティブな部屋に参加中のユーザーは除外
-                if (roomService.hasActiveRoom(friendUserId)) {
-                    continue;
-                }
-
-                // フィルタリング2 & 3: 招待を受けているユーザーは除外（誰からでも）
-                // inviteFlag=true かつ inviteRoomId!=null の場合は招待中
-                if (f.getInviteFlag() != null && f.getInviteFlag()
-                        && f.getInviteRoomId() != null) {
-                    continue;
-                }
-
                 Map<String, Object> friendInfo = new HashMap<>();
                 friendInfo.put("friendId", f.getId());
                 friendInfo.put("userId", friendUserId);
                 friendInfo.put("username", friendUser.getUsername());
                 friendInfo.put("imageUrl", friendUser.getImageUrl());
 
-                // オンライン状態やステータスを確認
-                boolean canReceiveNow = roomService.canReceiveInvitation(friendUserId);
-                friendInfo.put("canReceiveNow", canReceiveNow);
+                // ユーザー状態を判定
+                String status = getUserStatus(friendUserId);
+                friendInfo.put("status", status);
+
+                // 招待可能かどうかを判定
+                boolean canInvite = canInviteUser(friendUserId, f);
+                friendInfo.put("canInvite", canInvite);
+
+                // 既に招待済みかどうか
+                boolean alreadyInvited = f.getInviteFlag() != null && f.getInviteFlag()
+                        && f.getInviteRoomId() != null;
+                friendInfo.put("alreadyInvited", alreadyInvited);
 
                 result.add(friendInfo);
             }
@@ -291,6 +304,62 @@ public class RoomController {
             logger.error("フレンド一覧取得エラー", e);
             return ResponseEntity.status(500).body(errorResponse("フレンド一覧の取得に失敗しました"));
         }
+    }
+
+    /**
+     * ユーザーの状態を判定
+     * @param userId ユーザーID
+     * @return "online", "in_battle", "offline" のいずれか
+     */
+    private String getUserStatus(Long userId) {
+        // オフラインチェック（WebSocket未接続）
+        if (!webSocketEventListener.isUserOnline(userId)) {
+            return "offline";
+        }
+
+        // バトル中チェック（ルームマッチのPLAYING状態）
+        Optional<Room> playingRoom = roomService.getActiveRoom(userId);
+        if (playingRoom.isPresent() && playingRoom.get().getStatus() == Room.Status.PLAYING) {
+            return "in_battle";
+        }
+
+        // ランクマッチ待機中または対戦中チェック
+        if (matchingQueueService.isInQueue(userId)) {
+            return "in_battle";
+        }
+
+        return "online";
+    }
+
+    /**
+     * ユーザーを招待可能かどうかを判定
+     * @param friendUserId フレンドのユーザーID
+     * @param friendship フレンド関係
+     * @return 招待可能な場合true
+     */
+    private boolean canInviteUser(Long friendUserId, Friend friendship) {
+        // オフラインの場合は招待不可
+        if (!webSocketEventListener.isUserOnline(friendUserId)) {
+            return false;
+        }
+
+        // 既に招待済みの場合は招待不可
+        if (friendship.getInviteFlag() != null && friendship.getInviteFlag()
+                && friendship.getInviteRoomId() != null) {
+            return false;
+        }
+
+        // アクティブな部屋に参加中の場合は招待不可
+        if (roomService.hasActiveRoom(friendUserId)) {
+            return false;
+        }
+
+        // ランクマッチ待機中は招待不可
+        if (matchingQueueService.isInQueue(friendUserId)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

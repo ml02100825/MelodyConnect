@@ -975,16 +975,46 @@ public class BattleService {
                 return;
             }
 
-            // 勝者が確定するまで強制的に勝利数を加算
-            while (!state.isMatchDecided()) {
-                if (state.isPlayer1(winnerId)) {
-                    state.incrementPlayer1Wins();
-                } else {
-                    state.incrementPlayer2Wins();
-                }
+            // 両プレイヤーのResultレコードを取得
+            List<Result> results = resultRepository.findAllByMatchUuid(matchUuid);
+            if (results.isEmpty() || results.size() != 2) {
+                logger.warn("Resultレコードが見つからないか不正です: matchUuid={}, count={}",
+                        matchUuid, results.size());
+                return;
             }
 
-            finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
+            LocalDateTime endedAt = LocalDateTime.now();
+
+            // 各プレイヤーのResultを更新
+            for (Result result : results) {
+                Long playerId = result.getPlayer().getId();
+                boolean isWinner = playerId.equals(winnerId);
+
+                // 勝敗設定
+                result.setResult(isWinner);
+                result.setOutcomeReason(Result.OutcomeReason.disconnect);
+                result.setEndedAt(endedAt);
+
+                // レート変動は0（ルームマッチはレート変動なし）
+                result.setUpdownRate(0);
+
+                // resultDetailに切断情報を追加
+                Map<String, Object> resultDetail = new HashMap<>();
+                resultDetail.put("disconnectedUserId", disconnectedUserId);
+                resultDetail.put("winnerId", winnerId);
+                resultDetail.put("myWins", playerId.equals(state.getPlayer1Id()) ?
+                        state.getPlayer1Wins() : state.getPlayer2Wins());
+                resultDetail.put("opponentWins", playerId.equals(state.getPlayer1Id()) ?
+                        state.getPlayer2Wins() : state.getPlayer1Wins());
+                resultDetail.put("isDraw", false);
+                resultDetail.put("disconnectReason", "opponent_disconnected");
+                result.setResultDetail(resultDetail);
+
+                resultRepository.save(result);
+            }
+
+            // 対戦状態をFINISHEDに
+            battleStateService.finishBattle(matchUuid);
 
             logger.info("切断による対戦終了処理完了: matchUuid={}, winnerId={}, loserId={}",
                     matchUuid, winnerId, disconnectedUserId);

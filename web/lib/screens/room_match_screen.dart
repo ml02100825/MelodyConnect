@@ -1251,39 +1251,121 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                           final friendUserId = friend['userId'] as int;
                           final username = friend['username'] as String?;
                           final imageUrl = friend['imageUrl'] as String?;
-                          final canReceiveNow = friend['canReceiveNow'] as bool? ?? true;
+                          final status = friend['status'] as String? ?? 'offline';
+                          final canInvite = friend['canInvite'] as bool? ?? false;
+                          final alreadyInvited = friend['alreadyInvited'] as bool? ?? false;
                           final isInviting = _invitingIds.contains(friendUserId);
+
+                          // ステータスに応じた表示設定
+                          final isOffline = status == 'offline';
+                          final isInBattle = status == 'in_battle';
+
+                          String statusLabel;
+                          Color statusColor;
+                          if (isOffline) {
+                            statusLabel = 'オフライン';
+                            statusColor = Colors.grey;
+                          } else if (isInBattle) {
+                            statusLabel = 'バトル中';
+                            statusColor = Colors.orange;
+                          } else if (alreadyInvited) {
+                            statusLabel = '招待済み';
+                            statusColor = Colors.blue;
+                          } else {
+                            statusLabel = 'オンライン';
+                            statusColor = Colors.green;
+                          }
 
                           return ListTile(
                             leading: CircleAvatar(
-                              backgroundImage: imageUrl != null
+                              backgroundColor: isOffline ? Colors.grey[300] : null,
+                              backgroundImage: imageUrl != null && !isOffline
                                   ? NetworkImage('http://localhost:8080/images/$imageUrl')
                                   : null,
-                              child: imageUrl == null
-                                  ? const Icon(Icons.person)
+                              child: imageUrl == null || isOffline
+                                  ? Icon(Icons.person, color: isOffline ? Colors.grey[400] : null)
                                   : null,
                             ),
-                            title: Text(username ?? 'ユーザー'),
-                            subtitle: Text(
-                              canReceiveNow ? 'オンライン' : 'バトル中',
+                            title: Text(
+                              username ?? 'ユーザー',
                               style: TextStyle(
-                                color: canReceiveNow ? Colors.green : Colors.grey,
+                                color: isOffline ? Colors.grey : Colors.black,
                               ),
                             ),
-                            trailing: isInviting
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : ElevatedButton(
-                                    onPressed: () => _inviteFriend(friendUserId),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: const Text('招待'),
+                            subtitle: Row(
+                              children: [
+                                // ステータスインジケーター
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: statusColor,
+                                    shape: BoxShape.circle,
                                   ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  statusLabel,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            // オフラインの場合は招待ボタンを表示しない
+                            trailing: isOffline
+                                ? null
+                                : isInviting
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : canInvite
+                                        ? ElevatedButton(
+                                            onPressed: () => _inviteFriend(friendUserId),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.blue,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: const Text('招待'),
+                                          )
+                                        : alreadyInvited
+                                            ? Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 6,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.blue[50],
+                                                  borderRadius: BorderRadius.circular(16),
+                                                ),
+                                                child: const Text(
+                                                  '招待済み',
+                                                  style: TextStyle(
+                                                    color: Colors.blue,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              )
+                                            : Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 6,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[100],
+                                                  borderRadius: BorderRadius.circular(16),
+                                                ),
+                                                child: Text(
+                                                  isInBattle ? 'バトル中' : '招待不可',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
                           );
                         },
                       ),

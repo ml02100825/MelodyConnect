@@ -72,10 +72,13 @@ class _RoomInvitationsScreenState extends State<RoomInvitationsScreen> {
         // 招待リストを更新
         await _invitationService.refreshInvitations();
 
+        // alreadyJoined の場合は isGuest=false で遷移（既に参加済み）
+        final bool alreadyJoined = result['alreadyJoined'] ?? false;
+
         // ルームマッチ画面に遷移
         Navigator.pushNamedAndRemoveUntil(
           context,
-          '/room-match?roomId=$roomId&isGuest=true',
+          '/room-match?roomId=$roomId${alreadyJoined ? '' : '&isGuest=true'}',
           (route) => route.isFirst,
         );
       }

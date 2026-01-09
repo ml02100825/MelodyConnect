@@ -34,6 +34,9 @@ public class RoomWebSocketEventListener {
     // セッションID → ユーザーID のマッピング
     private final ConcurrentHashMap<String, Long> sessionUserMap = new ConcurrentHashMap<>();
 
+    // ユーザーID → セッションID のマッピング（逆引き用）
+    private final ConcurrentHashMap<Long, String> userSessionMap = new ConcurrentHashMap<>();
+
     public RoomWebSocketEventListener(RoomService roomService,
                                       BattleService battleService,
                                       BattleStateService battleStateService,
@@ -49,7 +52,17 @@ public class RoomWebSocketEventListener {
      */
     public void registerUser(String sessionId, Long userId) {
         sessionUserMap.put(sessionId, userId);
+        userSessionMap.put(userId, sessionId);
         logger.debug("セッション登録: sessionId={}, userId={}", sessionId, userId);
+    }
+
+    /**
+     * ユーザーがオンライン（WebSocket接続中）かどうかを確認
+     * @param userId ユーザーID
+     * @return オンラインの場合true
+     */
+    public boolean isUserOnline(Long userId) {
+        return userSessionMap.containsKey(userId);
     }
 
     /**
@@ -86,6 +99,9 @@ public class RoomWebSocketEventListener {
             logger.debug("切断: 登録されていないセッション sessionId={}", sessionId);
             return;
         }
+
+        // 逆引きマップからも削除
+        userSessionMap.remove(userId);
 
         logger.info("WebSocket切断検知: sessionId={}, userId={}", sessionId, userId);
 

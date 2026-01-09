@@ -87,9 +87,9 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay> {
       final type = data['type'];
 
       if (type == 'room_invitation') {
-        // battle_screen にいるかチェック
-        if (_isOnBattleScreen()) {
-          return; // battle_screen では通知しない
+        // バトル中・ランクマッチ待機中は通知しない
+        if (_shouldSuppressNotification()) {
+          return;
         }
 
         _showInvitationBanner(data);
@@ -99,8 +99,9 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay> {
     }
   }
 
-  /// 現在のルートが battle_screen かチェック
-  bool _isOnBattleScreen() {
+  /// 現在のルートが通知を抑制すべき画面かチェック
+  /// 対象: /battle（バトル中）, /matching（ランクマッチ待機中）
+  bool _shouldSuppressNotification() {
     final navigator = widget.navigatorKey.currentState;
     if (navigator == null) return false;
 
@@ -110,7 +111,11 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay> {
       return true;
     });
 
-    return currentRouteName != null && currentRouteName!.startsWith('/battle');
+    if (currentRouteName == null) return false;
+
+    // バトル中またはランクマッチ待機中は通知を抑制
+    return currentRouteName!.startsWith('/battle') ||
+           currentRouteName!.startsWith('/matching');
   }
 
   /// 招待バナーを表示
