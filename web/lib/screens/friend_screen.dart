@@ -38,26 +38,6 @@ class FriendScreen extends StatelessWidget {
             ),
           ],
         ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.person_add,
-                color: Colors.black87,
-                size: 20,
-              ),
-              onPressed: () {},
-            ),
-          ),
-        ],
       ),
 
       body: Padding(
