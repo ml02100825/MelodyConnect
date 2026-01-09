@@ -54,6 +54,9 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay> {
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
+        stompConnectHeaders: {
+          if (_userId != null) 'userId': _userId.toString(),
+        },
         onConnect: (frame) {
           _stompClient!.subscribe(
             destination: '/topic/room-invitation/$_userId',

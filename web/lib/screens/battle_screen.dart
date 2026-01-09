@@ -95,7 +95,12 @@ class _BattleScreenState extends State<BattleScreen> {
       _myUsername = await _tokenStorage.getUsername();
 
       if (_myUserId == null) {
-        throw Exception('ユーザーIDが見つかりません');
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'ユーザーIDが見つかりません';
+          _isLoading = false;
+        });
+        return;
       }
 
       // バトル情報を取得
@@ -171,6 +176,9 @@ class _BattleScreenState extends State<BattleScreen> {
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
+        stompConnectHeaders: {
+          if (_myUserId != null) 'userId': _myUserId.toString(),
+        },
         webSocketConnectHeaders: {
           'Sec-WebSocket-Protocol': 'v12.stomp',
         },

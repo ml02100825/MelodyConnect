@@ -51,6 +51,9 @@ class FriendNotificationService {
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
+        stompConnectHeaders: {
+          if (userId != null) 'userId': userId.toString(),
+        },
         onConnect: (frame) {
           _subscribeToFriendNotifications(userId);
         },
