@@ -257,6 +257,26 @@ public class RoomController {
     }
 
     /**
+     * 単語帳閲覧状態を更新
+     */
+    @PostMapping("/{roomId}/vocabulary-status")
+    public ResponseEntity<?> updateVocabularyStatus(@PathVariable Long roomId,
+                                                    @RequestBody VocabularyStatusRequest request) {
+        try {
+            roomService.setVocabularyStatus(roomId, request.userId, request.inVocabulary);
+            Room room = roomService.getRoom(roomId)
+                    .orElseThrow(() -> new IllegalArgumentException("部屋が存在しません"));
+            notifyRoomUpdate(room, "vocabulary_status");
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(errorResponse(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("単語帳状態更新エラー", e);
+            return ResponseEntity.status(500).body(errorResponse("単語帳状態の更新に失敗しました"));
+        }
+    }
+
+    /**
      * フレンド一覧を取得（招待用）
      * 各フレンドにはオンライン状態を付与：
      * - online: WebSocket接続中でバトルしていない
@@ -552,6 +572,9 @@ public class RoomController {
         response.put("questionFormat", room.getQuestion_format());
         response.put("createdAt", room.getCreated_at());
         response.put("updatedAt", room.getUpdated_at());
+        response.put("hostInVocabulary", roomService.isInVocabulary(room.getRoom_id(), room.getHost_id()));
+        response.put("guestInVocabulary", room.getGuest_id() != null
+                && roomService.isInVocabulary(room.getRoom_id(), room.getGuest_id()));
 
         // ホスト情報
         userRepository.findById(room.getHost_id()).ifPresent(host -> {
@@ -668,5 +691,10 @@ public class RoomController {
         public String language;
         public String questionFormat;
         public String problemType;
+    }
+
+    public static class VocabularyStatusRequest {
+        public Long userId;
+        public boolean inVocabulary;
     }
 }

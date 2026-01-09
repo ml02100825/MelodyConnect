@@ -27,8 +27,9 @@ class PresenceWebSocketService {
       return;
     }
     _isConnecting = true;
-    _userId = await _tokenStorage.getUserId();
-    if (_userId == null) {
+    final userId = await _tokenStorage.getUserId();
+    _userId = userId;
+    if (userId == null) {
       _isConnecting = false;
       return;
     }
@@ -37,7 +38,7 @@ class PresenceWebSocketService {
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
         stompConnectHeaders: {
-          if (_userId != null) 'userId': _userId.toString(),
+          if (userId != null) 'userId': userId.toString(),
         },
         webSocketConnectHeaders: {
           'Sec-WebSocket-Protocol': 'v12.stomp',
@@ -53,12 +54,22 @@ class PresenceWebSocketService {
         },
         onDisconnect: (frame) {
           _stopHeartbeat();
+          _scheduleReconnect();
         },
       ),
     );
 
     _stompClient!.activate();
     _isConnecting = false;
+  }
+
+  void _scheduleReconnect() {
+    if (_isConnecting) return;
+    Future.delayed(const Duration(seconds: 5), () {
+      if (_stompClient?.connected ?? false) return;
+      if (_userId == null) return;
+      connect();
+    });
   }
 
   void _startHeartbeat() {

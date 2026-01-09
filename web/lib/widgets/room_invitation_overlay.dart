@@ -6,7 +6,7 @@ import '../services/token_storage_service.dart';
 import '../services/presence_websocket_service.dart';
 
 /// ルーム招待通知オーバーレイ
-/// アプリ全体で招待通知を表示します（battle_screen除外）
+/// アプリ全体で招待通知を表示します
 class RoomInvitationOverlay extends StatefulWidget {
   final Widget child;
   final GlobalKey<NavigatorState> navigatorKey;
@@ -41,6 +41,12 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _refreshUserIfNeeded();
+  }
+
+  @override
   void dispose() {
     _stompClient?.deactivate();
     _hideTimer?.cancel();
@@ -63,8 +69,20 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   Future<void> _initialize() async {
     _userId = await _tokenStorage.getUserId();
     if (_userId != null) {
+      await _presenceService.connect();
       _connectWebSocket();
     }
+  }
+
+  Future<void> _refreshUserIfNeeded() async {
+    if (_userId != null) return;
+    final userId = await _tokenStorage.getUserId();
+    if (!mounted || userId == null) return;
+    setState(() {
+      _userId = userId;
+    });
+    await _presenceService.connect();
+    _connectWebSocket();
   }
 
   void _connectWebSocket() {
@@ -93,7 +111,7 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
         onDisconnect: (frame) {
           // 再接続を試みる
           Future.delayed(const Duration(seconds: 5), () {
-            if (mounted && _stompClient != null) {
+            if (mounted && _stompClient != null && _userId != null) {
               _stompClient!.activate();
             }
           });
@@ -110,35 +128,11 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
       final type = data['type'];
 
       if (type == 'room_invitation') {
-        // バトル中・ランクマッチ待機中は通知しない
-        if (_shouldSuppressNotification()) {
-          return;
-        }
-
         _showInvitationBanner(data);
       }
     } catch (e) {
       debugPrint('Invitation parse error: $e');
     }
-  }
-
-  /// 現在のルートが通知を抑制すべき画面かチェック
-  /// 対象: /battle（バトル中）, /matching（ランクマッチ待機中）
-  bool _shouldSuppressNotification() {
-    final navigator = widget.navigatorKey.currentState;
-    if (navigator == null) return false;
-
-    String? currentRouteName;
-    navigator.popUntil((route) {
-      currentRouteName = route.settings.name;
-      return true;
-    });
-
-    if (currentRouteName == null) return false;
-
-    // バトル中またはランクマッチ待機中は通知を抑制
-    return currentRouteName!.startsWith('/battle') ||
-           currentRouteName!.startsWith('/matching');
   }
 
   /// 招待バナーを表示

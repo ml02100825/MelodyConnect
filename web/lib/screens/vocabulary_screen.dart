@@ -8,8 +8,13 @@ import 'word_list_screen.dart';
 
 class VocabularyScreen extends StatefulWidget {
   final int userId;
+  final int? returnRoomId;
   
-  const VocabularyScreen({Key? key, required this.userId}) : super(key: key);
+  const VocabularyScreen({
+    Key? key,
+    required this.userId,
+    this.returnRoomId,
+  }) : super(key: key);
 
   @override
   State<VocabularyScreen> createState() => _VocabularyScreenState();
@@ -181,85 +186,104 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
     }
   }
 
+  void _handleBackNavigation() {
+    final returnRoomId = widget.returnRoomId;
+    if (returnRoomId != null) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/room-match?roomId=$returnRoomId&isReturning=true&fromVocabulary=true',
+        (route) => route.isFirst,
+      );
+      return;
+    }
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final displayList = filteredVocabularies;
     final freeLimit = 50; // 無料で見られる件数
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          '単語帳',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+    return WillPopScope(
+      onWillPop: () async {
+        _handleBackNavigation();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+            onPressed: _handleBackNavigation,
           ),
-        ),
-        centerTitle: true,
-        actions: [
-          // 一覧画面へ遷移
-          IconButton(
-            icon: const Icon(Icons.list_alt, color: Colors.black),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => WordListScreen(
-                    userId: widget.userId,
-                    vocabularies: vocabularies,
+          title: const Text(
+            '単語帳',
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          centerTitle: true,
+          actions: [
+            // 一覧画面へ遷移
+            IconButton(
+              icon: const Icon(Icons.list_alt, color: Colors.black),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => WordListScreen(
+                      userId: widget.userId,
+                      vocabularies: vocabularies,
+                      returnRoomId: widget.returnRoomId,
+                    ),
                   ),
-                ),
-              );
-            },
-            tooltip: '一覧表示',
-          ),
-          // リフレッシュボタン
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: _loadData,
-            tooltip: '更新',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? _buildErrorView()
-              : Column(
-                  children: [
-                    // フィルター・並び替えエリア
-                    Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFilterButton(
-                                  label: '言語',
-                                  value: selectedLanguages.contains('すべて') 
-                                      ? 'すべて' 
-                                      : selectedLanguages.join(', '),
-                                  onTap: () => _showLanguageFilter(),
+                );
+              },
+              tooltip: '一覧表示',
+            ),
+            // リフレッシュボタン
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.black),
+              onPressed: _loadData,
+              tooltip: '更新',
+            ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? _buildErrorView()
+                : Column(
+                    children: [
+                      // フィルター・並び替えエリア
+                      Container(
+                        color: Colors.white,
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildFilterButton(
+                                    label: '言語',
+                                    value: selectedLanguages.contains('すべて') 
+                                        ? 'すべて' 
+                                        : selectedLanguages.join(', '),
+                                    onTap: () => _showLanguageFilter(),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _buildFilterButton(
-                                  label: '並び替え',
-                                  value: sortOrder,
-                                  onTap: () => _showSortFilter(),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildFilterButton(
+                                    label: '並び替え',
+                                    value: sortOrder,
+                                    onTap: () => _showSortFilter(),
+                                  ),
                                 ),
-                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _buildFilterButton(
