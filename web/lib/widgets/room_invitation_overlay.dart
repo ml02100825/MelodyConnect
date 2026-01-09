@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../services/token_storage_service.dart';
+import '../services/presence_websocket_service.dart';
 
 /// ルーム招待通知オーバーレイ
 /// アプリ全体で招待通知を表示します（battle_screen除外）
@@ -20,8 +21,11 @@ class RoomInvitationOverlay extends StatefulWidget {
   State<RoomInvitationOverlay> createState() => _RoomInvitationOverlayState();
 }
 
-class _RoomInvitationOverlayState extends State<RoomInvitationOverlay> {
+class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
+    with WidgetsBindingObserver {
   final TokenStorageService _tokenStorage = TokenStorageService();
+  final PresenceWebSocketService _presenceService =
+      PresenceWebSocketService();
   StompClient? _stompClient;
   int? _userId;
 
@@ -32,6 +36,7 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialize();
   }
 
@@ -40,7 +45,19 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay> {
     _stompClient?.deactivate();
     _hideTimer?.cancel();
     _currentOverlay?.remove();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _stompClient?.deactivate();
+    } else if (state == AppLifecycleState.resumed) {
+      _connectWebSocket();
+    }
+    _presenceService.handleLifecycle(state);
   }
 
   Future<void> _initialize() async {
@@ -51,6 +68,9 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay> {
   }
 
   void _connectWebSocket() {
+    if (_stompClient != null && _stompClient!.connected) {
+      return;
+    }
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',

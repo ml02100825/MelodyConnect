@@ -12,7 +12,10 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.springframework.scheduling.annotation.Scheduled;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RoomWebSocketEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(RoomWebSocketEventListener.class);
+    private static final Duration OFFLINE_TIMEOUT = Duration.ofSeconds(90);
 
     private final RoomService roomService;
     private final BattleService battleService;
@@ -36,6 +40,9 @@ public class RoomWebSocketEventListener {
 
     // ユーザーID → セッションID のマッピング（逆引き用）
     private final ConcurrentHashMap<Long, String> userSessionMap = new ConcurrentHashMap<>();
+
+    // ユーザーID → 最終アクティブ時刻
+    private final ConcurrentHashMap<Long, Instant> userLastSeenMap = new ConcurrentHashMap<>();
 
     public RoomWebSocketEventListener(RoomService roomService,
                                       BattleService battleService,
@@ -53,7 +60,31 @@ public class RoomWebSocketEventListener {
     public void registerUser(String sessionId, Long userId) {
         sessionUserMap.put(sessionId, userId);
         userSessionMap.put(userId, sessionId);
+        userLastSeenMap.put(userId, Instant.now());
         logger.debug("セッション登録: sessionId={}, userId={}", sessionId, userId);
+    }
+
+    /**
+     * 最終アクティブ時刻を更新
+     */
+    public void refreshLastSeen(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        userLastSeenMap.put(userId, Instant.now());
+    }
+
+    /**
+     * セッションIDから最終アクティブ時刻を更新
+     */
+    public void refreshLastSeenBySessionId(String sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        Long userId = sessionUserMap.get(sessionId);
+        if (userId != null) {
+            refreshLastSeen(userId);
+        }
     }
 
     /**
@@ -62,7 +93,26 @@ public class RoomWebSocketEventListener {
      * @return オンラインの場合true
      */
     public boolean isUserOnline(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        Instant lastSeen = userLastSeenMap.get(userId);
+        if (lastSeen == null) {
+            return false;
+        }
+        if (Duration.between(lastSeen, Instant.now()).compareTo(OFFLINE_TIMEOUT) > 0) {
+            removeUserSession(userId);
+            return false;
+        }
         return userSessionMap.containsKey(userId);
+    }
+
+    private void removeUserSession(Long userId) {
+        String sessionId = userSessionMap.remove(userId);
+        if (sessionId != null) {
+            sessionUserMap.remove(sessionId);
+        }
+        userLastSeenMap.remove(userId);
     }
 
     /**
@@ -102,6 +152,7 @@ public class RoomWebSocketEventListener {
 
         // 逆引きマップからも削除
         userSessionMap.remove(userId);
+        userLastSeenMap.remove(userId);
 
         logger.info("WebSocket切断検知: sessionId={}, userId={}", sessionId, userId);
 
@@ -132,6 +183,21 @@ public class RoomWebSocketEventListener {
 
         } catch (Exception e) {
             logger.error("切断処理中にエラー: userId={}", userId, e);
+        }
+    }
+
+    /**
+     * 一定時間アクティブでないユーザーをオフライン扱いにする
+     */
+    @Scheduled(fixedRate = 30000)
+    public void removeInactiveUsers() {
+        Instant now = Instant.now();
+        for (Map.Entry<Long, Instant> entry : userLastSeenMap.entrySet()) {
+            if (Duration.between(entry.getValue(), now).compareTo(OFFLINE_TIMEOUT) > 0) {
+                Long userId = entry.getKey();
+                removeUserSession(userId);
+                logger.info("タイムアウトによりオフライン判定: userId={}", userId);
+            }
         }
     }
 

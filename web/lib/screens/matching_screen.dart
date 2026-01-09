@@ -16,7 +16,8 @@ class MatchingScreen extends StatefulWidget {
   State<MatchingScreen> createState() => _MatchingScreenState();
 }
 
-class _MatchingScreenState extends State<MatchingScreen> {
+class _MatchingScreenState extends State<MatchingScreen>
+    with WidgetsBindingObserver {
   final _tokenStorage = TokenStorageService();
   StompClient? _stompClient;
   bool _isConnecting = true;
@@ -28,6 +29,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _connectWebSocket();
   }
 
@@ -35,12 +37,27 @@ class _MatchingScreenState extends State<MatchingScreen> {
   void dispose() {
     _waitTimer?.cancel();
     _stompClient?.deactivate();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _stompClient?.deactivate();
+    } else if (state == AppLifecycleState.resumed) {
+      _connectWebSocket();
+    }
   }
 
   /// WebSocket接続とマッチングキューへの参加
   Future<void> _connectWebSocket() async {
     try {
+      if (_stompClient != null && _stompClient!.connected) {
+        return;
+      }
+
       final userId = await _tokenStorage.getUserId();
       if (userId == null) {
         if (!mounted) return;

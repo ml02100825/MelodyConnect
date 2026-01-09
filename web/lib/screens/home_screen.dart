@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/artist_api_service.dart';
+import '../services/presence_websocket_service.dart';
 import '../services/token_storage_service.dart';
 import '../services/life_api_service.dart';
 import '../widgets/genre_selection_dialog.dart';
@@ -26,6 +27,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _authApiService = AuthApiService();
   final _artistApiService = ArtistApiService();
+  final PresenceWebSocketService _presenceService =
+      PresenceWebSocketService();
   final _tokenStorage = TokenStorageService();
   final _lifeApiService = LifeApiService();
 
@@ -55,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _presenceService.handleLifecycle(state);
     if (state == AppLifecycleState.resumed) {
       // バックグラウンドから戻ったら再取得
       _fetchLifeStatus();
@@ -205,6 +209,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       // ローカルの認証情報を削除
       await _tokenStorage.clearAuthData();
+      _presenceService.disconnect();
 
       if (!mounted) return;
 

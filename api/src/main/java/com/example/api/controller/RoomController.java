@@ -261,6 +261,7 @@ public class RoomController {
      * 各フレンドにはオンライン状態を付与：
      * - online: WebSocket接続中でバトルしていない
      * - in_battle: バトル中（ルームマッチまたはランクマッチ）
+     * - matching: マッチング待機中
      * - offline: WebSocket未接続
      *
      * フィルタリング（除外なし、全員表示）：
@@ -309,7 +310,7 @@ public class RoomController {
     /**
      * ユーザーの状態を判定
      * @param userId ユーザーID
-     * @return "online", "in_battle", "offline" のいずれか
+     * @return "online", "in_battle", "matching", "offline" のいずれか
      */
     private String getUserStatus(Long userId) {
         // オフラインチェック（WebSocket未接続）
@@ -325,7 +326,7 @@ public class RoomController {
 
         // ランクマッチ待機中または対戦中チェック
         if (matchingQueueService.isInQueue(userId)) {
-            return "in_battle";
+            return "matching";
         }
 
         return "online";
