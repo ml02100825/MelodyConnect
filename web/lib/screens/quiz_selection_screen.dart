@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/quiz_models.dart';
 import '../services/quiz_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../bottom_nav.dart';
 import 'quiz_question_screen.dart';
 
 class QuizSelectionScreen extends StatefulWidget {
@@ -83,6 +84,10 @@ class _QuizSelectionScreenState extends State<QuizSelectionScreen> {
             _buildStartButton(),
           ],
         ),
+      ),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 2,
+        onTap: (index) {},
       ),
     );
   }
