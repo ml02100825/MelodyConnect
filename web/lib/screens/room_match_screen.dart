@@ -43,6 +43,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
   bool _isLoading = true;
   bool _isReady = false;
   String _statusMessage = '';
+  String? _roomErrorMessage;
 
   // 設定選択フェーズ
   bool _showSettingsPhase = false;  // ホストが開始ボタンを押した後の設定選択
@@ -89,19 +90,23 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         if (widget.isReturning) {
           // 対戦後に戻ってきた場合：部屋情報を再読み込みするだけ
           await _loadRoomAfterBattle(widget.roomId!);
+          if (_roomErrorMessage != null) return;
         } else if (widget.isGuest) {
           if (widget.skipAccept) {
             await _loadRoom(widget.roomId!);
+            if (_roomErrorMessage != null) return;
             setState(() {
               _statusMessage = '部屋に参加しました';
             });
           } else {
             // 招待から新規参加する場合
             await _joinRoom(widget.roomId!);
+            if (_roomErrorMessage != null) return;
           }
         } else {
           // 既存の部屋に戻る場合
           await _loadRoom(widget.roomId!);
+          if (_roomErrorMessage != null) return;
         }
       } else {
         // 新規部屋作成
@@ -165,7 +170,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
 
       await _loadInvitedUsers();
     } catch (e) {
-      rethrow;
+      _setRoomNotFound();
     }
   }
 
@@ -197,7 +202,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         }
       });
     } catch (e) {
-      rethrow;
+      _setRoomNotFound();
     }
   }
 
@@ -220,7 +225,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         _statusMessage = '部屋に参加しました';
       });
     } catch (e) {
-      rethrow;
+      _setRoomNotFound();
     }
   }
 
@@ -330,6 +335,15 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
       if (!mounted) return;
       if (_stompClient?.connected ?? false) return;
       _connectWebSocket(forceReconnect: true);
+    });
+  }
+
+  void _setRoomNotFound() {
+    if (!mounted) return;
+    setState(() {
+      _roomErrorMessage = 'ルームは存在しません';
+      _statusMessage = '';
+      _isLoading = false;
     });
   }
 
@@ -607,9 +621,41 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
+            : _roomErrorMessage != null
+                ? _buildRoomNotFound()
             : _showSettingsPhase
                 ? _buildSettingsPhase()
                 : _buildBody(),
+      ),
+    );
+  }
+
+  Widget _buildRoomNotFound() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 72),
+            const SizedBox(height: 24),
+            const Text(
+              'ルームは存在しません',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '部屋が解散されたため参加できませんでした。',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+              icon: const Icon(Icons.home),
+              label: const Text('ホームに戻る'),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -44,6 +44,7 @@ class _BattleScreenState extends State<BattleScreen>
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   bool _isConnectingSocket = false;
+  bool _isLeaving = false;
 
   // 状態
   BattleStatus _status = BattleStatus.answering;
@@ -103,7 +104,7 @@ class _BattleScreenState extends State<BattleScreen>
         state == AppLifecycleState.detached) {
       _stompClient?.deactivate();
     } else if (state == AppLifecycleState.resumed) {
-      if (_status != BattleStatus.matchFinished) {
+      if (!_isLeaving && _status != BattleStatus.matchFinished) {
         _connectWebSocket(forceReconnect: true);
       }
     }
@@ -226,6 +227,9 @@ class _BattleScreenState extends State<BattleScreen>
         },
         onDisconnect: (frame) {
           _roundTimer?.cancel();
+          if (_isLeaving) {
+            return;
+          }
           _handleReconnect('接続が切断されました。再接続中...');
         },
       ),
@@ -237,6 +241,7 @@ class _BattleScreenState extends State<BattleScreen>
 
   void _handleReconnect(String message) {
     if (!mounted) return;
+    if (_isLeaving) return;
     _isConnectingSocket = false;
     setState(() {
       _errorMessage = message;
@@ -328,6 +333,7 @@ class _BattleScreenState extends State<BattleScreen>
     final message = data['message'] ?? '相手が切断しました。あなたの勝利です！';
 
     _roundTimer?.cancel();
+    _prepareForLeaving();
 
     // 勝利表示
 
@@ -1584,9 +1590,7 @@ class _BattleScreenState extends State<BattleScreen>
 
   /// 再キュー（同じ設定で再マッチング）
   void _goToRematch() {
-    // WebSocket接続を切断
-    _stompClient?.deactivate();
-    _roundTimer?.cancel();
+    _prepareForLeaving();
 
     // 直前のマッチ設定（言語）を使って再マッチへ遷移
     final language = _battleInfo?.language ?? 'english';
@@ -1599,9 +1603,7 @@ class _BattleScreenState extends State<BattleScreen>
 
   /// ルームに戻る（ルームマッチ終了後）
   void _goBackToRoom() {
-    // WebSocket接続を切断
-    _stompClient?.deactivate();
-    _roundTimer?.cancel();
+    _prepareForLeaving();
 
     // ルームマッチ画面に戻る（対戦後なのでisGuest=falseで部屋情報を再読み込み）
     // isReturning=true で対戦後の復帰であることを示す
@@ -1614,8 +1616,7 @@ class _BattleScreenState extends State<BattleScreen>
 
   /// 単語帳画面へ遷移
   Future<void> _goToVocabulary() async {
-    _stompClient?.deactivate();
-    _roundTimer?.cancel();
+    _prepareForLeaving();
 
     // ホームに戻ってから単語帳画面へ
     if (widget.isRoomMatch && widget.roomId != null && _myUserId != null) {
@@ -1643,5 +1644,19 @@ class _BattleScreenState extends State<BattleScreen>
     }
     // userIdをクエリパラメータとして渡す
     Navigator.pushNamed(context, '/vocabulary?userId=$_myUserId');
+  }
+
+  void _prepareForLeaving() {
+    _stompClient?.deactivate();
+    _roundTimer?.cancel();
+    _reconnectTimer?.cancel();
+    if (!mounted) {
+      _isLeaving = true;
+      return;
+    }
+    setState(() {
+      _isLeaving = true;
+      _errorMessage = null;
+    });
   }
 }
