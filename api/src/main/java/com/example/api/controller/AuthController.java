@@ -98,7 +98,7 @@ public class AuthController {
     @PostMapping("/logout/{userId}")
     public ResponseEntity<?> logout(@PathVariable Long userId) {
         try {
-            authService.logout(userId);
+            authService.logout(user);
             Map<String, String> response = new HashMap<>();
             response.put("message", "ログアウトしました");
             return ResponseEntity.ok(response);

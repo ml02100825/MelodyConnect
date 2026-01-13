@@ -268,7 +268,8 @@ public class AuthService {
         if (!userRepository.existsById(userId)) {
             throw new IllegalArgumentException("ユーザーが見つかりません");
         }
-        sessionRepository.revokeAllUserSessionsById(userId);
+        User user = userRepository.getId(userId)
+        sessionRepository.revokeAllUserSessionsById(user);
     }
 
     /**

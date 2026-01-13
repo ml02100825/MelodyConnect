@@ -27,14 +27,6 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @Query("SELECT s FROM Session s WHERE s.user = :user AND s.revokedFlag = false AND s.expiresAt > :now")
     List<Session> findValidSessionsByUser(@Param("user") User user, @Param("now") LocalDateTime now);
 
-    /**
-     * ユーザーIDで有効なセッションを検索（後方互換性のため）
-     * @param userId ユーザーID
-     * @param now 現在時刻
-     * @return 有効なセッションのリスト
-     */
-    @Query("SELECT s FROM Session s WHERE s.user.id = :userId AND s.revokedFlag = false AND s.expiresAt > :now")
-    List<Session> findValidSessionsByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
     /**
      * リフレッシュトークンハッシュで有効なセッションを検索
@@ -52,13 +44,7 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
      */
     List<Session> findByUser(User user);
 
-    /**
-     * ユーザーIDで全てのセッションを取得（後方互換性のため）
-     * @param userId ユーザーID
-     * @return セッションのリスト
-     */
-    @Query("SELECT s FROM Session s WHERE s.user.id = :userId")
-    List<Session> findByUserId(@Param("userId") Long userId);
+
 
     /**
      * ユーザーIDで最新のセッションを取得
@@ -89,12 +75,6 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @Modifying
     @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user = :user")
     void revokeAllUserSessions(@Param("user") User user);
-
-    /**
-     * ユーザーIDで全セッションを無効化（後方互換性のため）
-     * @param userId ユーザーID
-     */
-    @Modifying
-    @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user.id = :userId")
-    void revokeAllUserSessionsById(@Param("userId") Long userId);
 }
+
+
