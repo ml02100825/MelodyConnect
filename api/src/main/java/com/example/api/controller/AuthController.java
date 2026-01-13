@@ -1,6 +1,8 @@
 package com.example.api.controller;
 
 import com.example.api.dto.*;
+import com.example.api.entity.User;
+import com.example.api.repository.UserRepository;
 import com.example.api.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -23,6 +25,9 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     /**
      * ユーザー登録エンドポイント
@@ -98,6 +103,8 @@ public class AuthController {
     @PostMapping("/logout/{userId}")
     public ResponseEntity<?> logout(@PathVariable Long userId) {
         try {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
             authService.logout(user);
             Map<String, String> response = new HashMap<>();
             response.put("message", "ログアウトしました");
