@@ -48,10 +48,10 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     /**
      * ユーザーIDで最新のセッションを取得
-     * @param userId ユーザーID
+     * @param user
      * @return 最新セッション
      */
-    Optional<Session> findTopByUserIdOrderByCreatedAtDesc(Long userId);
+    Optional<Session> findTopByUserOrderByCreatedAtDesc(User user);
 
     /**
      * clientTypeでセッションを検索

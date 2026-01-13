@@ -2,7 +2,9 @@ package com.example.api.listener;
 
 import com.example.api.entity.Room;
 import com.example.api.entity.Session;
+import com.example.api.entity.User;
 import com.example.api.repository.SessionRepository;
+import com.example.api.repository.UserRepository;
 import com.example.api.service.BattleService;
 import com.example.api.service.BattleStateService;
 import com.example.api.service.RoomService;
@@ -39,6 +41,9 @@ public class RoomWebSocketEventListener {
     private final BattleStateService battleStateService;
     private final SimpMessagingTemplate messagingTemplate;
     private final SessionRepository sessionRepository;
+    private UserRepository userRepository;
+    
+    
 
     // セッションID → ユーザーID のマッピング
     private final ConcurrentHashMap<String, Long> sessionUserMap = new ConcurrentHashMap<>();
@@ -131,13 +136,16 @@ public class RoomWebSocketEventListener {
     }
 
     private void updateLatestSessionClientType(Long userId, String clientType) {
+        
         if (userId == null) {
             return;
         }
+        Optional<User> useroptional = userRepository.findById(userId);
+        User user = useroptional.get();
         String resolvedClientType = Optional.ofNullable(clientType).orElse("unknown");
-        Optional<Session> latestSession = sessionRepository.findTopByUserIdOrderByCreatedAtDesc(userId);
+        Optional<Session> latestSession = sessionRepository.findTopByUserOrderByCreatedAtDesc(user);
         if (latestSession.isEmpty()) {
-            logger.debug("clientType保存対象セッションが見つかりません: userId={}", userId);
+            logger.debug("clientType保存対象セッションが見つかりません: userId={}", user);
             return;
         }
         Session session = latestSession.get();
