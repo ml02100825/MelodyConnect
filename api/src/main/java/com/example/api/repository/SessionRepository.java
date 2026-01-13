@@ -96,5 +96,5 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
      */
     @Modifying
     @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user.id = :userId")
-    void revokeAllUserSessionsById(@Param("userId") Long userId);
+    void revokeAllUserSessionsById(@Param("user") User user);
 }

@@ -264,8 +264,8 @@ public class AuthService {
      * @param userId ユーザーID
      */
     @Transactional
-    public void logout(Long userId) {
-        sessionRepository.revokeAllUserSessionsById(userId);
+    public void logout(User user) {
+        sessionRepository.revokeAllUserSessionsById(user);
     }
 
     /**
