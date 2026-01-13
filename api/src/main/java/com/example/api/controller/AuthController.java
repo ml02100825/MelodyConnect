@@ -102,6 +102,9 @@ public class AuthController {
             Map<String, String> response = new HashMap<>();
             response.put("message", "ログアウトしました");
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("ログアウト処理中にエラーが発生しました"));

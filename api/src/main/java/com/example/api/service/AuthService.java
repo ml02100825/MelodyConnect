@@ -264,8 +264,11 @@ public class AuthService {
      * @param userId ユーザーID
      */
     @Transactional
-    public void logout(User user) {
-        sessionRepository.revokeAllUserSessionsById(user);
+    public void logout(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new IllegalArgumentException("ユーザーが見つかりません");
+        }
+        sessionRepository.revokeAllUserSessionsById(userId);
     }
 
     /**
