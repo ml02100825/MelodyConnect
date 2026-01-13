@@ -63,6 +63,7 @@ class FriendNotificationService {
         url: 'ws://localhost:8080/ws',
         stompConnectHeaders: {
           if (userId != null) 'userId': userId.toString(),
+          'clientType': 'friend',
         },
         onConnect: (frame) {
           _reconnectAttempts = 0;

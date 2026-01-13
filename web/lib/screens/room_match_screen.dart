@@ -275,6 +275,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         url: 'ws://localhost:8080/ws',
         stompConnectHeaders: {
           if (_userId != null) 'userId': _userId.toString(),
+          'clientType': 'room',
         },
         webSocketConnectHeaders: {
           'Sec-WebSocket-Protocol': 'v12.stomp',

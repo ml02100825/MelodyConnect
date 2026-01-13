@@ -61,6 +61,20 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     List<Session> findByUserId(@Param("userId") Long userId);
 
     /**
+     * ユーザーIDで最新のセッションを取得
+     * @param userId ユーザーID
+     * @return 最新セッション
+     */
+    Optional<Session> findTopByUserIdOrderByCreatedAtDesc(Long userId);
+
+    /**
+     * clientTypeでセッションを検索
+     * @param clientType クライアント種別
+     * @return セッションのリスト
+     */
+    List<Session> findByClientType(String clientType);
+
+    /**
      * 期限切れのセッションを削除
      * @param now 現在時刻
      */

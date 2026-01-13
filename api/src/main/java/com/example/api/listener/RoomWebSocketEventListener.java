@@ -1,6 +1,8 @@
 package com.example.api.listener;
 
 import com.example.api.entity.Room;
+import com.example.api.entity.Session;
+import com.example.api.repository.SessionRepository;
 import com.example.api.service.BattleService;
 import com.example.api.service.BattleStateService;
 import com.example.api.service.RoomService;
@@ -13,11 +15,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -34,12 +38,16 @@ public class RoomWebSocketEventListener {
     private final BattleService battleService;
     private final BattleStateService battleStateService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final SessionRepository sessionRepository;
 
     // セッションID → ユーザーID のマッピング
     private final ConcurrentHashMap<String, Long> sessionUserMap = new ConcurrentHashMap<>();
 
     // ユーザーID → セッションID のマッピング（逆引き用）
-    private final ConcurrentHashMap<Long, String> userSessionMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Set<String>> userSessionMap = new ConcurrentHashMap<>();
+
+    // セッションID → クライアント種別
+    private final ConcurrentHashMap<String, String> sessionClientTypeMap = new ConcurrentHashMap<>();
 
     // ユーザーID → 最終アクティブ時刻
     private final ConcurrentHashMap<Long, Instant> userLastSeenMap = new ConcurrentHashMap<>();
@@ -47,11 +55,13 @@ public class RoomWebSocketEventListener {
     public RoomWebSocketEventListener(RoomService roomService,
                                       BattleService battleService,
                                       BattleStateService battleStateService,
-                                      SimpMessagingTemplate messagingTemplate) {
+                                      SimpMessagingTemplate messagingTemplate,
+                                      SessionRepository sessionRepository) {
         this.roomService = roomService;
         this.battleService = battleService;
         this.battleStateService = battleStateService;
         this.messagingTemplate = messagingTemplate;
+        this.sessionRepository = sessionRepository;
     }
 
     /**
@@ -59,7 +69,8 @@ public class RoomWebSocketEventListener {
      */
     public void registerUser(String sessionId, Long userId) {
         sessionUserMap.put(sessionId, userId);
-        userSessionMap.put(userId, sessionId);
+        userSessionMap.computeIfAbsent(userId, key -> ConcurrentHashMap.newKeySet())
+                .add(sessionId);
         userLastSeenMap.put(userId, Instant.now());
         logger.debug("セッション登録: sessionId={}, userId={}", sessionId, userId);
     }
@@ -104,24 +115,48 @@ public class RoomWebSocketEventListener {
             removeUserSession(userId);
             return false;
         }
-        return userSessionMap.containsKey(userId);
+        Set<String> sessions = userSessionMap.get(userId);
+        return sessions != null && !sessions.isEmpty();
     }
 
     private void removeUserSession(Long userId) {
-        String sessionId = userSessionMap.remove(userId);
-        if (sessionId != null) {
-            sessionUserMap.remove(sessionId);
+        Set<String> sessionIds = userSessionMap.remove(userId);
+        if (sessionIds != null) {
+            for (String sessionId : sessionIds) {
+                sessionUserMap.remove(sessionId);
+                sessionClientTypeMap.remove(sessionId);
+            }
         }
         userLastSeenMap.remove(userId);
+    }
+
+    private void updateLatestSessionClientType(Long userId, String clientType) {
+        if (userId == null) {
+            return;
+        }
+        String resolvedClientType = Optional.ofNullable(clientType).orElse("unknown");
+        Optional<Session> latestSession = sessionRepository.findTopByUserIdOrderByCreatedAtDesc(userId);
+        if (latestSession.isEmpty()) {
+            logger.debug("clientType保存対象セッションが見つかりません: userId={}", userId);
+            return;
+        }
+        Session session = latestSession.get();
+        session.setClientType(resolvedClientType);
+        sessionRepository.save(session);
     }
 
     /**
      * WebSocket接続イベント
      */
     @EventListener
+    @Transactional
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String sessionId = headerAccessor.getSessionId();
+        String clientType = Optional.ofNullable(headerAccessor.getFirstNativeHeader("clientType"))
+                .orElse("unknown");
+
+        sessionClientTypeMap.put(sessionId, clientType);
 
         // ネイティブヘッダーからuserIdを取得
         String userIdHeader = headerAccessor.getFirstNativeHeader("userId");
@@ -129,7 +164,9 @@ public class RoomWebSocketEventListener {
             try {
                 Long userId = Long.parseLong(userIdHeader);
                 registerUser(sessionId, userId);
-                logger.info("WebSocket接続: sessionId={}, userId={}", sessionId, userId);
+                updateLatestSessionClientType(userId, clientType);
+                logger.info("WebSocket接続: sessionId={}, userId={}, clientType={}",
+                        sessionId, userId, clientType);
             } catch (NumberFormatException e) {
                 logger.warn("無効なuserId: {}", userIdHeader);
             }
@@ -143,18 +180,30 @@ public class RoomWebSocketEventListener {
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String sessionId = headerAccessor.getSessionId();
+        String clientType = Optional.ofNullable(sessionClientTypeMap.remove(sessionId))
+                .orElse("unknown");
 
         Long userId = sessionUserMap.remove(sessionId);
         if (userId == null) {
-            logger.debug("切断: 登録されていないセッション sessionId={}", sessionId);
+            logger.debug("切断: 登録されていないセッション sessionId={}, clientType={}",
+                    sessionId, clientType);
             return;
         }
 
-        // 逆引きマップからも削除
-        userSessionMap.remove(userId);
-        userLastSeenMap.remove(userId);
+        Set<String> sessions = userSessionMap.get(userId);
+        if (sessions != null) {
+            sessions.remove(sessionId);
+            if (!sessions.isEmpty()) {
+                logger.info("WebSocket切断検知: sessionId={}, userId={}, clientType={}, remainingSessions={}",
+                        sessionId, userId, clientType, sessions.size());
+                return;
+            }
+        }
 
-        logger.info("WebSocket切断検知: sessionId={}, userId={}", sessionId, userId);
+        removeUserSession(userId);
+
+        logger.info("WebSocket切断検知: sessionId={}, userId={}, clientType={}",
+                sessionId, userId, clientType);
 
         try {
             // ユーザーのアクティブなルームを確認

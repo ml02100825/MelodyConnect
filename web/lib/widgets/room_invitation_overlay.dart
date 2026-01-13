@@ -105,6 +105,7 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
         url: 'ws://localhost:8080/ws',
         stompConnectHeaders: {
           if (_userId != null) 'userId': _userId.toString(),
+          'clientType': 'overlay',
         },
         onConnect: (frame) {
           _reconnectAttempts = 0;
