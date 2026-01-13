@@ -18,6 +18,7 @@ import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -41,6 +42,7 @@ public class RoomWebSocketEventListener {
     private final BattleStateService battleStateService;
     private final SimpMessagingTemplate messagingTemplate;
     private final SessionRepository sessionRepository;
+    @Autowired
     private UserRepository userRepository;
     
     
@@ -140,8 +142,8 @@ public class RoomWebSocketEventListener {
         if (userId == null) {
             return;
         }
-        Optional<User> useroptional = userRepository.findById(userId);
-        User user = useroptional.get();
+         User user = userRepository.findById(userId)
+        .orElseThrow(() -> new RuntimeException("User not found: " + userId));
         String resolvedClientType = Optional.ofNullable(clientType).orElse("unknown");
         Optional<Session> latestSession = sessionRepository.findTopByUserOrderByCreatedAtDesc(user);
         if (latestSession.isEmpty()) {
