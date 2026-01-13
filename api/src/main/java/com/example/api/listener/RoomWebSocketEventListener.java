@@ -278,23 +278,30 @@ public class RoomWebSocketEventListener {
             if (matchUuid != null) {
                 battleService.handleDisconnection(matchUuid, disconnectedUserId, winnerId);
             }
-
-            // ルームのステータスをFINISHEDに
-            roomService.finishMatch(roomId);
-
-            // 相手に通知
-            if (winnerId != null) {
+            if (disconnectedUserId.equals(hostId)) {
+                roomService.leaveRoom(roomId, hostId);
+                if (guestId != null) {
+                    Map<String, Object> notification = Map.of(
+                            "type", "room_canceled",
+                            "roomId", roomId,
+                            "winnerId", winnerId,
+                            "disconnectedUserId", disconnectedUserId,
+                            "message", "ホストが切断したため、部屋が解散されました"
+                    );
+                    messagingTemplate.convertAndSend("/topic/room/" + guestId, notification);
+                    messagingTemplate.convertAndSend("/topic/battle/" + guestId, notification);
+                }
+            } else if (disconnectedUserId.equals(guestId)) {
+                roomService.leaveRoom(roomId, guestId);
                 Map<String, Object> notification = Map.of(
-                        "type", "opponent_disconnected",
+                        "type", "guest_left",
                         "roomId", roomId,
                         "winnerId", winnerId,
                         "disconnectedUserId", disconnectedUserId,
-                        "message", "相手が切断しました。あなたの勝利です！"
+                        "message", "ゲストが切断しました"
                 );
-                messagingTemplate.convertAndSend("/topic/room/" + winnerId, notification);
-
-                // バトル画面にも通知
-                messagingTemplate.convertAndSend("/topic/battle/" + winnerId, notification);
+                messagingTemplate.convertAndSend("/topic/room/" + hostId, notification);
+                messagingTemplate.convertAndSend("/topic/battle/" + hostId, notification);
             }
 
         } catch (Exception e) {

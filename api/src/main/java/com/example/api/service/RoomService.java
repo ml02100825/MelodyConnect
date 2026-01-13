@@ -493,6 +493,26 @@ public class RoomService {
     }
 
     /**
+     * 対戦終了後に待機状態へ戻す
+     * @param roomId ルームID
+     * @return 更新された部屋
+     */
+    @Transactional
+    public Room resetToWaitingAfterMatch(Long roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("部屋が存在しません"));
+
+        room.setStatus(Room.Status.WAITING);
+        room.setHost_ready(false);
+        room.setGuest_ready(false);
+
+        Room updatedRoom = roomRepository.save(room);
+        clearVocabularyStatus(roomId);
+        logger.info("対戦終了後に待機状態へ戻しました: roomId={}", roomId);
+        return updatedRoom;
+    }
+
+    /**
      * 部屋をリセット（対戦終了後に再戦可能にする）
      * @param roomId ルームID
      * @param hostId ホストのユーザーID
@@ -608,9 +628,12 @@ public class RoomService {
             Long guestId = room.getGuest_id();
             room.setGuest_id(null);
             room.setGuest_ready(false);
-            if (room.getStatus() == Room.Status.READY) {
+            if (room.getStatus() == Room.Status.READY
+                    || room.getStatus() == Room.Status.PLAYING
+                    || room.getStatus() == Room.Status.FINISHED) {
                 room.setStatus(Room.Status.WAITING);
             }
+            room.setHost_ready(false);
             roomRepository.save(room);
             clearVocabularyStatus(roomId, guestId);
 

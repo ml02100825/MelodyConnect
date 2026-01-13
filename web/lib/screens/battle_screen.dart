@@ -103,7 +103,9 @@ class _BattleScreenState extends State<BattleScreen>
         state == AppLifecycleState.detached) {
       _stompClient?.deactivate();
     } else if (state == AppLifecycleState.resumed) {
-      _connectWebSocket(forceReconnect: true);
+      if (_status != BattleStatus.matchFinished) {
+        _connectWebSocket(forceReconnect: true);
+      }
     }
   }
   /// バトル初期化
@@ -1612,6 +1614,9 @@ class _BattleScreenState extends State<BattleScreen>
 
   /// 単語帳画面へ遷移
   Future<void> _goToVocabulary() async {
+    _stompClient?.deactivate();
+    _roundTimer?.cancel();
+
     // ホームに戻ってから単語帳画面へ
     if (widget.isRoomMatch && widget.roomId != null && _myUserId != null) {
       final accessToken = await _tokenStorage.getAccessToken();

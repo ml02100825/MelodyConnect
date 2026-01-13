@@ -61,6 +61,9 @@ public class BattleService {
     @Autowired
     private UserVocabularyService userVocabularyService;
 
+    @Autowired
+    private RoomService roomService;
+
     /**
      * 対戦結果DTO（リザルト画面用）
      */
@@ -384,8 +387,8 @@ public class BattleService {
                 .language(state.getLanguage())
                 .questionCount(state.getQuestions().size())
                 .roundTimeLimitSeconds(BattleStateService.ROUND_TIME_LIMIT_SECONDS)
-                .winsRequired(BattleStateService.WINS_TO_VICTORY)
-                .maxRounds(BattleStateService.MAX_ROUNDS)
+                .winsRequired(state.getWinsToVictory())
+                .maxRounds(state.getMaxRounds())
                 .status("ready")
                 .message("バトルを開始できます")
                 .user1Info(user1Info)
@@ -546,6 +549,10 @@ public class BattleService {
 
         // 両プレイヤーの単語帳登録（学習と同じルール）
         registerVocabularyForBothPlayers(state);
+
+        if (isRoomMatch && state.getRoomId() != null) {
+            roomService.resetToWaitingAfterMatch(state.getRoomId());
+        }
 
         // メモリから状態削除
         battleStateService.removeBattle(matchUuid);
