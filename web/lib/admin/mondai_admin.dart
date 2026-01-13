@@ -298,7 +298,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
           decoration: InputDecoration(
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(2),
               borderSide: BorderSide(color: Colors.grey[400]!),
             ),
             enabledBorder: OutlineInputBorder(

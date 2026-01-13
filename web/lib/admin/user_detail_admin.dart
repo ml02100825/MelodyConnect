@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
-import 'user_mode_adminl.dart';
+import 'user_model.dart';
 import 'user_list_admin.dart';
+import 'bottom_admin.dart';
 
-class UserDetailScreen extends StatefulWidget {
+class UserDetailAdmin extends StatefulWidget {
   final User user;
 
-  const UserDetailScreen({Key? key, required this.user}) : super(key: key);
+  const UserDetailAdmin({Key? key, required this.user}) : super(key: key);
 
   @override
-  _UserDetailScreenState createState() => _UserDetailScreenState();
+  _UserDetailAdminState createState() => _UserDetailAdminState();
 }
 
-class _UserDetailScreenState extends State<UserDetailScreen> {
+class _UserDetailAdminState extends State<UserDetailAdmin> {
   // 削除確認用チェックボックス
   bool usernameChecked = false;
   bool idChecked = false;
@@ -127,123 +128,95 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     });
   }
 
-// _deleteAccount メソッドを修正
-void _deleteAccount() {
-  // 削除前に結果を返す
-  Navigator.pop(context, {'action': 'delete', 'user': widget.user});
-}
+  void _deleteAccount() {
+    // 削除前に結果を返す
+    Navigator.pop(context, {'action': 'delete', 'user': widget.user});
+  }
 
-// _freezeAccount メソッドを修正
-void _freezeAccount() {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('アカウント停止'),
-      content: Text('本当にこのアカウントを停止しますか？'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('キャンセル'),
-        ),
-        TextButton(
-          onPressed: () {
-            // アカウント停止処理
-            widget.user.freeze();
-            setState(() {}); // 画面を更新
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('アカウントを停止しました')),
-            );
-          },
-          child: Text('停止', style: TextStyle(color: Colors.red)),
-        ),
-      ],
-    ),
-  );
-}
+  void _freezeAccount() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('アカウント停止'),
+        content: Text('本当にこのアカウントを停止しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () {
+              // アカウント停止処理
+              widget.user.freeze();
+              setState(() {}); // 画面を更新
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('アカウントを停止しました')),
+              );
+            },
+            child: Text('停止', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
 
-// _unfreezeAccount メソッドを修正
-void _unfreezeAccount() {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('アカウント復旧'),
-      content: Text('本当にこのアカウントを復旧しますか？'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('キャンセル'),
-        ),
-        TextButton(
-          onPressed: () {
-            // アカウント復旧処理
-            widget.user.unfreeze();
-            setState(() {}); // 画面を更新
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('アカウントを復旧しました')),
-            );
-          },
-          child: Text('復旧', style: TextStyle(color: Colors.green)),
-        ),
-      ],
-    ),
-  );
-}
+  void _unfreezeAccount() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('アカウント復旧'),
+        content: Text('本当にこのアカウントを復旧しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () {
+              // アカウント復旧処理
+              widget.user.unfreeze();
+              setState(() {}); // 画面を更新
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('アカウントを復旧しました')),
+              );
+            },
+            child: Text('復旧', style: TextStyle(color: Colors.green)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Melody Connect'),
-        backgroundColor: Colors.blue[700],
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ナビゲーションメニュー
-            _buildNavigationMenu(),
-            SizedBox(height: 24),
-
-            // ユーザー基本情報
-            _buildUserHeader(),
-            SizedBox(height: 24),
-
-            // ユーザー詳細情報
-            _buildUserDetails(),
-            SizedBox(height: 32),
-
-            // 操作ボタン
-            _buildActionButtons(),
-          ],
-        ),
+      backgroundColor: Colors.grey[100],
+      body: BottomAdminLayout(
+        mainContent: _buildMainContent(),
+        selectedMenu: 'ユーザー管理',
+        showTabs: false,
       ),
     );
   }
 
-  Widget _buildNavigationMenu() {
-    return Row(
-      children: [
-        _buildNavItem('ユーザー管理', isActive: true),
-        _buildNavItem('コンテンツ管理'),
-        _buildNavItem('アーティスト管理'),
-        _buildNavItem('お問い合わせ管理'),
-      ],
-    );
-  }
+  Widget _buildMainContent() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ユーザー基本情報
+          _buildUserHeader(),
+          SizedBox(height: 24),
 
-  Widget _buildNavItem(String title, {bool isActive = false}) {
-    return Padding(
-      padding: EdgeInsets.only(right: 24),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          color: isActive ? Colors.blue[700] : Colors.grey[600],
-        ),
+          // ユーザー詳細情報
+          _buildUserDetails(),
+          SizedBox(height: 32),
+
+          // 操作ボタン
+          _buildActionButtons(),
+        ],
       ),
     );
   }
@@ -300,7 +273,6 @@ void _unfreezeAccount() {
               SizedBox(height: 40),
               _buildInfoRow('サブスク', widget.user.subscription),
               _buildInfoRow('オンラインステータス', '公開'),
-              _buildInfoRow('言語設定', '日本語'),
               _buildInfoRow('累計プレイ回数', '123456'),
               _buildInfoRow('ライフ', '4'),
               _buildInfoRow('音量', '65'),
@@ -351,59 +323,59 @@ void _unfreezeAccount() {
   }
 
   Widget _buildActionButtons() {
-  return Row(
-    children: [
-      // 左端：一覧へ戻る
-      OutlinedButton(
-        onPressed: () {
-          Navigator.pop(context); // 修正: pushReplacement から pop に
-        },
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.grey,
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(5),
+    return Row(
+      children: [
+        // 左端：一覧へ戻る
+        OutlinedButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          style: OutlinedButton.styleFrom(
+            backgroundColor: Colors.grey,
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+          child: Text('一覧へ戻る', style: TextStyle(color: Colors.white)),
+        ),
+        // 右端のボタン群
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ElevatedButton(
+                onPressed: widget.user.isFrozen ? _unfreezeAccount : _freezeAccount,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.user.isFrozen ? Colors.green : Colors.orange,
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  widget.user.isFrozen ? 'アカウント復旧' : 'アカウント停止',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              ElevatedButton(
+                onPressed: _showDeleteConfirmation,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text('アカウント削除', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
         ),
-        child: Text('一覧へ戻る', style: TextStyle(color: Colors.white)),
-      ),
-      // 右端のボタン群
-      Expanded(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ElevatedButton(
-              onPressed: widget.user.isFrozen ? _unfreezeAccount : _freezeAccount,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.user.isFrozen ? Colors.green : Colors.orange,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                elevation: 0,
-              ),
-              child: Text(
-                widget.user.isFrozen ? 'アカウント復旧' : 'アカウント停止',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            SizedBox(width: 16),
-            ElevatedButton(
-              onPressed: _showDeleteConfirmation,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                elevation: 0,
-              ),
-              child: Text('アカウント削除', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 }
