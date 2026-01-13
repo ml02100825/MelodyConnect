@@ -962,80 +962,44 @@ public class BattleService {
      * @param winnerId 勝利者のユーザーID
      */
     @Transactional
-    public void handleDisconnection(String matchUuid, Long disconnectedUserId, Long winnerId) {
+    public BattleResultDto handleDisconnection(String matchUuid, Long disconnectedUserId, Long winnerId) {
         logger.info("切断による対戦終了処理: matchUuid={}, disconnectedUserId={}, winnerId={}",
                 matchUuid, disconnectedUserId, winnerId);
 
-        try {
-            BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
-            if (state == null) {
-                logger.warn("対戦状態が見つかりません: matchUuid={}", matchUuid);
-                return;
-            }
-
-            if (winnerId == null || disconnectedUserId == null) {
-                logger.warn("切断処理に必要な情報が不足しています: matchUuid={}", matchUuid);
-                return;
-            }
-
-            if (!state.isParticipant(winnerId) || !state.isParticipant(disconnectedUserId)) {
-                logger.warn("切断処理対象が対戦参加者ではありません: matchUuid={}, winnerId={}, disconnectedUserId={}",
-                        matchUuid, winnerId, disconnectedUserId);
-                return;
-            }
-
-            if (winnerId.equals(disconnectedUserId)) {
-                logger.warn("勝者と切断者が同一です: matchUuid={}, userId={}", matchUuid, winnerId);
-                return;
-            }
-
-            // 両プレイヤーのResultレコードを取得
-            List<Result> results = resultRepository.findAllByMatchUuid(matchUuid);
-            if (results.isEmpty() || results.size() != 2) {
-                logger.warn("Resultレコードが見つからないか不正です: matchUuid={}, count={}",
-                        matchUuid, results.size());
-                return;
-            }
-
-            LocalDateTime endedAt = LocalDateTime.now();
-
-            // 各プレイヤーのResultを更新
-            for (Result result : results) {
-                Long playerId = result.getPlayer().getId();
-                boolean isWinner = playerId.equals(winnerId);
-
-                // 勝敗設定
-                result.setResult(isWinner);
-                result.setOutcomeReason(Result.OutcomeReason.disconnect);
-                result.setEndedAt(endedAt);
-
-                // レート変動は0（ルームマッチはレート変動なし）
-                result.setUpdownRate(0);
-
-                // resultDetailに切断情報を追加
-                Map<String, Object> resultDetail = new HashMap<>();
-                resultDetail.put("disconnectedUserId", disconnectedUserId);
-                resultDetail.put("winnerId", winnerId);
-                resultDetail.put("myWins", playerId.equals(state.getPlayer1Id()) ?
-                        state.getPlayer1Wins() : state.getPlayer2Wins());
-                resultDetail.put("opponentWins", playerId.equals(state.getPlayer1Id()) ?
-                        state.getPlayer2Wins() : state.getPlayer1Wins());
-                resultDetail.put("isDraw", false);
-                resultDetail.put("disconnectReason", "opponent_disconnected");
-                result.setResultDetail(resultDetail);
-
-                resultRepository.save(result);
-            }
-
-            // 対戦状態をFINISHEDに
-            battleStateService.finishBattle(matchUuid);
-
-            logger.info("切断による対戦終了処理完了: matchUuid={}, winnerId={}, loserId={}",
-                    matchUuid, winnerId, disconnectedUserId);
-
-        } catch (Exception e) {
-            logger.error("切断処理中にエラー: matchUuid={}", matchUuid, e);
-            throw e;
+        BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+        if (state == null) {
+            logger.warn("対戦状態が見つかりません: matchUuid={}", matchUuid);
+            return null;
         }
+
+        if (winnerId == null && disconnectedUserId != null) {
+            winnerId = state.isPlayer1(disconnectedUserId) ? state.getPlayer2Id() : state.getPlayer1Id();
+        }
+
+        if (winnerId == null || disconnectedUserId == null) {
+            logger.warn("切断処理に必要な情報が不足しています: matchUuid={}", matchUuid);
+            return null;
+        }
+
+        if (!state.isParticipant(winnerId) || !state.isParticipant(disconnectedUserId)) {
+            logger.warn("切断処理対象が対戦参加者ではありません: matchUuid={}, winnerId={}, disconnectedUserId={}",
+                    matchUuid, winnerId, disconnectedUserId);
+            return null;
+        }
+
+        if (winnerId.equals(disconnectedUserId)) {
+            logger.warn("勝者と切断者が同一です: matchUuid={}, userId={}", matchUuid, winnerId);
+            return null;
+        }
+
+        while (!state.isMatchDecided()) {
+            if (state.isPlayer1(winnerId)) {
+                state.incrementPlayer1Wins();
+            } else {
+                state.incrementPlayer2Wins();
+            }
+        }
+
+        return finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
     }
 }
