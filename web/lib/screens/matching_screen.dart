@@ -86,6 +86,7 @@ class _MatchingScreenState extends State<MatchingScreen>
           url: 'ws://localhost:8080/ws',
           stompConnectHeaders: {
             if (userId != null) 'userId': userId.toString(),
+            'clientType': 'matching',
           },
           webSocketConnectHeaders: {
             'Sec-WebSocket-Protocol': 'v12.stomp',

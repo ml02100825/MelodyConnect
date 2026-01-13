@@ -39,6 +39,7 @@ class PresenceWebSocketService {
         url: 'ws://localhost:8080/ws',
         stompConnectHeaders: {
           if (userId != null) 'userId': userId.toString(),
+          'clientType': 'presence',
         },
         webSocketConnectHeaders: {
           'Sec-WebSocket-Protocol': 'v12.stomp',

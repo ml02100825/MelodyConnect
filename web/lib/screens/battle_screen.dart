@@ -206,6 +206,7 @@ class _BattleScreenState extends State<BattleScreen>
         url: 'ws://localhost:8080/ws',
         stompConnectHeaders: {
           if (_myUserId != null) 'userId': _myUserId.toString(),
+          'clientType': 'battle',
         },
         webSocketConnectHeaders: {
           'Sec-WebSocket-Protocol': 'v12.stomp',

@@ -64,6 +64,7 @@ class RoomInvitationService {
         url: 'ws://localhost:8080/ws',
         stompConnectHeaders: {
           if (userId != null) 'userId': userId.toString(),
+          'clientType': 'invitation',
         },
         onConnect: (frame) {
           _reconnectAttempts = 0;

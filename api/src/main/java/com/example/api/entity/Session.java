@@ -9,11 +9,12 @@ import java.util.Objects;
  * データベースのsessionsテーブルにマッピングされます
  */
 @Entity
-@Table(
+    @Table(
     name = "sessions",
     indexes = {
         @Index(name = "idx_sessions_refresh_hash", columnList = "refresh_hash", unique = true),
-        @Index(name = "idx_sessions_user_id", columnList = "user_id")
+        @Index(name = "idx_sessions_user_id", columnList = "user_id"),
+        @Index(name = "idx_sessions_client_type", columnList = "client_type")
     }
 )
 public class Session {
@@ -39,6 +40,9 @@ public class Session {
 
     @Column(name = "ip", length = 50)
     private String ip;
+
+    @Column(name = "client_type", length = 50)
+    private String clientType;
 
     @Column(name = "revoked_flag", nullable = false)
     private Boolean revokedFlag = false;
@@ -67,6 +71,7 @@ public class Session {
         this.expiresAt = expiresAt;
         this.userAgent = userAgent;
         this.ip = ip;
+        this.clientType = "unknown";
         this.revokedFlag = false;
     }
 
@@ -78,6 +83,9 @@ public class Session {
         this.createdAt = LocalDateTime.now();
         if (this.revokedFlag == null) {
             this.revokedFlag = false;
+        }
+        if (this.clientType == null) {
+            this.clientType = "unknown";
         }
     }
 
@@ -159,6 +167,14 @@ public class Session {
 
     public void setIp(String ip) {
         this.ip = ip;
+    }
+
+    public String getClientType() {
+        return clientType;
+    }
+
+    public void setClientType(String clientType) {
+        this.clientType = clientType;
     }
 
     public Boolean getRevokedFlag() {
