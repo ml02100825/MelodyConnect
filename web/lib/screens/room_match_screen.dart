@@ -1154,7 +1154,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
             const SizedBox(height: 4),
             if (_isHost && _invitedUsers.isNotEmpty)
               Text(
-                '招待済み: ${_invitedUsers.length}人',
+                '招待済み',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.orange[600],

@@ -29,6 +29,8 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   StompClient? _stompClient;
   int? _userId;
   Timer? _reconnectTimer;
+  StreamSubscription<int?>? _userIdSubscription;
+
   int _reconnectAttempts = 0;
   bool _isConnecting = false;
   int? _lastInvitationRoomId;
@@ -38,12 +40,25 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   OverlayEntry? _currentOverlay;
   Timer? _hideTimer;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _initialize();
-  }
+@override
+void initState() {
+  super.initState();
+  WidgetsBinding.instance.addObserver(this);
+  _initialize();
+
+  _userIdSubscription = _tokenStorage.userIdStream.listen((userId) async {
+    if (!mounted) return;
+    if (userId == null) {
+      _stompClient?.deactivate();
+      _stompClient = null;
+      return;
+    }
+    _userId = userId;
+    await _presenceService.connect();
+    _connectWebSocket();
+  });
+}
+
 
   @override
   void didChangeDependencies() {
@@ -52,14 +67,15 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   }
 
   @override
-  void dispose() {
-    _stompClient?.deactivate();
-    _hideTimer?.cancel();
-    _reconnectTimer?.cancel();
-    _currentOverlay?.remove();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
+void dispose() {
+  _userIdSubscription?.cancel(); // これを追加
+  _stompClient?.deactivate();
+  _hideTimer?.cancel();
+  _reconnectTimer?.cancel();
+  _currentOverlay?.remove();
+  WidgetsBinding.instance.removeObserver(this);
+  super.dispose();
+}
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -73,7 +89,10 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   }
 
   Future<void> _initialize() async {
+    
     _userId = await _tokenStorage.getUserId();
+    debugPrint('RoomInvitationOverlay userId=$_userId');
+
     if (_userId != null) {
       await _presenceService.connect();
       _connectWebSocket();
@@ -203,7 +222,10 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
     _currentOverlay = overlay;
     _lastInvitationRoomId = roomId;
     _lastInvitationAt = now;
-    Overlay.of(context).insert(overlay);
+    final overlayState = widget.navigatorKey.currentState?.overlay;
+    if (overlayState == null) return;
+    overlayState.insert(overlay);
+
 
     // 10秒後に自動で消す
     _hideTimer = Timer(const Duration(seconds: 10), () {

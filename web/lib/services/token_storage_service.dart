@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// トークンストレージサービス
@@ -8,6 +10,11 @@ class TokenStorageService {
   static const String _userIdKey = 'user_id';
   static const String _emailKey = 'email';
   static const String _usernameKey = 'username';
+
+  final StreamController<int?> _userIdController =
+  StreamController<int?>.broadcast();
+
+  Stream<int?> get userIdStream => _userIdController.stream;
 
   /// アクセストークンを保存
   Future<void> saveAccessToken(String token) async {
@@ -25,6 +32,7 @@ class TokenStorageService {
   Future<void> saveUserId(int userId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_userIdKey, userId);
+    _userIdController.add(userId);
   }
 
   /// メールアドレスを保存
@@ -101,5 +109,6 @@ class TokenStorageService {
     await prefs.remove(_userIdKey);
     await prefs.remove(_emailKey);
     await prefs.remove(_usernameKey);
+    _userIdController.add(null); 
   }
 }
