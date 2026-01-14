@@ -463,6 +463,7 @@ public class BattleService {
 
             if (alreadyFinalized) {
                 logger.warn("対戦は既に終了処理済み: matchUuid={}", matchUuid);
+                battleStateService.removeBattle(matchUuid);
                 // 既存の結果からBattleResultDtoを再構築して返す
                 return reconstructBattleResult(matchUuid, existingResults, state);
             }
@@ -832,23 +833,7 @@ public class BattleService {
      */
     @Transactional
     public BattleResultDto handleDisconnect(String matchUuid, Long disconnectedUserId) {
-        BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
-        if (state == null) {
-            throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
-        }
-
-        // 切断したユーザーの負けとして処理
-        Long winnerId = state.isPlayer1(disconnectedUserId) ? state.getPlayer2Id() : state.getPlayer1Id();
-
-        while (!state.isMatchDecided()) {
-            if (state.isPlayer1(winnerId)) {
-                state.incrementPlayer1Wins();
-            } else {
-                state.incrementPlayer2Wins();
-            }
-        }
-
-        return finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
+        return handleDisconnection(matchUuid, disconnectedUserId, null);
     }
 
     /**
