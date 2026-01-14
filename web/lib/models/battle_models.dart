@@ -59,6 +59,8 @@ class BattleQuestion {
   final String questionFormat;
   final String? audioUrl;
   final String? translationJa;
+  final String? songName;
+  final String? artistName;
   final int roundNumber;
   final int totalRounds;
   final int roundTimeLimitMs;
@@ -70,6 +72,8 @@ class BattleQuestion {
     required this.questionFormat,
     this.audioUrl,
     this.translationJa,
+    this.songName,
+    this.artistName,
     required this.roundNumber,
     required this.totalRounds,
     required this.roundTimeLimitMs,
@@ -83,6 +87,8 @@ class BattleQuestion {
       questionFormat: json['questionFormat'] ?? 'FILL_IN_THE_BLANK',
       audioUrl: json['audioUrl'],
       translationJa: json['translationJa'],
+      songName: json['songName'],
+      artistName: json['artistName'],
       roundNumber: json['roundNumber'] ?? 1,
       totalRounds: json['totalRounds'] ?? 10,
       roundTimeLimitMs: json['roundTimeLimitMs'] ?? 90000,
