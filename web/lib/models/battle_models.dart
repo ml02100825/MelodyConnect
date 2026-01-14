@@ -282,6 +282,7 @@ class BattleStartInfo {
   final int roundTimeLimitSeconds;
   final int winsRequired;
   final int maxRounds;
+  final int? hostId;
 
   // ユーザー詳細情報
   final BattlePlayer? user1Info;
@@ -296,6 +297,7 @@ class BattleStartInfo {
     required this.roundTimeLimitSeconds,
     required this.winsRequired,
     required this.maxRounds,
+    this.hostId,
     this.user1Info,
     this.user2Info,
   });
@@ -310,6 +312,7 @@ class BattleStartInfo {
       roundTimeLimitSeconds: json['roundTimeLimitSeconds'] ?? 90,
       winsRequired: json['winsRequired'] ?? 3,
       maxRounds: json['maxRounds'] ?? 10,
+      hostId: json['hostId'],
       user1Info: json['user1Info'] != null
           ? BattlePlayer.fromJson(json['user1Info'])
           : null,

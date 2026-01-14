@@ -13,6 +13,7 @@ public class BattleStartResponseDto {
     private int roundTimeLimitSeconds;
     private int winsRequired;
     private int maxRounds;
+    private Long hostId;
     private String status;
     private String message;
     private PlayerInfoDto user1Info;
@@ -66,6 +67,11 @@ public class BattleStartResponseDto {
 
         public Builder maxRounds(int maxRounds) {
             dto.maxRounds = maxRounds;
+            return this;
+        }
+
+        public Builder hostId(Long hostId) {
+            dto.hostId = hostId;
             return this;
         }
 
@@ -157,6 +163,14 @@ public class BattleStartResponseDto {
 
     public void setMaxRounds(int maxRounds) {
         this.maxRounds = maxRounds;
+    }
+
+    public Long getHostId() {
+        return hostId;
+    }
+
+    public void setHostId(Long hostId) {
+        this.hostId = hostId;
     }
 
     public String getStatus() {
