@@ -43,7 +43,8 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
   bool _isLoading = true;
   bool _isReady = false;
   String _statusMessage = '';
-  String? _roomErrorMessage;
+  bool _showRoomNotFound = false;
+  String _roomNotFoundMessage = 'ルームは存在しません';
 
   // 設定選択フェーズ
   bool _showSettingsPhase = false;  // ホストが開始ボタンを押した後の設定選択
@@ -90,23 +91,23 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         if (widget.isReturning) {
           // 対戦後に戻ってきた場合：部屋情報を再読み込みするだけ
           await _loadRoomAfterBattle(widget.roomId!);
-          if (_roomErrorMessage != null) return;
+          if (_showRoomNotFound) return;
         } else if (widget.isGuest) {
           if (widget.skipAccept) {
             await _loadRoom(widget.roomId!);
-            if (_roomErrorMessage != null) return;
+            if (_showRoomNotFound) return;
             setState(() {
               _statusMessage = '部屋に参加しました';
             });
           } else {
             // 招待から新規参加する場合
             await _joinRoom(widget.roomId!);
-            if (_roomErrorMessage != null) return;
+            if (_showRoomNotFound) return;
           }
         } else {
           // 既存の部屋に戻る場合
           await _loadRoom(widget.roomId!);
-          if (_roomErrorMessage != null) return;
+          if (_showRoomNotFound) return;
         }
       } else {
         // 新規部屋作成
@@ -158,6 +159,11 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         roomId: roomId,
         accessToken: _accessToken!,
       );
+      final status = room['status'] as String?;
+      if (status == 'CANCELED') {
+        _setRoomNotFound();
+        return;
+      }
 
       setState(() {
         _room = room;
@@ -183,6 +189,10 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
       );
 
       final status = room['status'] as String?;
+      if (status == 'CANCELED') {
+        _setRoomNotFound();
+        return;
+      }
 
       setState(() {
         _room = room;
@@ -214,6 +224,11 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         userId: _userId!,
         accessToken: _accessToken!,
       );
+      final status = room['status'] as String?;
+      if (status == 'CANCELED') {
+        _setRoomNotFound();
+        return;
+      }
 
       setState(() {
         _room = room;
@@ -341,7 +356,8 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
   void _setRoomNotFound() {
     if (!mounted) return;
     setState(() {
-      _roomErrorMessage = 'ルームは存在しません';
+      _showRoomNotFound = true;
+      _roomNotFoundMessage = 'ルームは存在しません';
       _statusMessage = '';
       _isLoading = false;
     });
@@ -621,7 +637,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : _roomErrorMessage != null
+            : _showRoomNotFound
                 ? _buildRoomNotFound()
             : _showSettingsPhase
                 ? _buildSettingsPhase()
@@ -639,9 +655,9 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
           children: [
             const Icon(Icons.error_outline, color: Colors.red, size: 72),
             const SizedBox(height: 24),
-            const Text(
-              'ルームは存在しません',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              _roomNotFoundMessage,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             const Text(
