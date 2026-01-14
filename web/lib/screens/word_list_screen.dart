@@ -2,16 +2,15 @@ import 'package:flutter/material.dart';
 import '../models/vocabulary_model.dart';
 import '../services/vocabulary_api_service.dart';
 import '../services/token_storage_service.dart';
-import 'vocabulary_screen.dart';
 
 class WordListScreen extends StatefulWidget {
   final int userId;
-  final List<VocabularyCard>? vocabularies; // vocabulary_screenから渡される場合
+  final int? returnRoomId;
 
   const WordListScreen({
     Key? key,
     required this.userId,
-    this.vocabularies,
+    this.returnRoomId,
   }) : super(key: key);
 
   @override
@@ -42,27 +41,6 @@ class _WordListScreenState extends State<WordListScreen> {
   }
 
   Future<void> _loadData() async {
-    // vocabulary_screenからデータが渡されている場合はそれを使用
-    if (widget.vocabularies != null && widget.vocabularies!.isNotEmpty) {
-      setState(() {
-        words = widget.vocabularies!.map((vc) => Word(
-          id: vc.userVocabId,
-          word: vc.foreign,
-          pronunciation: vc.pronunciation ?? '',
-          partOfSpeech: vc.partOfSpeech ?? '',
-          status: vc.isLearned ? '学習済み' : (vc.isFlagged ? 'お気に入り' : '未学習'),
-          meanings: [vc.japanese],
-          exampleSentence: vc.exampleSentence,
-          exampleTranslation: vc.exampleTranslation,
-          isFavorite: vc.isFlagged,
-          isLearned: vc.isLearned,
-        )).toList();
-        filteredWords = List.from(words);
-        _isLoading = false;
-      });
-      return;
-    }
-
     // APIから取得
     setState(() {
       _isLoading = true;
@@ -150,36 +128,59 @@ class _WordListScreenState extends State<WordListScreen> {
     });
   }
 
+  void _handleBackNavigation() {
+    final returnRoomId = widget.returnRoomId;
+    if (returnRoomId != null) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/room-match?roomId=$returnRoomId&isReturning=true&fromVocabulary=true',
+        (route) => route.isFirst,
+      );
+      return;
+    }
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('単語一覧'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-            tooltip: '更新',
+    return WillPopScope(
+      onWillPop: () async {
+        _handleBackNavigation();
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('単語一覧'),
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _handleBackNavigation,
           ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? _buildErrorView()
-              : Column(
-                  children: [
-                    // 検索条件エリア
-                    _buildSearchArea(),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadData,
+              tooltip: '更新',
+            ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? _buildErrorView()
+                : Column(
+                    children: [
+                      // 検索条件エリア
+                      _buildSearchArea(),
 
-                    // 単語一覧
-                    Expanded(
-                      child: _buildWordList(),
-                    ),
-                  ],
-                ),
+                      // 単語一覧
+                      Expanded(
+                        child: _buildWordList(),
+                      ),
+                    ],
+                  ),
+      ),
     );
   }
 

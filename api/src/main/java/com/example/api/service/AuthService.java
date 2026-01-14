@@ -261,11 +261,14 @@ public class AuthService {
 
     /**
      * ログアウト（セッションを無効化）
-     * @param userId ユーザーID
+     * @param user ユーザー
      */
     @Transactional
-    public void logout(Long userId) {
-        sessionRepository.revokeAllUserSessionsById(userId);
+    public void logout(User user) {
+        if (user == null || user.getId() == null || !userRepository.existsById(user.getId())) {
+            throw new IllegalArgumentException("ユーザーが見つかりません");
+        }
+        sessionRepository.revokeAllUserSessions(user);
     }
 
     /**

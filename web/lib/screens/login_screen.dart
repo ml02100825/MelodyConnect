@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../services/presence_websocket_service.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 
@@ -18,6 +19,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _authApiService = AuthApiService();
   final _tokenStorage = TokenStorageService();
+  final PresenceWebSocketService _presenceService =
+      PresenceWebSocketService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -77,6 +80,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (!mounted) return;
+
+      await _presenceService.connect();
 
       // ログイン成功メッセージを表示
       ScaffoldMessenger.of(context).showSnackBar(

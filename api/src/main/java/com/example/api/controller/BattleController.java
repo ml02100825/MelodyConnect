@@ -423,12 +423,17 @@ public class BattleController {
             return;
         }
 
+        String songName = question.getSong().getSongname();
+        String artistName = question.getArtist().getArtistName();
+
         QuestionResponse response = new QuestionResponse(
                 question.getQuestionId(),
                 question.getText(),
                 question.getQuestionFormat().name(),
                 question.getAudioUrl(),
                 question.getTranslationJa(),
+                songName,
+                artistName,
                 state.getCurrentRound() + 1,
                 state.getQuestions().size(),
                 BattleStateService.ROUND_TIME_LIMIT_SECONDS * 1000L,

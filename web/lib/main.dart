@@ -6,8 +6,14 @@ import 'screens/matching_screen.dart';
 import 'screens/battle_screen.dart';
 import 'screens/quiz_selection_screen.dart';
 import 'screens/vocabulary_screen.dart';
+import 'screens/room_match_screen.dart';
+import 'screens/room_invitations_screen.dart';
+import 'widgets/room_invitation_overlay.dart';
 
 void main() => runApp(const MyApp());
+
+/// ナビゲーターキー（オーバーレイからのナビゲーション用）
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -16,17 +22,47 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MelodyConnect',
+      navigatorKey: navigatorKey,
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        // アプリ全体で招待通知を表示
+        return RoomInvitationOverlay(
+          navigatorKey: navigatorKey,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const SplashScreen(),  // セッション検証を行うスプラッシュ画面
       routes: {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),
         '/learning': (context) => const QuizSelectionScreen(),
+        '/room-invitations': (context) => const RoomInvitationsScreen(),
       },
       onGenerateRoute: (settings) {
+        // /room-match?roomId=123&isGuest=true&isReturning=true のようなクエリパラメータ付きルートを処理
+        if (settings.name?.startsWith('/room-match') == true) {
+          final uri = Uri.parse(settings.name!);
+          final roomIdStr = uri.queryParameters['roomId'];
+          final roomId = roomIdStr != null ? int.tryParse(roomIdStr) : null;
+          final isGuest = uri.queryParameters['isGuest'] == 'true';
+          final isReturning = uri.queryParameters['isReturning'] == 'true';
+          final skipAccept = uri.queryParameters['skipAccept'] == 'true';
+          final isFromVocabulary = uri.queryParameters['fromVocabulary'] == 'true';
+          return MaterialPageRoute(
+            builder: (context) => RoomMatchScreen(
+              roomId: roomId,
+              isGuest: isGuest,
+              isReturning: isReturning,
+              skipAccept: skipAccept,
+              isFromVocabulary: isFromVocabulary,
+            ),
+            settings: settings,
+          );
+        }
+
         // /matching?language=english のようなクエリパラメータ付きルートを処理
         if (settings.name?.startsWith('/matching') == true) {
           final uri = Uri.parse(settings.name!);
@@ -37,13 +73,20 @@ class MyApp extends StatelessWidget {
           );
         }
 
-        // /battle?matchId=xxx のようなクエリパラメータ付きルートを処理
+        // /battle?matchId=xxx&isRoomMatch=true&roomId=123 のようなクエリパラメータ付きルートを処理
         if (settings.name?.startsWith('/battle') == true) {
           final uri = Uri.parse(settings.name!);
           final matchId = uri.queryParameters['matchId'];
           if (matchId != null) {
+            final isRoomMatch = uri.queryParameters['isRoomMatch'] == 'true';
+            final roomIdStr = uri.queryParameters['roomId'];
+            final roomId = roomIdStr != null ? int.tryParse(roomIdStr) : null;
             return MaterialPageRoute(
-              builder: (context) => BattleScreen(matchId: matchId),
+              builder: (context) => BattleScreen(
+                matchId: matchId,
+                isRoomMatch: isRoomMatch,
+                roomId: roomId,
+              ),
               settings: settings,
             );
           }
@@ -54,8 +97,15 @@ class MyApp extends StatelessWidget {
           final uri = Uri.parse(settings.name!);
           final userIdStr = uri.queryParameters['userId'];
           final userId = userIdStr != null ? int.tryParse(userIdStr) ?? 0 : 0;
+          final returnRoomIdStr = uri.queryParameters['returnRoomId'];
+          final returnRoomId = returnRoomIdStr != null
+              ? int.tryParse(returnRoomIdStr)
+              : null;
           return MaterialPageRoute(
-            builder: (context) => VocabularyScreen(userId: userId),
+            builder: (context) => VocabularyScreen(
+              userId: userId,
+              returnRoomId: returnRoomId,
+            ),
             settings: settings,
           );
         }

@@ -55,7 +55,7 @@ public class Room {
     @Column(name = "match_type", nullable = false)
     private Integer match_type;
 
-    @Column(name = "selected_language", length = 2)
+    @Column(name = "selected_language",  length = 20)
     private String selected_language;
 
     @Column(name = "problem_type", length = 50)

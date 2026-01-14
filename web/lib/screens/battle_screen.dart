@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../services/token_storage_service.dart';
+import '../services/room_api_service.dart';
+import '../screens/home_screen.dart';
 import '../models/battle_models.dart';
 
 /// APIのベースURL
@@ -14,23 +16,40 @@ const String _apiBaseUrl = String.fromEnvironment(
 );
 
 /// バトル画面
-/// ランクマッチの対戦進行を行います
+/// ランクマッチ/ルームマッチの対戦進行を行います
 class BattleScreen extends StatefulWidget {
   final String matchId;
+  final bool isRoomMatch;
+  final int? roomId;
 
-  const BattleScreen({Key? key, required this.matchId}) : super(key: key);
+  const BattleScreen({
+    Key? key,
+    required this.matchId,
+    this.isRoomMatch = false,
+    this.roomId,
+  }) : super(key: key);
 
   @override
   State<BattleScreen> createState() => _BattleScreenState();
 }
 
-class _BattleScreenState extends State<BattleScreen> {
+class _BattleScreenState extends State<BattleScreen>
+    with WidgetsBindingObserver {
   final _tokenStorage = TokenStorageService();
+  final _roomApiService = RoomApiService();
   final _answerController = TextEditingController();
   final _audioPlayer = AudioPlayer();
 
+  double _playbackSpeed = 1.0;
+  static const double _normalSpeed = 1.0;
+  static const double _slowSpeed = 0.75;
+
   // WebSocket
   StompClient? _stompClient;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _isConnectingSocket = false;
+  bool _isLeaving = false;
 
   // 状態
   BattleStatus _status = BattleStatus.answering;
@@ -40,6 +59,7 @@ class _BattleScreenState extends State<BattleScreen> {
   // バトル情報
   BattleStartInfo? _battleInfo;
   int? _myUserId;
+  int? _hostId;
   String? _myUsername;
   BattlePlayer? _myPlayer;
   BattlePlayer? _opponentPlayer;
@@ -63,24 +83,38 @@ class _BattleScreenState extends State<BattleScreen> {
   // 試合結果
   BattleResult? _battleResult;
 
-  // 勝利に必要な勝ち数
-  static const int _winsRequired = 3;
+  /// 勝利に必要な勝ち数（動的: ルームマッチは5/7/9、ランクマッチは3）
+  int get _winsRequired => _battleInfo?.winsRequired ?? 3;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initBattle();
   }
 
   @override
   void dispose() {
-    _roundTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _stompClient?.deactivate();
+    _reconnectTimer?.cancel();
+    _roundTimer?.cancel();
     _answerController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _stompClient?.deactivate();
+    } else if (state == AppLifecycleState.resumed) {
+      if (!_isLeaving && _status != BattleStatus.matchFinished) {
+        _connectWebSocket(forceReconnect: true);
+      }
+    }
+  }
   /// バトル初期化
   Future<void> _initBattle() async {
     try {
@@ -88,7 +122,12 @@ class _BattleScreenState extends State<BattleScreen> {
       _myUsername = await _tokenStorage.getUsername();
 
       if (_myUserId == null) {
-        throw Exception('ユーザーIDが見つかりません');
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'ユーザーIDが見つかりません';
+          _isLoading = false;
+        });
+        return;
       }
 
       // バトル情報を取得
@@ -123,6 +162,7 @@ class _BattleScreenState extends State<BattleScreen> {
     if (response.statusCode == 200) {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
       _battleInfo = BattleStartInfo.fromJson(data);
+      _hostId = _battleInfo?.hostId;
 
       // プレイヤー情報を設定（APIから取得したユーザー情報を使用）
       final isPlayer1 = _battleInfo!.user1Id == _myUserId;
@@ -160,35 +200,73 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 
   /// WebSocket接続
-  void _connectWebSocket() {
+  void _connectWebSocket({bool forceReconnect = false}) {
+    if (!forceReconnect &&
+        _stompClient != null &&
+        _stompClient!.connected) {
+      return;
+    }
+    if (_isConnectingSocket) {
+      return;
+    }
+    _isConnectingSocket = true;
+    _stompClient?.deactivate();
     _stompClient = StompClient(
       config: StompConfig(
         url: 'ws://localhost:8080/ws',
+        stompConnectHeaders: {
+          if (_myUserId != null) 'userId': _myUserId.toString(),
+          'clientType': 'battle',
+        },
         webSocketConnectHeaders: {
           'Sec-WebSocket-Protocol': 'v12.stomp',
         },
-        onConnect: _onWebSocketConnect,
+        onConnect: (frame) {
+          _reconnectAttempts = 0;
+          _isConnectingSocket = false;
+          _onWebSocketConnect(frame);
+        },
         onWebSocketError: (error) {
-          if (!mounted) return;
-          setState(() {
-            _errorMessage = 'WebSocket接続エラー: $error';
-            _isLoading = false;
-          });
+          _handleReconnect('WebSocket接続エラー: $error');
         },
         onStompError: (frame) {
-          if (!mounted) return;
-          setState(() {
-            _errorMessage = 'STOMPエラー: ${frame.body}';
-            _isLoading = false;
-          });
+          _handleReconnect('STOMPエラー: ${frame.body}');
         },
         onDisconnect: (frame) {
           _roundTimer?.cancel();
+          if (_isLeaving) {
+            return;
+          }
+          _handleReconnect('接続が切断されました。再接続中...');
         },
       ),
     );
 
     _stompClient!.activate();
+    _isConnectingSocket = false;
+  }
+
+  void _handleReconnect(String message) {
+    if (!mounted) return;
+    if (_isLeaving) return;
+    _isConnectingSocket = false;
+    setState(() {
+      _errorMessage = message;
+    });
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (_reconnectTimer?.isActive ?? false) {
+      return;
+    }
+    _reconnectAttempts += 1;
+    final delaySeconds = (_reconnectAttempts + 1).clamp(2, 6);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (!mounted) return;
+      if (_stompClient?.connected ?? false) return;
+      _connectWebSocket(forceReconnect: true);
+    });
   }
 
   /// WebSocket接続完了
@@ -216,6 +294,7 @@ class _BattleScreenState extends State<BattleScreen> {
 
     setState(() {
       _isLoading = false;
+      _errorMessage = null;
     });
   }
 
@@ -224,6 +303,9 @@ class _BattleScreenState extends State<BattleScreen> {
     final type = data['type'];
 
     switch (type) {
+      case 'match_start':
+        _hostId = data['hostId'];
+        break;
       case 'question':
         _handleQuestionMessage(data);
         break;
@@ -242,6 +324,9 @@ class _BattleScreenState extends State<BattleScreen> {
       case 'opponent_surrendered':
         _handleOpponentSurrendered(data);
         break;
+      case 'opponent_disconnected':
+        _handleOpponentDisconnected(data);
+        break;
       case 'waiting_opponent_next':
         _handleWaitingOpponentNext(data);
         break;
@@ -249,6 +334,52 @@ class _BattleScreenState extends State<BattleScreen> {
         _handleError(data);
         break;
     }
+  }
+
+  /// 相手が切断した場合
+  void _handleOpponentDisconnected(Map<String, dynamic> data) {
+    if (!mounted) return;
+
+    final message = data['message'] ?? '相手が切断しました。あなたの勝利です！';
+
+    _roundTimer?.cancel();
+    _prepareForLeaving();
+
+    // 勝利表示
+
+    setState(() {
+      _battleResult = BattleResult.fromJson(data);
+      _status = BattleStatus.matchFinished;
+    });
+    // ダイアログ表示
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.signal_wifi_off, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('相手が切断'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // ダイアログを閉じる
+              // リザルト画面の動作をシミュレート（ルームマッチなら戻るボタン表示など）
+              if (widget.isRoomMatch && widget.roomId != null) {
+                _goBackToRoom();
+              } else {
+                Navigator.popUntil(context, (route) => route.isFirst);
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 問題受信
@@ -544,6 +675,7 @@ class _BattleScreenState extends State<BattleScreen> {
       debugPrint('API Base URL: $_apiBaseUrl');
       debugPrint('==================');
 
+      await _audioPlayer.setPlaybackRate(_playbackSpeed);
       await _audioPlayer.play(UrlSource(audioUrl));
     } catch (e) {
       // 音声再生失敗時もユーザーは回答可能
@@ -642,7 +774,11 @@ class _BattleScreenState extends State<BattleScreen> {
             Text(_errorMessage!, textAlign: TextAlign.center),
             const SizedBox(height: 32),
             ElevatedButton(
-              onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+              onPressed: () => Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                (route) => false,
+              ),
               child: const Text('ホームに戻る'),
             ),
           ],
@@ -910,6 +1046,11 @@ class _BattleScreenState extends State<BattleScreen> {
 
           const SizedBox(height: 12),
 
+          if (_currentQuestion?.songName != null && _currentQuestion?.artistName != null) ...[
+            _buildSongInfoChip(),
+            const SizedBox(height: 12),
+          ],
+
           // 問題タイプ表示
           _buildQuestionTypeChip(isListening),
 
@@ -1029,6 +1170,37 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
+  Widget _buildSongInfoChip() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.purple.shade50,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.purple.shade200),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.music_note, size: 16, color: Colors.purple.shade600),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                '${_currentQuestion!.artistName} - ${_currentQuestion!.songName}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.purple.shade800,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// リスニング問題表示（問題文は非表示）
   Widget _buildListeningQuestion() {
     return Container(
@@ -1061,18 +1233,73 @@ class _BattleScreenState extends State<BattleScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
-          // 音声再生ボタン
-          ElevatedButton.icon(
-            onPressed: _playAudio,
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('再生'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _playAudio,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('再生'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildSpeedButton(_normalSpeed, '1x'),
+                    _buildSpeedButton(_slowSpeed, '遅い'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _playbackSpeed == _slowSpeed
+                ? '🐢 ゆっくり再生 (0.75x)'
+                : '🎵 通常再生',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSpeedButton(double speed, String label) {
+    final isSelected = _playbackSpeed == speed;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _playbackSpeed = speed;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.deepPurple : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+          ),
+        ),
       ),
     );
   }
@@ -1373,36 +1600,37 @@ class _BattleScreenState extends State<BattleScreen> {
             const SizedBox(height: 24),
 
             // レート変動
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: result.rateChange >= 0 ? Colors.green[50] : Colors.red[50],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    result.rateChange >= 0
-                        ? '+${result.rateChange}'
-                        : '${result.rateChange}',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: result.rateChange >= 0 ? Colors.green : Colors.red,
+            if (!widget.isRoomMatch)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  color: result.rateChange >= 0 ? Colors.green[50] : Colors.red[50],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      result.rateChange >= 0
+                          ? '+${result.rateChange}'
+                          : '${result.rateChange}',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: result.rateChange >= 0 ? Colors.green : Colors.red,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '新しいレート: ${result.newRate}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[700],
+                    Text(
+                      '新しいレート: ${result.newRate}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[700],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 48),
+              const SizedBox(height: 48),
 
             // ボタン群（3つ横並び、または縦並び）
             Wrap(
@@ -1410,18 +1638,31 @@ class _BattleScreenState extends State<BattleScreen> {
               spacing: 16,
               runSpacing: 12,
               children: [
-                // 再キューボタン
-                ElevatedButton.icon(
-                  onPressed: _goToRematch,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('再キュー'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                // ルームマッチの場合は「ルームに戻る」、ランクマッチの場合は「再キュー」
+                if (widget.isRoomMatch && widget.roomId != null)
+                  ElevatedButton.icon(
+                    onPressed: _goBackToRoom,
+                    icon: const Icon(Icons.meeting_room),
+                    label: const Text('ルームに戻る'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: _goToRematch,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('再キュー'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
 
                 // 単語帳ボタン
                 ElevatedButton.icon(
@@ -1438,7 +1679,23 @@ class _BattleScreenState extends State<BattleScreen> {
 
                 // ホームに戻るボタン
                 ElevatedButton.icon(
-                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                  onPressed: () async {
+                    _prepareForLeaving();
+                    if (widget.isRoomMatch &&
+                        widget.roomId != null &&
+                        _myUserId != null &&
+                        _hostId == _myUserId) {
+                      final token = await _tokenStorage.getAccessToken();
+                      if (token != null) {
+                        await _roomApiService.leaveRoom(
+                          roomId: widget.roomId!,
+                          userId: _myUserId!,
+                          accessToken: token,
+                        );
+                      }
+                    }
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
                   icon: const Icon(Icons.home),
                   label: const Text('ホーム'),
                   style: ElevatedButton.styleFrom(
@@ -1456,9 +1713,7 @@ class _BattleScreenState extends State<BattleScreen> {
 
   /// 再キュー（同じ設定で再マッチング）
   void _goToRematch() {
-    // WebSocket接続を切断
-    _stompClient?.deactivate();
-    _roundTimer?.cancel();
+    _prepareForLeaving();
 
     // 直前のマッチ設定（言語）を使って再マッチへ遷移
     final language = _battleInfo?.language ?? 'english';
@@ -1469,11 +1724,62 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
+  /// ルームに戻る（ルームマッチ終了後）
+  void _goBackToRoom() {
+    _prepareForLeaving();
+
+    // ルームマッチ画面に戻る（対戦後なのでisGuest=falseで部屋情報を再読み込み）
+    // isReturning=true で対戦後の復帰であることを示す
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/room-match?roomId=${widget.roomId}&isReturning=true',
+      (route) => route.isFirst,
+    );
+  }
+
   /// 単語帳画面へ遷移
-  void _goToVocabulary() {
+  Future<void> _goToVocabulary() async {
+    _prepareForLeaving();
+
     // ホームに戻ってから単語帳画面へ
+    if (widget.isRoomMatch && widget.roomId != null && _myUserId != null) {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken != null) {
+        try {
+          await _roomApiService.updateVocabularyStatus(
+            roomId: widget.roomId!,
+            userId: _myUserId!,
+            inVocabulary: true,
+            accessToken: accessToken,
+          );
+        } catch (e) {
+          debugPrint('単語帳状態更新エラー: $e');
+        }
+      }
+    }
     Navigator.popUntil(context, (route) => route.isFirst);
+    if (widget.isRoomMatch && widget.roomId != null) {
+      Navigator.pushNamed(
+        context,
+        '/vocabulary?userId=$_myUserId&returnRoomId=${widget.roomId}',
+      );
+      return;
+    }
     // userIdをクエリパラメータとして渡す
     Navigator.pushNamed(context, '/vocabulary?userId=$_myUserId');
+  }
+
+  void _prepareForLeaving() {
+    _stompClient?.deactivate();
+    _roundTimer?.cancel();
+    _reconnectTimer?.cancel();
+    if (!mounted) {
+      _isLeaving = true;
+      return;
+    }
+    setState(() {
+      _isLeaving = true;
+      _errorMessage = null;
+    });
   }
 }
