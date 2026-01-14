@@ -5,6 +5,7 @@ import com.example.api.dto.battle.PlayerInfoDto;
 import com.example.api.entity.Question;
 import com.example.api.entity.Rate;
 import com.example.api.entity.Result;
+import com.example.api.entity.Room;
 import com.example.api.entity.User;
 import com.example.api.enums.QuestionFormat;
 import com.example.api.repository.QuestionRepository;
@@ -403,6 +404,17 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
         enemy.getId(), enemy.getUsername(), enemy.getImageUrl(), player2Rate
     );
 
+    Long hostId = null;
+    if (result1.getMatchType() == Result.MatchType.room) {
+        Long roomId = state.getRoomId();
+        if (roomId != null) {
+            Optional<Room> room = roomService.getRoom(roomId);
+            if (room.isPresent()) {
+                hostId = room.get().getHost_id();
+            }
+        }
+    }
+
     return BattleStartResponseDto.builder()
         .matchId(matchId)
         .user1Id(state.getPlayer1Id())
@@ -412,6 +424,7 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
         .roundTimeLimitSeconds(BattleStateService.ROUND_TIME_LIMIT_SECONDS)
         .winsRequired(state.getWinsToVictory())   // ← 既に修正済みならそのまま
         .maxRounds(state.getMaxRounds())          // ← 同上
+        .hostId(hostId)
         .status("ready")
         .message("バトルを開始できます")
         .user1Info(user1Info)

@@ -162,6 +162,7 @@ class _BattleScreenState extends State<BattleScreen>
     if (response.statusCode == 200) {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
       _battleInfo = BattleStartInfo.fromJson(data);
+      _hostId = _battleInfo?.hostId;
 
       // プレイヤー情報を設定（APIから取得したユーザー情報を使用）
       final isPlayer1 = _battleInfo!.user1Id == _myUserId;
