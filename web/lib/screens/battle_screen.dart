@@ -1599,36 +1599,37 @@ class _BattleScreenState extends State<BattleScreen>
             const SizedBox(height: 24),
 
             // レート変動
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: result.rateChange >= 0 ? Colors.green[50] : Colors.red[50],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    result.rateChange >= 0
-                        ? '+${result.rateChange}'
-                        : '${result.rateChange}',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: result.rateChange >= 0 ? Colors.green : Colors.red,
+            if (!widget.isRoomMatch)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  color: result.rateChange >= 0 ? Colors.green[50] : Colors.red[50],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      result.rateChange >= 0
+                          ? '+${result.rateChange}'
+                          : '${result.rateChange}',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: result.rateChange >= 0 ? Colors.green : Colors.red,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '新しいレート: ${result.newRate}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[700],
+                    Text(
+                      '新しいレート: ${result.newRate}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[700],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 48),
+              const SizedBox(height: 48),
 
             // ボタン群（3つ横並び、または縦並び）
             Wrap(
