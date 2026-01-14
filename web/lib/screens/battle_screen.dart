@@ -59,6 +59,7 @@ class _BattleScreenState extends State<BattleScreen>
   // バトル情報
   BattleStartInfo? _battleInfo;
   int? _myUserId;
+  int? _hostId;
   String? _myUsername;
   BattlePlayer? _myPlayer;
   BattlePlayer? _opponentPlayer;
@@ -301,6 +302,9 @@ class _BattleScreenState extends State<BattleScreen>
     final type = data['type'];
 
     switch (type) {
+      case 'match_start':
+        _hostId = data['hostId'];
+        break;
       case 'question':
         _handleQuestionMessage(data);
         break;
@@ -1673,11 +1677,23 @@ class _BattleScreenState extends State<BattleScreen>
 
                 // ホームに戻るボタン
                 ElevatedButton.icon(
-                  onPressed: () => Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const HomeScreen()),
-                    (route) => false,
-                  ),
+                  onPressed: () async {
+                    _prepareForLeaving();
+                    if (widget.isRoomMatch &&
+                        widget.roomId != null &&
+                        _myUserId != null &&
+                        _hostId == _myUserId) {
+                      final token = await _tokenStorage.getAccessToken();
+                      if (token != null) {
+                        await _roomApiService.leaveRoom(
+                          roomId: widget.roomId!,
+                          userId: _myUserId!,
+                          accessToken: token,
+                        );
+                      }
+                    }
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
                   icon: const Icon(Icons.home),
                   label: const Text('ホーム'),
                   style: ElevatedButton.styleFrom(
