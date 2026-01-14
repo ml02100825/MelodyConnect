@@ -631,9 +631,18 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
           title: const Text('Room Match'),
           centerTitle: true,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _leaveRoom,
-          ),
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                if (_showSettingsPhase) {
+                  setState(() {
+                    _showSettingsPhase = false;
+                  });
+                } else {
+                  _leaveRoom();
+                }
+              },
+            ),
+
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
