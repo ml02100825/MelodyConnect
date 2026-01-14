@@ -36,7 +36,7 @@ public interface SongRepository extends JpaRepository<Song, Long> {
     /**
      * アーティストIDでランダムな楽曲を1曲取得
      */
-    @Query(value = "SELECT * FROM song WHERE aritst_id = ?1 ORDER BY RAND() LIMIT 1", nativeQuery = true)
+    @Query(value = "SELECT * FROM song WHERE aritst_id = ?1 AND is_active = 1 AND is_deleted = 0 ORDER BY RAND() LIMIT 1", nativeQuery = true)
     Optional<Song> findRandomByArtist(Long artistId);
 
     /**
@@ -47,7 +47,7 @@ public interface SongRepository extends JpaRepository<Song, Long> {
      * @param limit 取得件数
      * @return ランダムに選ばれた楽曲のリスト
      */
-    @Query(value = "SELECT * FROM song WHERE aritst_id = :artistId ORDER BY RAND() LIMIT :limit", 
+    @Query(value = "SELECT * FROM song WHERE aritst_id = :artistId AND is_active = 1 AND is_deleted = 0 ORDER BY RAND() LIMIT :limit",
            nativeQuery = true)
     List<Song> findRandomSongsByArtist(@Param("artistId") Long artistId, @Param("limit") int limit);
 
@@ -66,12 +66,12 @@ public interface SongRepository extends JpaRepository<Song, Long> {
      * ※ 注意: Songテーブルにgenreカラムがある場合のみ使用可能
      *         Artist経由でジャンル検索する場合は別のアプローチが必要
      */
-    @Query(value = "SELECT * FROM song WHERE genre = ?1 ORDER BY RAND() LIMIT 1", nativeQuery = true)
+    @Query(value = "SELECT * FROM song WHERE genre = ?1 AND is_active = 1 AND is_deleted = 0 ORDER BY RAND() LIMIT 1", nativeQuery = true)
     Optional<Song> findRandomByGenre(String genre);
 
     /**
      * 完全ランダムで楽曲を取得
      */
-    @Query(value = "SELECT * FROM song ORDER BY RAND() LIMIT 1", nativeQuery = true)
+    @Query(value = "SELECT * FROM song WHERE is_active = 1 AND is_deleted = 0 ORDER BY RAND() LIMIT 1", nativeQuery = true)
     Optional<Song> findRandom();
 }
