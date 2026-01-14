@@ -335,6 +335,12 @@ public class BattleStateService {
         if (userId == null) {
             return false;
         }
+         for (BattleState state : this.activeBattles.values()) {
+            if (state.isParticipant(userId)) {
+                logger.info("in_battle check: matchUuid={}, isRoomMatch={}, status={}",
+                    state.getMatchUuid(), state.isRoomMatch(), state.getStatus());
+            }
+        }
         for (BattleState state : activeBattles.values()) {
             if (state.isParticipant(userId) && !state.isRoomMatch()
                     && state.getStatus() != Status.FINISHED) {

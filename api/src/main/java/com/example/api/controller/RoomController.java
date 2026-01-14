@@ -342,6 +342,7 @@ public class RoomController {
         // ルームマッチ参加中チェック（WAITING/READY/PLAYING）
         Optional<Room> activeRoom = roomService.getActiveRoom(userId);
         if (activeRoom.isPresent()) {
+            logger.info("ユーザーID {} はルームマッチ参加中", userId);
             return "room_match";
         }
 
@@ -351,6 +352,7 @@ public class RoomController {
         }
 
         if (battleService.isUserInRankBattle(userId)) {
+            logger.info("ユーザーID {} はランクマッチ対戦中", userId);
             return "in_battle";
         }
 

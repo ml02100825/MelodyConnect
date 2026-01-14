@@ -11,6 +11,7 @@ import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.RateRepository;
 import com.example.api.repository.ResultRepository;
 import com.example.api.repository.UserRepository;
+import com.example.api.service.BattleStateService.BattleState;
 import com.example.api.util.SeasonCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -336,65 +338,69 @@ public class BattleService {
      * @param matchId マッチID
      * @return バトル開始レスポンスDTO
      */
-    @Transactional(readOnly = true)
-    public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
-        // fetch joinでResult + Userを一括取得（LazyInitializationException回避）
-        List<Result> results = resultRepository.findAllByMatchUuidWithUsers(matchId);
+   @Transactional(readOnly = true)
+public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
+    // fetch joinでResult + Userを一括取得
+    List<Result> results = resultRepository.findAllByMatchUuidWithUsers(matchId);
 
-        if (results.isEmpty()) {
-            throw new IllegalArgumentException("マッチ情報が見つかりません: " + matchId);
+    if (results.isEmpty()) {
+        throw new IllegalArgumentException("マッチ情報が見つかりません: " + matchId);
+    }
+    if (results.size() != 2) {
+        throw new IllegalArgumentException("マッチ情報が不正です: expected 2, got " + results.size());
+    }
+
+    Result result1 = results.get(0);
+    User player = result1.getPlayer();
+    User enemy = result1.getEnemy();
+
+    // 既存のBattleStateを優先
+    BattleStateService.BattleState state = battleStateService.getBattle(matchId);
+
+    // ルームマッチなら Rank用のinitializeBattleを絶対に呼ばない
+    if (result1.getMatchType() == Result.MatchType.room) {
+        if (state == null) {
+            // ルームマッチのstateが無いのは異常なので、ここで止める
+            throw new IllegalStateException("ルームマッチの対戦状態が見つかりません: " + matchId);
         }
-
-        if (results.size() != 2) {
-            throw new IllegalArgumentException("マッチ情報が不正です: expected 2, got " + results.size());
-        }
-
-        Result result1 = results.get(0);
-        User player = result1.getPlayer();  // fetch join済みなので安全にアクセス可能
-        User enemy = result1.getEnemy();    // fetch join済みなので安全にアクセス可能
-
-        // 対戦を初期化（問題取得・状態作成）
-        BattleStateService.BattleState state = initializeBattle(
+    } else {
+        // ランクマッチのみ initializeBattle を呼ぶ
+        if (state == null) {
+            state = initializeBattle(
                 matchId,
                 player.getId(),
                 enemy.getId(),
                 result1.getUseLanguage()
-        );
-
-        // トランザクション内でレート情報を取得
-        Integer player1Rate = getPlayerRate(player);
-        Integer player2Rate = getPlayerRate(enemy);
-
-        // トランザクション内でUser情報をDTOに変換
-        PlayerInfoDto user1Info = new PlayerInfoDto(
-                player.getId(),
-                player.getUsername(),
-                player.getImageUrl(),
-                player1Rate
-        );
-
-        PlayerInfoDto user2Info = new PlayerInfoDto(
-                enemy.getId(),
-                enemy.getUsername(),
-                enemy.getImageUrl(),
-                player2Rate
-        );
-
-        return BattleStartResponseDto.builder()
-                .matchId(matchId)
-                .user1Id(state.getPlayer1Id())
-                .user2Id(state.getPlayer2Id())
-                .language(state.getLanguage())
-                .questionCount(state.getQuestions().size())
-                .roundTimeLimitSeconds(BattleStateService.ROUND_TIME_LIMIT_SECONDS)
-                .winsRequired(state.getWinsToVictory())
-                .maxRounds(state.getMaxRounds())
-                .status("ready")
-                .message("バトルを開始できます")
-                .user1Info(user1Info)
-                .user2Info(user2Info)
-                .build();
+            );
+        }
     }
+
+    Integer player1Rate = getPlayerRate(player);
+    Integer player2Rate = getPlayerRate(enemy);
+
+    PlayerInfoDto user1Info = new PlayerInfoDto(
+        player.getId(), player.getUsername(), player.getImageUrl(), player1Rate
+    );
+    PlayerInfoDto user2Info = new PlayerInfoDto(
+        enemy.getId(), enemy.getUsername(), enemy.getImageUrl(), player2Rate
+    );
+
+    return BattleStartResponseDto.builder()
+        .matchId(matchId)
+        .user1Id(state.getPlayer1Id())
+        .user2Id(state.getPlayer2Id())
+        .language(state.getLanguage())
+        .questionCount(state.getQuestions().size())
+        .roundTimeLimitSeconds(BattleStateService.ROUND_TIME_LIMIT_SECONDS)
+        .winsRequired(state.getWinsToVictory())   // ← 既に修正済みならそのまま
+        .maxRounds(state.getMaxRounds())          // ← 同上
+        .status("ready")
+        .message("バトルを開始できます")
+        .user1Info(user1Info)
+        .user2Info(user2Info)
+        .build();
+}
+
 
     /**
      * ユーザーのレート情報を取得（Service層で使用）
@@ -767,6 +773,8 @@ public class BattleService {
      * 指定ユーザーがランクマッチの対戦中かどうか
      */
     public boolean isUserInRankBattle(Long userId) {
+       
+
         return battleStateService.isUserInRankBattle(userId);
     }
 
