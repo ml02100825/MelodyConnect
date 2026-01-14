@@ -1,6 +1,7 @@
 package com.example.api.controller;
 
 import com.example.api.service.MatchingService;
+import com.example.api.service.LifeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,9 @@ public class MatchingController {
 
     @Autowired
     private MatchingService matchingService;
+
+    @Autowired
+    private LifeService lifeService;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
@@ -174,6 +178,14 @@ public class MatchingController {
             logger.info("マッチング成立！ matchId={}, user1={}, user2={}, language={}",
                     match.getMatchId(), match.getUser1Id(), match.getUser2Id(), match.getLanguage());
 
+            try {
+                lifeService.consumeLifeForMatch(match.getUser1Id(), match.getUser2Id());
+            } catch (LifeService.LifeConsumeException e) {
+                handleInsufficientLife(match, e.getInsufficientUserIds());
+                requeueEligiblePlayers(match, e.getInsufficientUserIds());
+                return;
+            }
+
             // Resultレコードを作成
             matchingService.createInitialResult(
                     match.getMatchId(),
@@ -210,6 +222,38 @@ public class MatchingController {
             logger.info("マッチング通知送信完了: user2={}", match.getUser2Id());
         } else {
             // logger.debug("マッチング不成立: language={}", language);
+        }
+    }
+
+    private void handleInsufficientLife(MatchingService.MatchResult match, java.util.Set<Long> insufficientUserIds) {
+        for (Long userId : insufficientUserIds) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("code", "INSUFFICIENT_LIFE");
+            response.put("message", "ライフが不足しています");
+
+            try {
+                com.example.api.dto.LifeStatusResponse lifeStatus = lifeService.getLifeStatus(userId);
+                response.put("currentLife", lifeStatus.getCurrentLife());
+                response.put("nextRecoveryInSeconds", lifeStatus.getNextRecoveryInSeconds());
+            } catch (Exception e) {
+                logger.warn("ライフ状態取得失敗: userId={}, error={}", userId, e.getMessage(), e);
+            }
+
+            messagingTemplate.convertAndSend(
+                    "/topic/matching/" + userId,
+                    response
+            );
+            logger.info("ライフ不足通知送信: userId={}", userId);
+        }
+    }
+
+    private void requeueEligiblePlayers(MatchingService.MatchResult match, java.util.Set<Long> insufficientUserIds) {
+        if (!insufficientUserIds.contains(match.getUser1Id())) {
+            matchingService.joinQueue(match.getUser1Id(), match.getLanguage());
+        }
+        if (!insufficientUserIds.contains(match.getUser2Id())) {
+            matchingService.joinQueue(match.getUser2Id(), match.getLanguage());
         }
     }
 

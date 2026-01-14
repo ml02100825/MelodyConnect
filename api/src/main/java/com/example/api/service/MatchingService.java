@@ -126,7 +126,7 @@ public class MatchingService {
     }
 
     /**
-     * プレイヤーをマッチングキューに追加（ライフ消費あり - ランクマッチ用）
+     * プレイヤーをマッチングキューに追加（ランクマッチ用）
      * @param userId ユーザーID
      * @param language 言語
      * @return キュー参加結果
@@ -139,11 +139,9 @@ public class MatchingService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
 
-        // ライフを消費（ランクマッチのみ）
-        boolean lifeConsumed = lifeService.consumeLife(userId);
-        if (!lifeConsumed) {
-            // ライフ不足
-            LifeStatusResponse lifeStatus = lifeService.getLifeStatusAfterConsume(userId);
+        // ライフが0の場合は参加不可（消費はマッチ成立時に実施）
+        LifeStatusResponse lifeStatus = lifeService.getLifeStatus(userId);
+        if (lifeStatus.getCurrentLife() <= 0) {
             logger.info("ライフ不足によりキュー参加拒否: userId={}, life={}", userId, lifeStatus.getCurrentLife());
             return JoinQueueResult.insufficientLife(lifeStatus);
         }
