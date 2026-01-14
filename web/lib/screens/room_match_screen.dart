@@ -695,9 +695,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
           _buildPlayersInfo(),
           const SizedBox(height: 24),
 
-          // 現在の設定表示（ホスト以外も見れる）
-          _buildCurrentSettings(),
-          const SizedBox(height: 24),
+
 
           // ステータスメッセージ
           if (_statusMessage.isNotEmpty)
@@ -720,32 +718,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
     );
   }
 
-  /// 現在の設定表示
-  Widget _buildCurrentSettings() {
-    return Card(
-      color: Colors.grey[100],
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'ルーム設定',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const Divider(),
-            _buildSettingRow('先取数', '$_matchType本'),
-            _buildSettingRow('言語', _language == 'english' ? '英語' : '韓国語'),
-            _buildSettingRow('問題形式', _getFormatLabel(_questionFormat)),
-            _buildSettingRow('出題方法', _getModeLabel(_problemType)),
-          ],
-        ),
-      ),
-    );
-  }
+ 
 
   Widget _buildSettingRow(String label, String value) {
     return Padding(
