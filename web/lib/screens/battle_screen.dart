@@ -6,6 +6,7 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../services/token_storage_service.dart';
 import '../services/room_api_service.dart';
+import '../screens/home_screen.dart';
 import '../models/battle_models.dart';
 
 /// APIのベースURL
@@ -38,6 +39,10 @@ class _BattleScreenState extends State<BattleScreen>
   final _roomApiService = RoomApiService();
   final _answerController = TextEditingController();
   final _audioPlayer = AudioPlayer();
+
+  double _playbackSpeed = 1.0;
+  static const double _normalSpeed = 1.0;
+  static const double _slowSpeed = 0.75;
 
   // WebSocket
   StompClient? _stompClient;
@@ -665,6 +670,7 @@ class _BattleScreenState extends State<BattleScreen>
       debugPrint('API Base URL: $_apiBaseUrl');
       debugPrint('==================');
 
+      await _audioPlayer.setPlaybackRate(_playbackSpeed);
       await _audioPlayer.play(UrlSource(audioUrl));
     } catch (e) {
       // 音声再生失敗時もユーザーは回答可能
@@ -763,7 +769,11 @@ class _BattleScreenState extends State<BattleScreen>
             Text(_errorMessage!, textAlign: TextAlign.center),
             const SizedBox(height: 32),
             ElevatedButton(
-              onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+              onPressed: () => Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                (route) => false,
+              ),
               child: const Text('ホームに戻る'),
             ),
           ],
@@ -1031,6 +1041,11 @@ class _BattleScreenState extends State<BattleScreen>
 
           const SizedBox(height: 12),
 
+          if (_currentQuestion?.songName != null && _currentQuestion?.artistName != null) ...[
+            _buildSongInfoChip(),
+            const SizedBox(height: 12),
+          ],
+
           // 問題タイプ表示
           _buildQuestionTypeChip(isListening),
 
@@ -1150,6 +1165,37 @@ class _BattleScreenState extends State<BattleScreen>
     );
   }
 
+  Widget _buildSongInfoChip() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.purple.shade50,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.purple.shade200),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.music_note, size: 16, color: Colors.purple.shade600),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                '${_currentQuestion!.artistName} - ${_currentQuestion!.songName}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.purple.shade800,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// リスニング問題表示（問題文は非表示）
   Widget _buildListeningQuestion() {
     return Container(
@@ -1182,18 +1228,73 @@ class _BattleScreenState extends State<BattleScreen>
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
-          // 音声再生ボタン
-          ElevatedButton.icon(
-            onPressed: _playAudio,
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('再生'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _playAudio,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('再生'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildSpeedButton(_normalSpeed, '1x'),
+                    _buildSpeedButton(_slowSpeed, '遅い'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _playbackSpeed == _slowSpeed
+                ? '🐢 ゆっくり再生 (0.75x)'
+                : '🎵 通常再生',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSpeedButton(double speed, String label) {
+    final isSelected = _playbackSpeed == speed;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _playbackSpeed = speed;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.deepPurple : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+          ),
+        ),
       ),
     );
   }
@@ -1572,7 +1673,11 @@ class _BattleScreenState extends State<BattleScreen>
 
                 // ホームに戻るボタン
                 ElevatedButton.icon(
-                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                  onPressed: () => Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    (route) => false,
+                  ),
                   icon: const Icon(Icons.home),
                   label: const Text('ホーム'),
                   style: ElevatedButton.styleFrom(

@@ -232,6 +232,15 @@ public class BattleService {
             selectedQuestions = selectedQuestions.subList(0, QUESTION_COUNT);
         }
 
+        for (Question question : selectedQuestions) {
+            if (question.getSong() != null) {
+                question.getSong().getSongname();
+            }
+            if (question.getArtist() != null) {
+                question.getArtist().getArtistName();
+            }
+        }
+
         logger.info("対戦初期化: matchUuid={}, questions={}", matchUuid, selectedQuestions.size());
 
         return battleStateService.createBattle(matchUuid, player1Id, player2Id, language, selectedQuestions);
@@ -280,6 +289,15 @@ public class BattleService {
         Collections.shuffle(selectedQuestions);
         if (selectedQuestions.size() > questionCount) {
             selectedQuestions = selectedQuestions.subList(0, questionCount);
+        }
+
+        for (Question question : selectedQuestions) {
+            if (question.getSong() != null) {
+                question.getSong().getSongname();
+            }
+            if (question.getArtist() != null) {
+                question.getArtist().getArtistName();
+            }
         }
 
         logger.info("ルームマッチ対戦初期化: matchUuid={}, roomId={}, winsToVictory={}, questions={}",
