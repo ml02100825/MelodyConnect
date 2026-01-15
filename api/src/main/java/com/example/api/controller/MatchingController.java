@@ -131,6 +131,55 @@ public class MatchingController {
     }
 
     /**
+     * マッチングキュー情報を更新
+     * クライアントから /app/matching/update にメッセージを送信
+     */
+    @MessageMapping("/matching/update")
+    public void updateMatching(@Payload MatchRequest request) {
+        try {
+            logger.info("マッチングキュー更新リクエスト: userId={}, language={}", request.getUserId(), request.getLanguage());
+            MatchingService.JoinQueueResult result = matchingService.updateQueue(request.getUserId(), request.getLanguage());
+
+            Map<String, Object> response = new HashMap<>();
+            if (result.isSuccess()) {
+                response.put("status", "updated");
+                response.put("message", "マッチング条件を更新しました");
+                logger.info("マッチングキュー更新成功: userId={}", request.getUserId());
+            } else if ("INSUFFICIENT_LIFE".equals(result.getErrorCode())) {
+                response.put("status", "error");
+                response.put("code", "INSUFFICIENT_LIFE");
+                response.put("message", result.getMessage());
+                if (result.getLifeStatus() != null) {
+                    response.put("currentLife", result.getLifeStatus().getCurrentLife());
+                    response.put("nextRecoveryInSeconds", result.getLifeStatus().getNextRecoveryInSeconds());
+                }
+                logger.info("ライフ不足によりマッチング更新拒否: userId={}", request.getUserId());
+            } else {
+                response.put("status", "error");
+                response.put("code", result.getErrorCode());
+                response.put("message", result.getMessage());
+                logger.warn("マッチングキュー更新失敗: userId={}, code={}", request.getUserId(), result.getErrorCode());
+            }
+
+            messagingTemplate.convertAndSend(
+                    "/topic/matching/" + request.getUserId(),
+                    response
+            );
+        } catch (Exception e) {
+            logger.error("マッチングキュー更新エラー: userId={}, error={}", request.getUserId(), e.getMessage(), e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("code", "ERROR");
+            error.put("message", e.getMessage());
+
+            messagingTemplate.convertAndSend(
+                    "/topic/matching/" + request.getUserId(),
+                    error
+            );
+        }
+    }
+
+    /**
      * マッチングキューから離脱
      * クライアントから /app/matching/cancel にメッセージを送信
      */

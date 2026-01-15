@@ -28,6 +28,8 @@ class _MatchingScreenState extends State<MatchingScreen>
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   bool _isConnectingSocket = false;
+  bool _hasSentUpdate = false;
+  int? _userId;
 
   @override
   void initState() {
@@ -79,6 +81,7 @@ class _MatchingScreenState extends State<MatchingScreen>
         });
         return;
       }
+      _userId = userId;
 
       // STOMP WebSocket接続
       _stompClient = StompClient(
@@ -176,6 +179,8 @@ class _MatchingScreenState extends State<MatchingScreen>
   /// 待機時間タイマーを開始
   void _startWaitTimer() {
     _waitTimer?.cancel();
+    _waitTime = 0;
+    _hasSentUpdate = false;
     _waitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -185,6 +190,11 @@ class _MatchingScreenState extends State<MatchingScreen>
       setState(() {
         _waitTime++;
       });
+
+      if (_waitTime >= 15 && !_hasSentUpdate) {
+        _hasSentUpdate = true;
+        _sendMatchingUpdate();
+      }
     });
   }
 
@@ -198,6 +208,11 @@ class _MatchingScreenState extends State<MatchingScreen>
       if (!mounted) return;
       setState(() {
         _statusMessage = 'マッチング相手を探しています...';
+      });
+    } else if (status == 'updated') {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = data['message'] ?? 'マッチング条件を更新しました';
       });
     } else if (status == 'matched') {
       // マッチング成立
@@ -239,6 +254,29 @@ class _MatchingScreenState extends State<MatchingScreen>
           _statusMessage = 'エラー: ${data['message']}';
         });
       }
+    }
+  }
+
+  Future<void> _sendMatchingUpdate() async {
+    try {
+      final userId = _userId ?? await _tokenStorage.getUserId();
+      if (userId == null) return;
+
+      _stompClient?.send(
+        destination: '/app/matching/update',
+        body: jsonEncode({
+          'userId': userId,
+          'language': widget.language,
+        }),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('更新に失敗しました: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
