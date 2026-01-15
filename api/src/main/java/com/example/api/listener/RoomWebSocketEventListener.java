@@ -7,6 +7,7 @@ import com.example.api.repository.SessionRepository;
 import com.example.api.repository.UserRepository;
 import com.example.api.service.BattleService;
 import com.example.api.service.BattleStateService;
+import com.example.api.service.MatchingService;
 import com.example.api.service.RoomService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,7 @@ public class RoomWebSocketEventListener {
     private final BattleStateService battleStateService;
     private final SimpMessagingTemplate messagingTemplate;
     private final SessionRepository sessionRepository;
+    private final MatchingService matchingService;
     @Autowired
     private UserRepository userRepository;
     
@@ -63,12 +65,14 @@ public class RoomWebSocketEventListener {
                                       BattleService battleService,
                                       BattleStateService battleStateService,
                                       SimpMessagingTemplate messagingTemplate,
-                                      SessionRepository sessionRepository) {
+                                      SessionRepository sessionRepository,
+                                      MatchingService matchingService) {
         this.roomService = roomService;
         this.battleService = battleService;
         this.battleStateService = battleStateService;
         this.messagingTemplate = messagingTemplate;
         this.sessionRepository = sessionRepository;
+        this.matchingService = matchingService;
     }
 
     /**
@@ -211,6 +215,16 @@ public class RoomWebSocketEventListener {
         }
 
         removeUserSession(userId);
+
+        // マッチングキューから削除（最後のセッションが切断された時のみ実行される）
+        try {
+            boolean removed = matchingService.leaveQueue(userId);
+            if (removed) {
+                logger.info("マッチングキューから削除: userId={}", userId);
+            }
+        } catch (Exception e) {
+            logger.error("マッチングキュー削除時にエラー: userId={}", userId, e);
+        }
 
         logger.info("WebSocket切断検知: sessionId={}, userId={}, clientType={}",
                 sessionId, userId, clientType);
