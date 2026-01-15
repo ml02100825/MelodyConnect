@@ -327,6 +327,8 @@ public class BattleController {
             BattleService.BattleResultDto battleResult =
                     battleService.finalizeBattle(matchId, Result.OutcomeReason.normal);
             sendBattleResult(battleResult);
+
+            
             return;
         }
         // 試合継続の場合は、クライアントからのnext_roundリクエストを待つ
@@ -462,7 +464,11 @@ public class BattleController {
     private RoundResultResponse createRoundResultResponse(BattleStateService.RoundResult roundResult,
                                                           BattleStateService.BattleState state,
                                                           String correctAnswer) {
+    Question currentQuestion = state.getCurrentQuestion();
+
+
         RoundResultResponse response = new RoundResultResponse();
+        response.setQuestionText(currentQuestion != null ? currentQuestion.getText() : "");
         response.setRoundNumber(roundResult.getRoundNumber());
         response.setQuestionId(roundResult.getQuestionId());
         response.setCorrectAnswer(correctAnswer);
@@ -511,6 +517,10 @@ public class BattleController {
 
         logger.info("試合結果送信: matchId={}, winnerId={}, loserId={}",
                 result.getMatchUuid(), result.getWinnerId(), result.getLoserId());
+    logger.info("sendBattleResult: matchUuid={}, winnerRounds={}",
+    result.getMatchUuid(),
+    result.getRounds() != null ? result.getRounds().size() : null);
+
     }
 
     /**

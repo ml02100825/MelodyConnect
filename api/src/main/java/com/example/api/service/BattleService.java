@@ -13,6 +13,7 @@ import com.example.api.repository.RateRepository;
 import com.example.api.repository.ResultRepository;
 import com.example.api.repository.UserRepository;
 import com.example.api.service.BattleStateService.BattleState;
+import com.example.api.dto.battle.RoundResultResponse;
 import com.example.api.util.SeasonCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,14 +82,16 @@ public class BattleService {
         private final int loserRateChange;
         private final int winnerNewRate;
         private final int loserNewRate;
-        private final List<RoundSummary> rounds;
+        private final List<RoundResultResponse> rounds;
         private final Result.OutcomeReason outcomeReason;
 
-        public BattleResultDto(String matchUuid, Long winnerId, Long loserId, boolean isDraw,
-                              int winnerScore, int loserScore,
-                              int winnerRateChange, int loserRateChange,
-                              int winnerNewRate, int loserNewRate,
-                              List<RoundSummary> rounds, Result.OutcomeReason outcomeReason) {
+        public BattleResultDto(
+        String matchUuid, Long winnerId, Long loserId, boolean isDraw,
+        int winnerScore, int loserScore,
+        int winnerRateChange, int loserRateChange,
+        int winnerNewRate, int loserNewRate,
+        List<RoundResultResponse> rounds, Result.OutcomeReason outcomeReason
+                                                                         ) {                                                                                                                                    {
             this.matchUuid = matchUuid;
             this.winnerId = winnerId;
             this.loserId = loserId;
@@ -101,6 +104,7 @@ public class BattleService {
             this.loserNewRate = loserNewRate;
             this.rounds = rounds;
             this.outcomeReason = outcomeReason;
+                                                                         }
         }
 
         // Getters
@@ -114,7 +118,7 @@ public class BattleService {
         public int getLoserRateChange() { return loserRateChange; }
         public int getWinnerNewRate() { return winnerNewRate; }
         public int getLoserNewRate() { return loserNewRate; }
-        public List<RoundSummary> getRounds() { return rounds; }
+        public List<RoundResultResponse> getRounds() { return rounds; }
         public Result.OutcomeReason getOutcomeReason() { return outcomeReason; }
 
         /**
@@ -487,6 +491,7 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
     @Transactional
     public BattleResultDto finalizeBattle(String matchUuid, Result.OutcomeReason outcomeReason) {
         BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+        
         if (state == null) {
             throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
         }
@@ -580,6 +585,13 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
 
         // ラウンドサマリー作成
         List<RoundSummary> roundSummaries = createRoundSummaries(state);
+        List<RoundResultResponse> roundResponses =
+        createRoundResultResponses(state, outcomeReason, loserId);
+
+
+        logger.info("finalizeBattle: matchUuid={}, rounds.size={}",
+        matchUuid, roundResponses.size());
+
 
         // Result更新（既存の2レコードを更新）
         updateResultRecords(matchUuid, state, winnerId, loserId, isDraw,
@@ -596,11 +608,11 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
         battleStateService.removeBattle(matchUuid);
 
         return new BattleResultDto(
-                matchUuid, winnerId, loserId, isDraw,
+               matchUuid, winnerId, loserId, isDraw,
                 winnerScore, loserScore,
                 winnerRateChange, loserRateChange,
                 winnerNewRate, loserNewRate,
-                roundSummaries, outcomeReason
+                roundResponses, outcomeReason
         );
     }
 
@@ -653,7 +665,94 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
                     );
                 })
                 .collect(Collectors.toList());
+               
     }
+    private List<RoundResultResponse> createRoundResultResponses(
+          BattleStateService.BattleState state,
+        Result.OutcomeReason outcomeReason,
+        Long loserId
+) {
+    Map<Integer, Question> questionMap = state.getQuestions().stream()
+        .collect(Collectors.toMap(Question::getQuestionId, q -> q));
+
+    List<RoundResultResponse> responses = new ArrayList<>();
+
+    // 既存ラウンドがある場合は通常通り
+    if (!state.getRoundResults().isEmpty()) {
+        for (BattleStateService.RoundResult rr : state.getRoundResults()) {
+            Question q = questionMap.get(rr.getQuestionId());
+            String correctAnswer = BattleStateService.getCorrectAnswer(q);
+
+            RoundResultResponse r = new RoundResultResponse();
+            r.setRoundNumber(rr.getRoundNumber());
+            r.setQuestionId(rr.getQuestionId());
+            r.setCorrectAnswer(correctAnswer);
+            r.setRoundWinnerId(rr.getWinnerId());
+            r.setNoCount(rr.isNoCount());
+            r.setNoCountReason(rr.getNoCountReason());
+
+            r.setPlayer1Id(state.getPlayer1Id());
+            if (rr.getPlayer1Answer() != null) {
+                r.setPlayer1Answer(rr.getPlayer1Answer().getAnswer());
+                r.setPlayer1Correct(rr.getPlayer1Answer().isCorrect());
+                r.setPlayer1ResponseTimeMs(rr.getPlayer1Answer().getResponseTimeMs());
+            }
+
+            r.setPlayer2Id(state.getPlayer2Id());
+            if (rr.getPlayer2Answer() != null) {
+                r.setPlayer2Answer(rr.getPlayer2Answer().getAnswer());
+                r.setPlayer2Correct(rr.getPlayer2Answer().isCorrect());
+                r.setPlayer2ResponseTimeMs(rr.getPlayer2Answer().getResponseTimeMs());
+            }
+
+            r.setPlayer1Wins(state.getPlayer1Wins());
+            r.setPlayer2Wins(state.getPlayer2Wins());
+            r.setMatchContinues(false);
+            responses.add(r);
+        }
+        return responses;
+    }
+
+    // ここから降参/切断用のフォールバック
+    if (outcomeReason == Result.OutcomeReason.surrender ||
+    outcomeReason == Result.OutcomeReason.disconnect) {
+
+    String p1Msg = buildFallbackAnswer(outcomeReason, state.getPlayer1Id(), loserId);
+    String p2Msg = buildFallbackAnswer(outcomeReason, state.getPlayer2Id(), loserId);
+
+    int round = 1;
+    for (Question q : state.getQuestions()) {
+        RoundResultResponse r = new RoundResultResponse();
+        r.setQuestionText(q.getText());
+
+        r.setRoundNumber(round++);
+        r.setQuestionId(q.getQuestionId());
+        r.setCorrectAnswer(BattleStateService.getCorrectAnswer(q));
+        r.setRoundWinnerId(null);
+        r.setNoCount(true);
+        r.setNoCountReason(outcomeReason.name());
+
+        r.setPlayer1Id(state.getPlayer1Id());
+        r.setPlayer1Answer(p1Msg);
+        r.setPlayer1Correct(false);
+        r.setPlayer1ResponseTimeMs(0);
+
+        r.setPlayer2Id(state.getPlayer2Id());
+        r.setPlayer2Answer(p2Msg);
+        r.setPlayer2Correct(false);
+        r.setPlayer2ResponseTimeMs(0);
+
+        r.setPlayer1Wins(state.getPlayer1Wins());
+        r.setPlayer2Wins(state.getPlayer2Wins());
+        r.setMatchContinues(false);
+        responses.add(r);
+    }
+}
+
+
+    return responses;
+}
+
 
     /**
      * Resultレコードを更新
@@ -1026,4 +1125,19 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
 
         return finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
     }
+    private String buildFallbackAnswer(Result.OutcomeReason reason, Long playerId, Long loserId) {
+    boolean isLoser = playerId != null && playerId.equals(loserId);
+    if (reason == Result.OutcomeReason.surrender) {
+        return isLoser
+            ? "あなたが降参したため回答を表示できません"
+            : "相手が降参したため回答を表示できません";
+    }
+    if (reason == Result.OutcomeReason.disconnect) {
+        return isLoser
+            ? "あなたが切断したため回答を表示できません"
+            : "相手が切断したため回答を表示できません";
+    }
+    return "回答を表示できません";
+}
+
 }

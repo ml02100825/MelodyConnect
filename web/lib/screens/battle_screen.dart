@@ -45,6 +45,9 @@ class _BattleScreenState extends State<BattleScreen>
   static const double _normalSpeed = 1.0;
   static const double _slowSpeed = 0.75;
 
+
+
+
   // WebSocket
   StompClient? _stompClient;
   Timer? _reconnectTimer;
@@ -389,6 +392,8 @@ class _BattleScreenState extends State<BattleScreen>
 
     final questionData = data['question'];
     if (questionData == null) return;
+   
+
 
     setState(() {
       _currentQuestion = BattleQuestion.fromJson(questionData);
@@ -1887,9 +1892,14 @@ class _BattleScreenState extends State<BattleScreen>
     final myCorrect = isPlayer1 ? round.player1Correct : round.player2Correct;
     final opponentAnswer = isPlayer1 ? round.player2Answer : round.player1Answer;
     final opponentCorrect = isPlayer1 ? round.player2Correct : round.player1Correct;
+    final questionText = (round.questionText != null && round.questionText!.isNotEmpty)
+    ? round.questionText!
+    : '問題文を取得できません';
+
 
     // 自分が勝ったかどうか
     final isMyWin = round.roundWinnerId == _myUserId;
+
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1935,37 +1945,49 @@ class _BattleScreenState extends State<BattleScreen>
           'Round $number',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: round.isNoCount
-            ? Text(
-                round.noCountReasonText,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                ),
-              )
-            : null,
-        trailing: IconButton(
-          icon: const Icon(
-            Icons.flag,
-            color: Colors.red,
+        
+
+          subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (round.isNoCount)
+            Text(
+              round.noCountReasonText,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+          Text(
+            questionText,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 12,
+            ),
           ),
-          onPressed: _myUserId != null && round.questionId != null
-              ? () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ReportScreen(
-                        reportType: 'QUESTION',
-                        targetId: round.questionId!,
-                        targetDisplayText: 'Question #${round.questionId}',
-                        userName: _myPlayer?.username ?? _myUsername ?? 'User',
-                        userId: _myUserId!,
-                      ),
+        ],
+      ),
+
+        trailing: IconButton(
+        icon: const Icon(Icons.flag, color: Colors.red),
+        onPressed: _myUserId != null && round.questionId != null
+            ? () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ReportScreen(
+                      reportType: 'QUESTION',
+                      targetId: round.questionId!,
+                      targetDisplayText: questionText, // ← ここを問題文に
+                      userName: _myPlayer?.username ?? _myUsername ?? 'User',
+                      userId: _myUserId!,
                     ),
-                  );
-                }
-              : null,
-        ),
+                  ),
+                );
+              }
+            : null,
+      ),
+
         children: [
           Padding(
             padding: const EdgeInsets.all(16),

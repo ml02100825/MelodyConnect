@@ -448,11 +448,19 @@ class QuizResultScreen extends StatelessWidget {
   }
 
   void _goToVocabulary(BuildContext context) {
-    // TODO: 単語帳画面へ遷移
+  // 既にuserIdが渡っている前提
+  if (userId == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('単語帳機能は準備中です')),
+      const SnackBar(content: Text('ユーザー情報が取得できませんでした')),
     );
+    return;
   }
+  Navigator.pushNamed(
+    context,
+    '/vocabulary?userId=$userId',
+  );
+}
+
 
   void _retryQuiz(BuildContext context) {
     // ホーム画面に戻る（そこから再挑戦）
