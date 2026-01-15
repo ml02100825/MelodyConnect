@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
     indexes = {
         @Index(name = "idx_vocabulary_report_vocabulary_id", columnList = "vocabulary_id"),
         @Index(name = "idx_vocabulary_report_user_id", columnList = "user_id")
+    },
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_vocabulary_report_user_vocabulary", columnNames = {"user_id", "vocabulary_id"})
     }
 )
 public class VocabularyReport {

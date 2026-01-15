@@ -5,6 +5,7 @@ import '../models/vocabulary_model.dart';
 import '../services/vocabulary_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'word_list_screen.dart';
+import 'report_screen.dart';
 
 class VocabularyScreen extends StatefulWidget {
   final int userId;
@@ -774,6 +775,27 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                       onPressed: () {
                         _updateFavorite(vocab);
                         Navigator.pop(context);
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.flag,
+                        color: Colors.red,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ReportScreen(
+                              reportType: 'VOCABULARY',
+                              targetId: vocab.userVocabId,
+                              targetDisplayText: vocab.foreign,
+                              userName: 'User', // TODO: 実際のユーザー名を取得
+                              userId: widget.userId,
+                            ),
+                          ),
+                        );
                       },
                     ),
                   ],
