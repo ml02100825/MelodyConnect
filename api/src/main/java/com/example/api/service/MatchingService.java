@@ -203,7 +203,13 @@ public class MatchingService {
             long waitTime = player1.getWaitTimeSeconds();
 
             // 待機時間に応じたレーティング差の許容範囲を決定
-            int allowedDiff = waitTime >= 90 ? 200 : 150;
+            int allowedDiff;
+            if (waitTime >= 15) {
+                allowedDiff = 200;
+            } else {
+                allowedDiff = 150;
+            }
+
 
             // logger.debug("プレイヤー検索: userId={}, rating={}, 待機時間={}秒, 許容レート差={}",
             //         player1.getUserId(), player1.getRating(), waitTime, allowedDiff);
