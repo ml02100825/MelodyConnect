@@ -55,6 +55,66 @@ class _OtherScreenState extends State<OtherScreen> {
     }
   }
 
+  // 退会確認ダイアログ（OtherScreen から直接実行する）
+  void _confirmWithdraw() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('本当に退会しますか？'),
+        content: const Text(
+          '退会すると今までの履歴や\nサブスクリプションの情報が\n閲覧できなくなります。\n退会する場合は退会するを押してください',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('戻る'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _performWithdraw();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('退会する', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 退会処理（アカウント削除またはログアウト）
+  Future<void> _performWithdraw() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (userId != null && accessToken != null) {
+        // バックエンドに専用の削除 API があればそちらを実装してください。
+        // 現状は logout を呼んでセッションを切断します。
+        await _authApiService.logout(userId, accessToken);
+      }
+
+      await _tokenStorage.clearAuthData();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('退会に失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -193,6 +253,13 @@ class _OtherScreenState extends State<OtherScreen> {
                   MaterialPageRoute(builder: (_) => const ContactScreen()),
                 );
               },
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.delete_outline,
+              label: '退会',
+              onTap: _confirmWithdraw,
             ),
           ],
         ),
