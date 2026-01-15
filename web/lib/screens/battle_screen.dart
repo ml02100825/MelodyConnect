@@ -7,6 +7,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../services/token_storage_service.dart';
 import '../services/room_api_service.dart';
 import '../screens/home_screen.dart';
+import '../screens/report_screen.dart';
 import '../models/battle_models.dart';
 
 /// APIのベースURL
@@ -43,6 +44,9 @@ class _BattleScreenState extends State<BattleScreen>
   double _playbackSpeed = 1.0;
   static const double _normalSpeed = 1.0;
   static const double _slowSpeed = 0.75;
+
+
+
 
   // WebSocket
   StompClient? _stompClient;
@@ -388,6 +392,8 @@ class _BattleScreenState extends State<BattleScreen>
 
     final questionData = data['question'];
     if (questionData == null) return;
+   
+
 
     setState(() {
       _currentQuestion = BattleQuestion.fromJson(questionData);
@@ -1630,7 +1636,27 @@ class _BattleScreenState extends State<BattleScreen>
                 ),
               ),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
+
+            // 問題一覧ボタン
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: result.rounds.isNotEmpty
+                    ? () => _showBattleQuestionDetails(context, result)
+                    : null,
+                icon: const Icon(Icons.list_alt),
+                label: const Text('問題一覧を見る'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+
+              const SizedBox(height: 24),
 
             // ボタン群（3つ横並び、または縦並び）
             Wrap(
@@ -1781,5 +1807,252 @@ class _BattleScreenState extends State<BattleScreen>
       _isLeaving = true;
       _errorMessage = null;
     });
+  }
+
+  /// 問題詳細をボトムシートで表示
+  void _showBattleQuestionDetails(BuildContext context, BattleResult result) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (context, scrollController) {
+          return Column(
+            children: [
+              // ハンドル
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // ヘッダー
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '問題一覧',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${result.myScore}/${result.rounds.length} 勝利',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(),
+              // 問題リスト
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: result.rounds.length,
+                  itemBuilder: (context, index) {
+                    return _buildBattleQuestionResultCard(
+                      context,
+                      result.rounds[index],
+                      index + 1,
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// バトル問題結果カード（通報ボタン付き）
+  Widget _buildBattleQuestionResultCard(BuildContext context, RoundResult round, int number) {
+    // 自分がPlayer1かPlayer2かを判定
+    final isPlayer1 = _battleInfo?.user1Id == _myUserId;
+
+    // 自分と相手の回答と正誤を取得
+    final myAnswer = isPlayer1 ? round.player1Answer : round.player2Answer;
+    final myCorrect = isPlayer1 ? round.player1Correct : round.player2Correct;
+    final opponentAnswer = isPlayer1 ? round.player2Answer : round.player1Answer;
+    final opponentCorrect = isPlayer1 ? round.player2Correct : round.player1Correct;
+    final questionText = (round.questionText != null && round.questionText!.isNotEmpty)
+    ? round.questionText!
+    : '問題文を取得できません';
+
+
+    // 自分が勝ったかどうか
+    final isMyWin = round.roundWinnerId == _myUserId;
+
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: round.isNoCount
+              ? Colors.grey.shade200
+              : isMyWin
+                  ? Colors.green.shade200
+                  : Colors.red.shade200,
+          width: 1,
+        ),
+      ),
+      child: ExpansionTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: round.isNoCount
+                ? Colors.grey.shade100
+                : isMyWin
+                    ? Colors.green.shade100
+                    : Colors.red.shade100,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Icon(
+              round.isNoCount
+                  ? Icons.remove
+                  : isMyWin
+                      ? Icons.check
+                      : Icons.close,
+              color: round.isNoCount
+                  ? Colors.grey
+                  : isMyWin
+                      ? Colors.green
+                      : Colors.red,
+            ),
+          ),
+        ),
+        title: Text(
+          'Round $number',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        
+
+          subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (round.isNoCount)
+            Text(
+              round.noCountReasonText,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+          Text(
+            questionText,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+
+        trailing: IconButton(
+        icon: const Icon(Icons.flag, color: Colors.red),
+        onPressed: _myUserId != null && round.questionId != null
+            ? () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ReportScreen(
+                      reportType: 'QUESTION',
+                      targetId: round.questionId!,
+                      targetDisplayText: questionText, // ← ここを問題文に
+                      userName: _myPlayer?.username ?? _myUsername ?? 'User',
+                      userId: _myUserId!,
+                    ),
+                  ),
+                );
+              }
+            : null,
+      ),
+
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 正解
+                _buildDetailRow(
+                  '正解',
+                  round.correctAnswer,
+                  color: Colors.green,
+                ),
+                const SizedBox(height: 12),
+
+                // 自分の回答
+                _buildDetailRow(
+                  'あなたの回答',
+                  myAnswer ?? '（未回答）',
+                  color: myCorrect ? Colors.green : Colors.red,
+                ),
+                const SizedBox(height: 12),
+
+                // 相手の回答
+                _buildDetailRow(
+                  '相手の回答',
+                  opponentAnswer ?? '（未回答）',
+                  color: opponentCorrect ? Colors.green : Colors.grey,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? color}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

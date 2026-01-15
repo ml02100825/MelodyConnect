@@ -5,6 +5,7 @@ import '../models/vocabulary_model.dart';
 import '../services/vocabulary_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'word_list_screen.dart';
+import 'report_screen.dart';
 
 class VocabularyScreen extends StatefulWidget {
   final int userId;
@@ -23,6 +24,7 @@ class VocabularyScreen extends StatefulWidget {
 class _VocabularyScreenState extends State<VocabularyScreen> {
   final VocabularyApiService _apiService = VocabularyApiService();
   final TokenStorageService _tokenStorage = TokenStorageService();
+  String? _userName;
   
   // サブスク状態（テスト用）
   bool isSubscribed = false; // falseでサブスク未登録をテスト
@@ -42,7 +44,15 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserName();
     _loadData();
+  }
+   Future<void> _loadUserName() async {
+    final name = await _tokenStorage.getUsername();
+    if (!mounted) return;
+    setState(() {
+     _userName = name;
+    });
   }
 
   Future<void> _loadData() async {
@@ -774,6 +784,27 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                       onPressed: () {
                         _updateFavorite(vocab);
                         Navigator.pop(context);
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.flag,
+                        color: Colors.red,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ReportScreen(
+                              reportType: 'VOCABULARY',
+                              targetId: vocab.userVocabId,
+                              targetDisplayText: vocab.foreign,
+                              userName: _userName ?? 'User',
+                              userId: widget.userId,
+                            ),
+                          ),
+                        );
                       },
                     ),
                   ],

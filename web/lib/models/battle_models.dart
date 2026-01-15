@@ -139,6 +139,9 @@ class RoundResult {
   // 試合継続フラグ
   final bool matchContinues;
 
+  // 問題文
+  final String? questionText;
+
   RoundResult({
     required this.roundNumber,
     this.questionId,
@@ -157,6 +160,7 @@ class RoundResult {
     required this.player1Wins,
     required this.player2Wins,
     required this.matchContinues,
+    this.questionText,
   });
 
   factory RoundResult.fromJson(Map<String, dynamic> json) {
@@ -178,6 +182,7 @@ class RoundResult {
       player1Wins: json['player1Wins'] ?? 0,
       player2Wins: json['player2Wins'] ?? 0,
       matchContinues: json['matchContinues'] ?? true,
+    questionText: json['questionText'],
     );
   }
 
@@ -211,6 +216,10 @@ class BattleResult {
   final List<RoundResult> rounds;
   final String? opponentSurrendered; // 相手が降参した場合のメッセージ
 
+// ...
+
+
+
   BattleResult({
     required this.matchUuid,
     required this.result,
@@ -221,6 +230,7 @@ class BattleResult {
     required this.newRate,
     required this.rounds,
     this.opponentSurrendered,
+
   });
 
   factory BattleResult.fromJson(Map<String, dynamic> json) {
