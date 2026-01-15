@@ -24,6 +24,7 @@ class VocabularyScreen extends StatefulWidget {
 class _VocabularyScreenState extends State<VocabularyScreen> {
   final VocabularyApiService _apiService = VocabularyApiService();
   final TokenStorageService _tokenStorage = TokenStorageService();
+  String? _userName;
   
   // サブスク状態（テスト用）
   bool isSubscribed = false; // falseでサブスク未登録をテスト
@@ -43,7 +44,15 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserName();
     _loadData();
+  }
+   Future<void> _loadUserName() async {
+    final name = await _tokenStorage.getUsername();
+    if (!mounted) return;
+    setState(() {
+     _userName = name;
+    });
   }
 
   Future<void> _loadData() async {
@@ -791,7 +800,7 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                               reportType: 'VOCABULARY',
                               targetId: vocab.userVocabId,
                               targetDisplayText: vocab.foreign,
-                              userName: 'User', // TODO: 実際のユーザー名を取得
+                              userName: _userName ?? 'User',
                               userId: widget.userId,
                             ),
                           ),

@@ -1958,7 +1958,7 @@ class _BattleScreenState extends State<BattleScreen>
                         reportType: 'QUESTION',
                         targetId: round.questionId!,
                         targetDisplayText: 'Question #${round.questionId}',
-                        userName: _myUsername ?? 'User',
+                        userName: _myPlayer?.username ?? _myUsername ?? 'User',
                         userId: _myUserId!,
                       ),
                     ),
