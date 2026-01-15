@@ -34,8 +34,6 @@ public class VocabularyReport {
     @Column(name = "added_at", nullable = false)
     private LocalDateTime addedAt;
 
-    protected VocabularyReport() {}
-
     @PrePersist
     public void prePersist() {
         if (this.addedAt == null) {

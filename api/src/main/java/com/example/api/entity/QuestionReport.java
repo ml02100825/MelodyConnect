@@ -34,8 +34,6 @@ public class QuestionReport {
     @Column(name = "added_at", nullable = false)
     private LocalDateTime addedAt;
 
-    protected QuestionReport() {}
-
     @PrePersist
     public void prePersist() {
         if (this.addedAt == null) {
