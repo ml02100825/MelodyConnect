@@ -84,7 +84,8 @@ public class SecurityConfig {
                         .requestMatchers("/hello").permitAll()
                         .requestMatchers("/samples/**").permitAll()
                         .requestMatchers("/api/dev/**").permitAll() // 開発用エンドポイント
-                        .requestMatchers("/api/vocabulary/**").permitAll() // ★追加: 単語帳API
+                        .requestMatchers("/api/vocabulary/**").permitAll() // 単語帳API
+                        .requestMatchers("/api/v1/rankings/**").permitAll() // ★追加: ランキングAPI（開発用）
                         // その他のエンドポイントは認証が必要
                         .anyRequest().authenticated()
                 )
