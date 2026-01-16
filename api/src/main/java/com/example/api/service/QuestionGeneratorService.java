@@ -535,6 +535,8 @@ public class QuestionGeneratorService {
                 .example_translate(wordInfo.getExampleTranslate())
                 .audio_url(wordInfo.getAudioUrl())
                 .language(language)  // ユーザーの学習言語を設定
+                .isActive(true)
+                .isDeleted(false)
                 .build();
 
             vocabularyRepository.save(vocab);
