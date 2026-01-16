@@ -159,9 +159,9 @@ public class MatchingService {
 
         if (!result) {
             // 既にキューに参加している場合
-            // 注: この場合、ライフは既に消費されているが、既存の参加を優先
-            logger.warn("既にキューに参加中: userId={}", userId);
-            return JoinQueueResult.alreadyInQueue();
+            // エラーではなく成功として扱う（画面リロードや再接続時の重複参加を許容）
+            logger.info("既にキューに参加中（成功として扱う）: userId={}", userId);
+            return JoinQueueResult.success();
         }
 
         logger.info("キュー参加成功: userId={}", userId);
@@ -246,14 +246,19 @@ public class MatchingService {
             MatchingQueueService.QueuedPlayer player1 = queue.get(i);
             long waitTime = player1.getWaitTimeSeconds();
 
-            // 待機時間に応じたレーティング差の許容範囲を決定
+            // 待機時間に応じたレーティング差の許容範囲を段階的に拡大
             int allowedDiff;
-            if (waitTime >= 15) {
-                allowedDiff = 200;
+            if (waitTime >= 30) {
+                allowedDiff = 500;  // 30秒以上: 500
+            } else if (waitTime >= 20) {
+                allowedDiff = 400;  // 20-30秒: 400
+            } else if (waitTime >= 10) {
+                allowedDiff = 300;  // 10-20秒: 300
+            } else if (waitTime >= 5) {
+                allowedDiff = 250;  // 5-10秒: 250
             } else {
-                allowedDiff = 150;
+                allowedDiff = 200;  // 0-5秒: 200
             }
-
 
             // logger.debug("プレイヤー検索: userId={}, rating={}, 待機時間={}秒, 許容レート差={}",
             //         player1.getUserId(), player1.getRating(), waitTime, allowedDiff);
