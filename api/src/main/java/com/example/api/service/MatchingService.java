@@ -248,12 +248,10 @@ public class MatchingService {
 
             // 待機時間に応じたレーティング差の許容範囲を段階的に拡大（最高300）
             int allowedDiff;
-            if (waitTime >= 15) {
-                allowedDiff = 300;  // 15秒以上: 300（最大）
-            } else if (waitTime >= 10) {
+            if (waitTime >= 30) {
+                allowedDiff = 250;  // 15秒以上: 300（最大）
+            } else if (waitTime >= 15) {
                 allowedDiff = 250;  // 10-15秒: 250
-            } else if (waitTime >= 5) {
-                allowedDiff = 200;  // 5-10秒: 200
             } else {
                 allowedDiff = 150;  // 0-5秒: 150
             }
