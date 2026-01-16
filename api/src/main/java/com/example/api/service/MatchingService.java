@@ -246,18 +246,16 @@ public class MatchingService {
             MatchingQueueService.QueuedPlayer player1 = queue.get(i);
             long waitTime = player1.getWaitTimeSeconds();
 
-            // 待機時間に応じたレーティング差の許容範囲を段階的に拡大
+            // 待機時間に応じたレーティング差の許容範囲を段階的に拡大（最高300）
             int allowedDiff;
-            if (waitTime >= 30) {
-                allowedDiff = 500;  // 30秒以上: 500
-            } else if (waitTime >= 20) {
-                allowedDiff = 400;  // 20-30秒: 400
+            if (waitTime >= 15) {
+                allowedDiff = 300;  // 15秒以上: 300（最大）
             } else if (waitTime >= 10) {
-                allowedDiff = 300;  // 10-20秒: 300
+                allowedDiff = 250;  // 10-15秒: 250
             } else if (waitTime >= 5) {
-                allowedDiff = 250;  // 5-10秒: 250
+                allowedDiff = 200;  // 5-10秒: 200
             } else {
-                allowedDiff = 200;  // 0-5秒: 200
+                allowedDiff = 150;  // 0-5秒: 150
             }
 
             // logger.debug("プレイヤー検索: userId={}, rating={}, 待機時間={}秒, 許容レート差={}",
