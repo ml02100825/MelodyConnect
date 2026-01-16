@@ -49,7 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         "/samples/",
         "/api/dev/",
         "/api/vocabulary/",
-        "/api/v1/rankings/" // ★ランキングAPI
+        "/api/v1/rankings/"
     );
 
     @Override

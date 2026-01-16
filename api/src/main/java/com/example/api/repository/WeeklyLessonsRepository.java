@@ -12,41 +12,47 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 週間学習リポジトリインターフェース
- * WeeklyLessonsエンティティのデータベース操作を提供します
- */
 @Repository
 public interface WeeklyLessonsRepository extends JpaRepository<WeeklyLessons, Long> {
 
+    // (既存のメソッド群... findByUserなどはそのまま)
     List<WeeklyLessons> findByUser(User user);
-
     List<WeeklyLessons> findByUserAndWeekFlag(User user, Boolean weekFlag);
-
     @Query("SELECT w FROM WeeklyLessons w WHERE w.user = :user ORDER BY w.createdAt DESC")
     Optional<WeeklyLessons> findLatestByUser(@Param("user") User user);
-
     @Query("UPDATE WeeklyLessons w SET w.weekFlag = false WHERE w.createdAt < :cutoffDate AND w.weekFlag = true")
     void updateWeekFlagForOldRecords(@Param("cutoffDate") LocalDateTime cutoffDate);
-
-    // ===== ランキング用 =====
-
-    /**
-     * 最新のweekFlagを取得
-     */
     @Query("SELECT MAX(w.weekFlag) FROM WeeklyLessons w")
     Integer findLatestWeekFlag();
-
-    /**
-     * 指定されたweekFlagでレッスン数の多い順に取得
-     */
-    List<WeeklyLessons> findByWeekFlagOrderByLessonsNumDesc(
-            Integer weekFlag,
-            Pageable pageable
-    );
-
-    /**
-     * weekFlagがtrueのレコードをレッスン数の多い順に取得
-     */
+    List<WeeklyLessons> findByWeekFlagOrderByLessonsNumDesc(Integer weekFlag, Pageable pageable);
     List<WeeklyLessons> findByWeekFlagTrueOrderByLessonsNumDesc(Pageable pageable);
+
+    // ==========================================
+    //  ★修正箇所 (ランキング用クエリ)
+    // ==========================================
+
+    /**
+     * 今週のランキング（全体）
+     * JOINを明示し、GROUP BYの対象をエイリアス(u)にすることで結合漏れやSQLエラーを防ぐ
+     */
+    @Query("SELECT u, SUM(w.lessonsNum) as total " +
+           "FROM WeeklyLessons w " +
+           "JOIN w.user u " + 
+           "WHERE w.weekFlag = true " +
+           "GROUP BY u " +
+           "ORDER BY total DESC")
+    List<Object[]> findCurrentWeeklyRanking(Pageable pageable);
+
+    /**
+     * 今週のランキング（フレンドのみ）
+     */
+    @Query("SELECT u, SUM(w.lessonsNum) as total " +
+           "FROM WeeklyLessons w " +
+           "JOIN w.user u " + 
+           "WHERE w.weekFlag = true " +
+           "AND u.id IN :userIds " +
+           "GROUP BY u " +
+           "ORDER BY total DESC")
+    List<Object[]> findCurrentFriendWeeklyRanking(@Param("userIds") List<Long> userIds,
+                                                  Pageable pageable);
 }

@@ -1,225 +1,132 @@
 package com.example.api.service;
 
-import com.example.api.dto.RankingEntryDto;
-import com.example.api.dto.SeasonRankingResponse;
-import com.example.api.dto.WeeklyRankingResponse;
-import com.example.api.dto.UserRanking;
-import com.example.api.entity.Season;
-import com.example.api.entity.WeeklyLessons;
+import com.example.api.dto.RankingDto;
+import com.example.api.entity.Rate;
+import com.example.api.entity.User;
 import com.example.api.repository.FriendRepository;
-import com.example.api.repository.SeasonRepository;
-import com.example.api.repository.UserRankingRepository;
-import com.example.api.repository.UserRateRepository;
+import com.example.api.repository.RateRepository;
 import com.example.api.repository.WeeklyLessonsRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-/**
- * RankingService
- * rate（user_rates）テーブルを唯一の正としてランキングを生成
- */
 @Service
+@RequiredArgsConstructor
 public class RankingService {
 
-    private final FriendRepository friendRepository;
-    private final UserRankingRepository userRankingRepository;
-    private final SeasonRepository seasonRepository;
-    private final UserRateRepository userRateRepository;
+    private final RateRepository rateRepository;
     private final WeeklyLessonsRepository weeklyLessonsRepository;
+    private final FriendRepository friendRepository;
 
-    public RankingService(
-            FriendRepository friendRepository,
-            UserRankingRepository userRankingRepository,
-            SeasonRepository seasonRepository,
-            UserRateRepository userRateRepository,
-            WeeklyLessonsRepository weeklyLessonsRepository
-    ) {
-        this.friendRepository = friendRepository;
-        this.userRankingRepository = userRankingRepository;
-        this.seasonRepository = seasonRepository;
-        this.userRateRepository = userRateRepository;
-        this.weeklyLessonsRepository = weeklyLessonsRepository;
+    /**
+     * シーズンランキングを取得
+     */
+    @Transactional(readOnly = true)
+    public RankingDto.SeasonResponse getSeasonRanking(String seasonName, int limit, Long currentUserId, boolean friendsOnly) {
+        
+        Integer seasonInt = parseSeason(seasonName);
+        Set<Long> friendIds = friendRepository.findFriendUserIds(currentUserId);
+        
+        List<Rate> rates;
+        Pageable pageable = PageRequest.of(0, limit);
+
+        if (friendsOnly) {
+            List<Long> targetIds = new ArrayList<>(friendIds);
+            targetIds.add(currentUserId);
+            // フレンド限定（自分含む）
+            rates = rateRepository.findFriendRankingBySeason(seasonInt, targetIds, pageable);
+        } else {
+            // 全体
+            rates = rateRepository.findRankingBySeason(seasonInt, pageable);
+        }
+
+        List<RankingDto.Entry> entries = new ArrayList<>();
+        int rank = 1;
+        for (Rate r : rates) {
+            entries.add(RankingDto.Entry.builder()
+                    .rank(rank++)
+                    .name(r.getUser().getUsername())
+                    .rate(r.getRate())
+                    .isMe(r.getUser().getId().equals(currentUserId))
+                    .isFriend(friendIds.contains(r.getUser().getId()))
+                    .avatarUrl(r.getUser().getImageUrl())
+                    .build());
+        }
+
+        // シーズン3を仮のアクティブシーズンとする
+        boolean isActive = (seasonInt == 3); 
+
+        return RankingDto.SeasonResponse.builder()
+                .entries(entries)
+                .isActive(isActive)
+                .lastUpdated(LocalDateTime.now())
+                .build();
     }
 
+    /**
+     * 週間ランキングを取得
+     * (日付範囲ではなく、DB上の weekFlag=true のデータを集計します)
+     */
     @Transactional(readOnly = true)
-    public SeasonRankingResponse getSeasonRanking(
-            String seasonName,
-            int limit,
-            Long currentUserId,
-            boolean friendsOnly
-    ) {
-        Season season = seasonRepository.findByName(seasonName)
-                .orElseThrow(() -> new RuntimeException("season not found"));
+    public RankingDto.WeeklyResponse getWeeklyRanking(LocalDateTime weekStart, int limit, Long currentUserId, boolean friendsOnly) {
+        
+        Set<Long> friendIds = friendRepository.findFriendUserIds(currentUserId);
+        Pageable pageable = PageRequest.of(0, limit);
 
-        // ★ rate テーブルから直接取得
-        List<Object[]> rows =
-                userRateRepository.findSeasonRanking(season.getId());
+        List<Object[]> results;
 
-        // userId 収集
-        Set<Long> userIds = new HashSet<>();
-        for (Object[] r : rows) {
-            userIds.add(((Number) r[0]).longValue());
+        if (friendsOnly) {
+            List<Long> targetIds = new ArrayList<>(friendIds);
+            targetIds.add(currentUserId);
+            // フレンド + 自分 の weekFlag=true を検索
+            results = weeklyLessonsRepository.findCurrentFriendWeeklyRanking(targetIds, pageable);
+        } else {
+            // 全体の weekFlag=true を検索
+            results = weeklyLessonsRepository.findCurrentWeeklyRanking(pageable);
         }
 
-        // 名前取得
-        Map<Long, String> nameMap = new HashMap<>();
-        if (!userIds.isEmpty()) {
-            for (UserRanking u : userRankingRepository.findByUserIdIn(userIds)) {
-                nameMap.put(u.getUserId(), u.getUsername());
-            }
-        }
-
-        // フレンド制限
-        Set<Long> friendSet = Collections.emptySet();
-        if (friendsOnly && currentUserId != null) {
-            friendSet = new HashSet<>(
-                    friendRepository.findAcceptedFriendIdsByUserId(currentUserId)
-            );
-            friendSet.add(currentUserId);
-        }
-
-        // エントリー生成
-        List<RankingEntryDto> entries = new ArrayList<>();
+        List<RankingDto.Entry> entries = new ArrayList<>();
         int rank = 1;
 
-        for (Object[] r : rows) {
-            Long userId = ((Number) r[0]).longValue();
-            Integer rate = ((Number) r[1]).intValue();
+        for (Object[] row : results) {
+            User user = (User) row[0];
+            Long totalLessons = (Long) row[1]; // SUMの結果
 
-            if (friendsOnly && !friendSet.contains(userId)) continue;
-
-            RankingEntryDto dto = new RankingEntryDto();
-            dto.setRank(rank++);
-            dto.setUserId(userId);
-            dto.setName(nameMap.getOrDefault(userId, "User" + userId));
-            dto.setRate(rate); // ★ setRate に変更（RankingEntryDto に合わせる）
-            dto.setMe(currentUserId != null && currentUserId.equals(userId));
-            dto.setFriend(
-                    currentUserId != null &&
-                    friendSet.contains(userId) &&
-                    !dto.isMe()
-            );
-
-            entries.add(dto);
-            if (entries.size() >= limit) break;
+            entries.add(RankingDto.Entry.builder()
+                    .rank(rank++)
+                    .name(user.getUsername())
+                    .count(totalLessons != null ? totalLessons : 0)
+                    .isMe(user.getId().equals(currentUserId))
+                    .isFriend(friendIds.contains(user.getId()))
+                    .avatarUrl(user.getImageUrl())
+                    .build());
         }
 
-        SeasonRankingResponse res = new SeasonRankingResponse();
-        res.setSeason(seasonName);
-        res.setActive(season.isActive());
-        res.setEntries(entries);
-
-        // 自分の順位（全体基準）
-        if (currentUserId != null) {
-            int myRank = -1;
-            int r = 1;
-            for (Object[] row : rows) {
-                if (((Number) row[0]).longValue() == currentUserId.longValue()) {
-                    myRank = r;
-                    break;
-                }
-                r++;
-            }
-            res.setMyRank(myRank);
-        }
-
-        return res;
+        return RankingDto.WeeklyResponse.builder()
+                .entries(entries)
+                .build();
     }
 
-    @Transactional(readOnly = true)
-    public WeeklyRankingResponse getWeeklyRanking(
-            Integer weekFlag,
-            int limit,
-            Long currentUserId,
-            boolean friendsOnly
-    ) {
-        // weekFlag が null の場合は最新週を取得
-        if (weekFlag == null) {
-            weekFlag = weeklyLessonsRepository.findLatestWeekFlag();
-            if (weekFlag == null) {
-                WeeklyRankingResponse empty = new WeeklyRankingResponse();
-                empty.setEntries(List.of());
-                empty.setMyRank(-1);
-                return empty;
+    // "シーズンX" から数値を抽出するヘルパー
+    private Integer parseSeason(String seasonName) {
+        if (seasonName == null) return 3;
+        Matcher m = Pattern.compile(".*?(\\d+)").matcher(seasonName);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                return 3;
             }
         }
-
-        // 指定された週のレッスンデータを取得
-        List<WeeklyLessons> list = weeklyLessonsRepository
-                .findByWeekFlagOrderByLessonsNumDesc(weekFlag, PageRequest.of(0, 1000));
-
-        // userId 収集
-        Set<Long> userIds = new HashSet<>();
-        for (WeeklyLessons wl : list) {
-            if (wl.getUser() != null && wl.getUser().getId() != null) {
-                userIds.add(wl.getUser().getId());
-            }
-        }
-
-        // 名前取得
-        Map<Long, String> nameMap = new HashMap<>();
-        if (!userIds.isEmpty()) {
-            for (UserRanking u : userRankingRepository.findByUserIdIn(userIds)) {
-                nameMap.put(u.getUserId(), u.getUsername());
-            }
-        }
-
-        // フレンド制限
-        Set<Long> friendSet = Collections.emptySet();
-        if (friendsOnly && currentUserId != null) {
-            friendSet = new HashSet<>(
-                    friendRepository.findAcceptedFriendIdsByUserId(currentUserId)
-            );
-            friendSet.add(currentUserId);
-        }
-
-        // エントリー生成
-        List<RankingEntryDto> entries = new ArrayList<>();
-        int rank = 1;
-
-        for (WeeklyLessons wl : list) {
-            Long userId = wl.getUser() != null ? wl.getUser().getId() : null;
-            if (userId == null) continue;
-
-            if (friendsOnly && !friendSet.contains(userId)) continue;
-
-            RankingEntryDto dto = new RankingEntryDto();
-            dto.setRank(rank++);
-            dto.setUserId(userId);
-            dto.setName(nameMap.getOrDefault(userId, "User" + userId));
-            dto.setRate(wl.getLessonsNum() != null ? wl.getLessonsNum() : 0);
-            dto.setMe(currentUserId != null && currentUserId.equals(userId));
-            dto.setFriend(
-                    currentUserId != null &&
-                    friendSet.contains(userId) &&
-                    !dto.isMe()
-            );
-
-            entries.add(dto);
-            if (entries.size() >= limit) break;
-        }
-
-        WeeklyRankingResponse res = new WeeklyRankingResponse();
-        res.setEntries(entries);
-
-        // 自分の順位（全体基準）
-        if (currentUserId != null) {
-            int myRank = -1;
-            int r = 1;
-            for (WeeklyLessons wl : list) {
-                Long userId = wl.getUser() != null ? wl.getUser().getId() : null;
-                if (userId != null && userId.equals(currentUserId)) {
-                    myRank = r;
-                    break;
-                }
-                r++;
-            }
-            res.setMyRank(myRank);
-        }
-
-        return res;
+        return 3;
     }
 }
