@@ -389,8 +389,14 @@ class _BattleScreenState extends State<BattleScreen>
     final questionData = data['question'];
     if (questionData == null) return;
 
+    final newQuestion = BattleQuestion.fromJson(questionData);
+
+    // 既に同じ問題が表示されている場合は、入力フィールドをクリアしない
+    // （重複メッセージ受信時に入力が消えるのを防ぐ）
+    final isSameQuestion = _currentQuestion?.questionId == newQuestion.questionId;
+
     setState(() {
-      _currentQuestion = BattleQuestion.fromJson(questionData);
+      _currentQuestion = newQuestion;
       _myWins = data['player1Wins'] ?? _myWins;
       _opponentWins = data['player2Wins'] ?? _opponentWins;
 
@@ -406,14 +412,19 @@ class _BattleScreenState extends State<BattleScreen>
       _isTimedOut = false;
       _waitingForOpponentNext = false;  // リセット
       _status = BattleStatus.answering;
-      _answerController.clear();
+
+      // 新しい問題の場合のみ入力フィールドをクリア
+      if (!isSameQuestion) {
+        _answerController.clear();
+      }
+
       // サーバー時刻に基づいて残り時間を計算（画面更新時もリセットされない）
       _remainingSeconds = _currentQuestion?.calculateRemainingSeconds()
           ?? _battleInfo?.roundTimeLimitSeconds
           ?? 90;
     });
 
-    // タイマー開始
+    // タイマー開始（同じ問題でもタイマーは再起動）
     _startRoundTimer();
   }
 
