@@ -542,6 +542,24 @@ public class RoomService {
     }
 
     /**
+     * 対戦終了後に待機状態へ戻す
+     * @param roomId ルームID
+     */
+    @Transactional
+    public void resetToWaitingAfterMatch(Long roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("部屋が存在しません"));
+
+        room.setStatus(Room.Status.WAITING);
+        room.setHost_ready(false);
+        room.setGuest_ready(false);
+
+        roomRepository.save(room);
+        clearVocabularyStatus(roomId);
+        logger.info("対戦終了後に待機状態へ戻しました: roomId={}", roomId);
+    }
+
+    /**
      * 単語帳閲覧状態を更新
      * @param roomId ルームID
      * @param userId ユーザーID
