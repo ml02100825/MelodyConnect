@@ -292,37 +292,38 @@ public class RoomWebSocketEventListener {
             // BattleServiceで対戦終了処理（切断による敗北）
             String matchUuid = battleStateService.getMatchUuidByRoomId(roomId);
             if (matchUuid != null) {
-                battleService.handleDisconnection(matchUuid, disconnectedUserId, winnerId);
+                BattleService.BattleResultDto result =
+                        battleService.handleDisconnection(matchUuid, disconnectedUserId, winnerId);
+                if (result != null) {
+                    Map<String, Object> winnerView = result.toPlayerView(result.getWinnerId());
+                    winnerView.put("type", "battle_result");
+
+                    Map<String, Object> loserView = result.toPlayerView(result.getLoserId());
+                    loserView.put("type", "battle_result");
+
+                    messagingTemplate.convertAndSend("/topic/battle/" + result.getWinnerId(), winnerView);
+                    messagingTemplate.convertAndSend("/topic/battle/" + result.getLoserId(), loserView);
+                }
             }
 
-            // ルームのステータスをFINISHEDに
-            roomService.finishMatch(roomId);
-
-            // 相手に通知
-            if (winnerId != null) {
+            if (disconnectedUserId.equals(hostId)) {
+                roomService.leaveRoom(roomId, hostId);
+                if (guestId != null) {
+                    Map<String, Object> notification = Map.of(
+                            "type", "room_canceled",
+                            "roomId", roomId,
+                            "message", "ホストが切断したため、部屋が解散されました"
+                    );
+                    messagingTemplate.convertAndSend("/topic/room/" + guestId, notification);
+                }
+            } else if (disconnectedUserId.equals(guestId)) {
+                roomService.leaveRoom(roomId, guestId);
                 Map<String, Object> notification = Map.of(
                         "type", "guest_left",
                         "roomId", roomId,
                         "message", "ゲストが切断しました"
                 );
                 messagingTemplate.convertAndSend("/topic/room/" + hostId, notification);
-            }
-
-            // ルーム画面向け通知
-            if (disconnectedUserId.equals(hostId) && guestId != null) {
-                Map<String, Object> roomNotification = Map.of(
-                        "type", "room_canceled",
-                        "roomId", roomId,
-                        "message", "ホストが切断したため、部屋が解散されました"
-                );
-                messagingTemplate.convertAndSend("/topic/room/" + guestId, roomNotification);
-            } else if (disconnectedUserId.equals(guestId) && hostId != null) {
-                Map<String, Object> roomNotification = Map.of(
-                        "type", "guest_left",
-                        "roomId", roomId,
-                        "message", "ゲストが切断しました"
-                );
-                messagingTemplate.convertAndSend("/topic/room/" + hostId, roomNotification);
             }
 
         } catch (Exception e) {
