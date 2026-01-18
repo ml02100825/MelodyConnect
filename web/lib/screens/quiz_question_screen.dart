@@ -107,6 +107,15 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
+        actions: [
+          TextButton(
+            onPressed: _showRetireDialog,
+            child: const Text(
+              'リタイア',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -702,5 +711,46 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         backgroundColor: Colors.red,
       ),
     );
+  }
+
+  void _showRetireDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('リタイア'),
+        content: const Text('クイズを終了しますか？\n残りの問題は不正解として処理されます。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _retire();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('リタイア'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _retire() async {
+    // 残りの問題を全て不正解として追加
+    for (int i = _currentIndex; i < widget.questions.length; i++) {
+      // 現在の問題で既に回答済みの場合はスキップ
+      if (i == _currentIndex && _showResult) continue;
+
+      _answers.add(AnswerResult(
+        questionId: widget.questions[i].questionId,
+        userAnswer: '',
+        isCorrect: false,
+      ));
+    }
+
+    // 結果画面へ遷移
+    await _completeQuiz();
   }
 }

@@ -45,9 +45,11 @@ class PresenceWebSocketService {
           'Sec-WebSocket-Protocol': 'v12.stomp',
         },
         onConnect: (frame) {
+          _isConnecting = false;
           _startHeartbeat();
         },
         onWebSocketError: (dynamic error) {
+          _isConnecting = false;
           debugPrint('Presence WebSocket Error: $error');
         },
         onStompError: (frame) {

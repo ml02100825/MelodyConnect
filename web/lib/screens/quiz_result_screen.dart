@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/quiz_models.dart';
+import '../services/token_storage_service.dart';
+import 'vocabulary_screen.dart';
 
 class QuizResultScreen extends StatelessWidget {
   final QuizCompleteResponse result;
@@ -419,11 +421,27 @@ class QuizResultScreen extends StatelessWidget {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  void _goToVocabulary(BuildContext context) {
-    // TODO: 単語帳画面へ遷移
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('単語帳機能は準備中です')),
-    );
+  void _goToVocabulary(BuildContext context) async {
+    final tokenStorage = TokenStorageService();
+    final userId = await tokenStorage.getUserId();
+
+    if (userId == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ユーザー情報を取得できませんでした')),
+        );
+      }
+      return;
+    }
+
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VocabularyScreen(userId: userId),
+        ),
+      );
+    }
   }
 
   void _retryQuiz(BuildContext context) {
