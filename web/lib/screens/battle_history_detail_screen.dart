@@ -114,8 +114,24 @@ class _BattleHistoryDetailScreenState extends State<BattleHistoryDetailScreen> {
 
   Widget _buildSummaryCard() {
     final detail = _detail!;
-    final isWin = detail.isWin;
-    final resultColor = isWin ? Colors.green : Colors.red;
+
+    final Color resultColor;
+    final IconData resultIcon;
+    final String resultText;
+
+    if (detail.isDraw) {
+      resultColor = Colors.grey;
+      resultIcon = Icons.handshake;
+      resultText = '引き分け';
+    } else if (detail.isWin) {
+      resultColor = Colors.green;
+      resultIcon = Icons.emoji_events;
+      resultText = '勝利';
+    } else {
+      resultColor = Colors.red;
+      resultIcon = Icons.sentiment_dissatisfied;
+      resultText = '敗北';
+    }
 
     return Card(
       shape: RoundedRectangleBorder(
@@ -138,13 +154,13 @@ class _BattleHistoryDetailScreenState extends State<BattleHistoryDetailScreen> {
         child: Column(
           children: [
             Icon(
-              isWin ? Icons.emoji_events : Icons.sentiment_dissatisfied,
+              resultIcon,
               size: 48,
               color: Colors.white,
             ),
             const SizedBox(height: 8),
             Text(
-              isWin ? '勝利' : '敗北',
+              resultText,
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -162,8 +178,8 @@ class _BattleHistoryDetailScreenState extends State<BattleHistoryDetailScreen> {
                 ),
                 child: Text(
                   detail.outcomeReason == 'surrender'
-                      ? (isWin ? '相手が降参' : 'あなたが降参')
-                      : (isWin ? '相手が切断' : 'あなたが切断'),
+                      ? (detail.isWin ? '相手が降参' : 'あなたが降参')
+                      : (detail.isWin ? '相手が切断' : 'あなたが切断'),
                   style: const TextStyle(
                     fontSize: 12,
                     color: Colors.white,

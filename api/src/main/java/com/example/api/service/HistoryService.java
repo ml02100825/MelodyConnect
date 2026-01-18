@@ -83,6 +83,9 @@ public class HistoryService {
         // スコア計算
         int[] scores = calculateScores(result);
 
+        // 引き分け判定（resultDetailから取得、またはスコアから判定）
+        boolean isDraw = checkIsDraw(result, scores);
+
         // レート情報（ランク戦のみ）
         Integer rateChange = null;
         Integer rateAtEnd = null;
@@ -97,7 +100,8 @@ public class HistoryService {
                 .enemyId(result.getEnemy().getId().intValue())
                 .playerScore(scores[0])
                 .enemyScore(scores[1])
-                .isWin(result.getResult())
+                .isWin(!isDraw && result.getResult())
+                .isDraw(isDraw)
                 .matchType(result.getMatchType() == Result.MatchType.rank ? "ランク" : "ルーム")
                 .endedAt(result.getEndedAt().format(DATE_FORMATTER))
                 .rateAfterMatch(rateChange)
@@ -109,6 +113,9 @@ public class HistoryService {
     private BattleHistoryDetailResponse convertToBattleHistoryDetail(Result result) {
         // スコア計算
         int[] scores = calculateScores(result);
+
+        // 引き分け判定（resultDetailから取得、またはスコアから判定）
+        boolean isDraw = checkIsDraw(result, scores);
 
         // レート情報（ランク戦のみ）
         Integer rateChange = null;
@@ -127,7 +134,8 @@ public class HistoryService {
                 .enemyId(result.getEnemy().getId().intValue())
                 .playerScore(scores[0])
                 .enemyScore(scores[1])
-                .isWin(result.getResult())
+                .isWin(!isDraw && result.getResult())
+                .isDraw(isDraw)
                 .matchType(result.getMatchType() == Result.MatchType.rank ? "ランク" : "ルーム")
                 .endedAt(result.getEndedAt().format(DATE_FORMATTER))
                 .rateAfterMatch(rateChange)
@@ -179,6 +187,24 @@ public class HistoryService {
         return new int[]{playerScore, enemyScore};
     }
 
+    /**
+     * 引き分けかどうかを判定
+     * resultDetailのisDrawフラグ、またはスコアが同点かどうかで判定
+     */
+    private boolean checkIsDraw(Result result, int[] scores) {
+        Map<String, Object> resultDetail = result.getResultDetail();
+        if (resultDetail != null && resultDetail.containsKey("isDraw")) {
+            return Boolean.TRUE.equals(resultDetail.get("isDraw"));
+        }
+        // フォールバック: スコアが同点で、降参・切断でない場合は引き分け
+        if (scores[0] == scores[1] &&
+            result.getOutcomeReason() != Result.OutcomeReason.surrender &&
+            result.getOutcomeReason() != Result.OutcomeReason.disconnect) {
+            return true;
+        }
+        return false;
+    }
+
     private List<BattleHistoryDetailResponse.RoundDetail> extractRoundDetails(Result result, Result.OutcomeReason outcomeReason) {
         List<BattleHistoryDetailResponse.RoundDetail> rounds = new ArrayList<>();
 
@@ -226,7 +252,16 @@ public class HistoryService {
                         : null;
                     questionText = (String) q.getOrDefault("text", "");
                     questionFormat = (String) q.getOrDefault("questionFormat", "");
-                    correctAnswer = (String) q.getOrDefault("answer", "");
+                    // リスニング問題はcompleteSentenceを正解として使用
+                    if ("LISTENING".equalsIgnoreCase(questionFormat)) {
+                        correctAnswer = (String) q.getOrDefault("completeSentence", "");
+                        if (correctAnswer.isEmpty()) {
+                            // フォールバック: completeSentenceがない場合はanswerを使用
+                            correctAnswer = (String) q.getOrDefault("answer", "");
+                        }
+                    } else {
+                        correctAnswer = (String) q.getOrDefault("answer", "");
+                    }
                 }
 
                 // このラウンドがプレイされたかどうか
@@ -427,10 +462,21 @@ public class HistoryService {
 
                     Question question = questionId != null ? questionMap.get(questionId) : null;
                     String questionText = question != null ? question.getText() : "";
-                    String correctAnswer = question != null ? question.getAnswer() : "";
                     String questionFormat = question != null && question.getQuestionFormat() != null
                         ? question.getQuestionFormat().getValue()
                         : "";
+                    // リスニング問題はcompleteSentenceを正解として使用
+                    String correctAnswer = "";
+                    if (question != null) {
+                        if (question.getQuestionFormat() != null &&
+                            "listening".equalsIgnoreCase(question.getQuestionFormat().getValue())) {
+                            correctAnswer = question.getCompleteSentence() != null
+                                ? question.getCompleteSentence()
+                                : question.getAnswer();
+                        } else {
+                            correctAnswer = question.getAnswer() != null ? question.getAnswer() : "";
+                        }
+                    }
 
                     questionDetails.add(LearningHistoryDetailResponse.QuestionDetail.builder()
                             .questionId(questionId)

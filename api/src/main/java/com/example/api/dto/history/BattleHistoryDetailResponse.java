@@ -17,6 +17,7 @@ public class BattleHistoryDetailResponse {
     private int playerScore;
     private int enemyScore;
     private boolean isWin;
+    private boolean isDraw;         // 引き分けかどうか
     private String matchType;
     private String endedAt;
     private Integer rateAfterMatch; // レート変動

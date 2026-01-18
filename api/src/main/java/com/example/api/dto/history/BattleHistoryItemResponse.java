@@ -15,6 +15,7 @@ public class BattleHistoryItemResponse {
     private int playerScore;
     private int enemyScore;
     private boolean isWin;
+    private boolean isDraw;         // 引き分けかどうか
     private String matchType;       // "ランク" or "ルーム"
     private String endedAt;
     private Integer rateAfterMatch; // レート変動（ランク戦のみ、ルーム戦はnull）

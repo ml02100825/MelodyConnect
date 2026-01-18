@@ -6,6 +6,7 @@ class BattleHistoryItem {
   final int playerScore;
   final int enemyScore;
   final bool isWin;
+  final bool isDraw;         // 引き分けかどうか
   final String matchType;
   final String endedAt;
   final int? rateAfterMatch; // レート変動
@@ -19,6 +20,7 @@ class BattleHistoryItem {
     required this.playerScore,
     required this.enemyScore,
     required this.isWin,
+    required this.isDraw,
     required this.matchType,
     required this.endedAt,
     this.rateAfterMatch,
@@ -34,6 +36,7 @@ class BattleHistoryItem {
       playerScore: json['playerScore'] ?? 0,
       enemyScore: json['enemyScore'] ?? 0,
       isWin: json['isWin'] ?? json['win'] ?? false,
+      isDraw: json['isDraw'] ?? json['draw'] ?? false,
       matchType: json['matchType'] ?? '',
       endedAt: json['endedAt'] ?? '',
       rateAfterMatch: json['rateAfterMatch'],
@@ -51,6 +54,7 @@ class BattleHistoryDetail {
   final int playerScore;
   final int enemyScore;
   final bool isWin;
+  final bool isDraw;         // 引き分けかどうか
   final String matchType;
   final String endedAt;
   final int? rateAfterMatch; // レート変動
@@ -66,6 +70,7 @@ class BattleHistoryDetail {
     required this.playerScore,
     required this.enemyScore,
     required this.isWin,
+    required this.isDraw,
     required this.matchType,
     required this.endedAt,
     this.rateAfterMatch,
@@ -83,6 +88,7 @@ class BattleHistoryDetail {
       playerScore: json['playerScore'] ?? 0,
       enemyScore: json['enemyScore'] ?? 0,
       isWin: json['isWin'] ?? json['win'] ?? false,
+      isDraw: json['isDraw'] ?? json['draw'] ?? false,
       matchType: json['matchType'] ?? '',
       endedAt: json['endedAt'] ?? '',
       rateAfterMatch: json['rateAfterMatch'],

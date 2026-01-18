@@ -124,10 +124,23 @@ class _BattleHistoryScreenState extends State<BattleHistoryScreen> {
   }
 
   Widget _buildHistoryCard(BattleHistoryItem item) {
-    final isWin = item.isWin;
-    final resultColor = isWin ? Colors.green : Colors.red;
-    final resultIcon = isWin ? Icons.emoji_events : Icons.sentiment_dissatisfied;
-    final resultText = isWin ? '勝利' : '敗北';
+    final Color resultColor;
+    final IconData resultIcon;
+    final String resultText;
+
+    if (item.isDraw) {
+      resultColor = Colors.grey;
+      resultIcon = Icons.handshake;
+      resultText = '引き分け';
+    } else if (item.isWin) {
+      resultColor = Colors.green;
+      resultIcon = Icons.emoji_events;
+      resultText = '勝利';
+    } else {
+      resultColor = Colors.red;
+      resultIcon = Icons.sentiment_dissatisfied;
+      resultText = '敗北';
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
