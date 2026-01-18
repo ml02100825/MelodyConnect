@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/quiz_models.dart';
 import '../services/token_storage_service.dart';
 import 'vocabulary_screen.dart';
+import 'report_screen.dart';
 
 class QuizResultScreen extends StatelessWidget {
   final QuizCompleteResponse result;
@@ -470,10 +471,7 @@ class QuizResultScreen extends StatelessWidget {
       );
     }
   }
-  Navigator.pushNamed(
-    context,
-    '/vocabulary?userId=$userId',
-  );
+
 }
 
 
@@ -481,4 +479,3 @@ class QuizResultScreen extends StatelessWidget {
     // ホーム画面に戻る（そこから再挑戦）
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
-}
