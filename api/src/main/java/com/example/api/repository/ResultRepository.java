@@ -1,6 +1,7 @@
 package com.example.api.repository;
 
 import com.example.api.entity.Result;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -96,10 +97,11 @@ public interface ResultRepository extends JpaRepository<Result, Long> {
     /**
      * プレイヤーIDで結果を新しい順に上位N件検索（履歴表示用）
      * @param playerId プレイヤーID
-     * @return 結果のリスト（新しい順、最大20件）
+     * @param pageable ページング情報（PageRequest.of(0, 20)等）
+     * @return 結果のリスト（新しい順）
      */
-    @Query("SELECT r FROM Result r JOIN FETCH r.player JOIN FETCH r.enemy WHERE r.player.id = :playerId ORDER BY r.endedAt DESC LIMIT 20")
-    List<Result> findTop20ByPlayerIdOrderByEndedAtDesc(@Param("playerId") Long playerId);
+    @Query("SELECT r FROM Result r JOIN FETCH r.player JOIN FETCH r.enemy WHERE r.player.id = :playerId ORDER BY r.endedAt DESC")
+    List<Result> findByPlayerIdWithUsersOrderByEndedAtDesc(@Param("playerId") Long playerId, Pageable pageable);
 
     /**
      * 結果IDで取得（User情報をfetch join）

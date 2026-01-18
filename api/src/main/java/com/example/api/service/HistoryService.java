@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,7 +56,8 @@ public class HistoryService {
     public List<BattleHistoryItemResponse> getBattleHistory(Long userId) {
         logger.info("対戦履歴取得: userId={}", userId);
 
-        List<Result> results = resultRepository.findTop20ByPlayerIdOrderByEndedAtDesc(userId);
+        List<Result> results = resultRepository.findByPlayerIdWithUsersOrderByEndedAtDesc(
+                userId, PageRequest.of(0, 20));
 
         return results.stream()
                 .map(this::convertToBattleHistoryItem)
