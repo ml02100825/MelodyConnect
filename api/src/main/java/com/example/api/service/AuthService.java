@@ -225,6 +225,14 @@ public class AuthService {
 
         User user = userOpt.get();
 
+        if (user.isDeleteFlag()) {
+            throw new IllegalArgumentException("そのアカウントは存在しません。");
+        }
+        if (user.isBanFlag()) {
+            throw new IllegalArgumentException("そのアカウントは停止されています。");
+        }
+
+
         // セッションを検証（リフレッシュトークンのSHA-256ハッシュで検索）
         String refreshHash = hashWithSHA256(refreshToken);
         boolean sessionValid = sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())

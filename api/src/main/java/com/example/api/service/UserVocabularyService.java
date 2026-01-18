@@ -11,6 +11,8 @@ import com.example.api.repository.VocabularyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -173,8 +175,17 @@ public class UserVocabularyService {
     );
 
     /**
+     * FILL_IN_BLANK問題の答えを非同期でUserVocabularyに登録
+     * QuizServiceから呼ばれる
+     */
+    @Async("vocabularyTaskExecutor")
+    public void registerFillInBlankAnswerAsync(Long userId, String word) {
+        registerFillInBlankAnswer(userId, word);
+    }
+
+    /**
      * FILL_IN_BLANK問題の答えをUserVocabularyに登録
-     * 
+     *
      * @param userId ユーザーID
      * @param word 登録する単語（問題の答え）
      */
@@ -196,8 +207,17 @@ public class UserVocabularyService {
     }
 
     /**
+     * リスニング問題で間違えた単語を非同期でUserVocabularyに登録
+     * QuizServiceから呼ばれる
+     */
+    @Async("vocabularyTaskExecutor")
+    public void registerListeningMistakesAsync(Long userId, String userAnswer, String correctAnswer) {
+        registerListeningMistakes(userId, userAnswer, correctAnswer);
+    }
+
+    /**
      * リスニング問題で間違えた単語をUserVocabularyに登録
-     * 
+     *
      * @param userId ユーザーID
      * @param userAnswer ユーザーの回答
      * @param correctAnswer 正解
@@ -254,9 +274,8 @@ public class UserVocabularyService {
                 return false;
             }
 
-            // 2. Vocabularyを取得または作成
-            Vocabulary vocabulary = vocabularyRepository.findByWord(normalizedWord)
-                .orElse(null);
+            // 2. Vocabularyを取得または作成（キャッシュ使用）
+            Vocabulary vocabulary = findVocabularyByWordCached(normalizedWord);
 
             if (vocabulary == null) {
                 if (fetchFromWordnik) {
@@ -297,6 +316,14 @@ public class UserVocabularyService {
     }
 
     /**
+     * Vocabularyをキャッシュから取得（キャッシュミス時はDBから取得）
+     */
+    @Cacheable(value = "vocabularyCache", key = "#word", unless = "#result == null")
+    public Vocabulary findVocabularyByWordCached(String word) {
+        return vocabularyRepository.findByWord(word).orElse(null);
+    }
+
+    /**
      * Wordnik APIから単語情報を取得してVocabularyを作成
      */
     private Vocabulary createVocabularyFromWordnik(String word) {
@@ -327,6 +354,8 @@ public class UserVocabularyService {
                 .example_translate(wordInfo.getExampleTranslate())
                 .audio_url(wordInfo.getAudioUrl())
                 .language("en")  // デフォルトは英語
+                .isActive(true)
+                .isDeleted(false)
                 .build();
 
             Vocabulary savedVocab = vocabularyRepository.save(vocab);

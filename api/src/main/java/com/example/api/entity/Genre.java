@@ -3,6 +3,7 @@ package com.example.api.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import org.hibernate.annotations.Where;
 
 @Entity
 @Table(
@@ -10,6 +11,7 @@ import java.time.temporal.ChronoUnit;
     indexes = @Index(name = "idx_genre_name", columnList = "name"),
     uniqueConstraints = @UniqueConstraint(name = "uk_genre_name", columnNames = "name")
 )
+@Where(clause = "is_active = true AND is_deleted = false")
 public class Genre {
 
     @Id

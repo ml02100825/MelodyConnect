@@ -34,6 +34,22 @@ public class LifeService {
     private UserRepository userRepository;
 
     /**
+     * マッチング用のライフ消費例外
+     */
+    public static class LifeConsumeException extends RuntimeException {
+        private final java.util.Set<Long> insufficientUserIds;
+
+        public LifeConsumeException(java.util.Set<Long> insufficientUserIds) {
+            super("ライフ不足により消費できません");
+            this.insufficientUserIds = java.util.Collections.unmodifiableSet(new java.util.HashSet<>(insufficientUserIds));
+        }
+
+        public java.util.Set<Long> getInsufficientUserIds() {
+            return insufficientUserIds;
+        }
+    }
+
+    /**
      * ユーザーのライフ上限を取得
      * @param user ユーザー
      * @return ライフ上限（通常:5, サブスク:10）
@@ -100,6 +116,54 @@ public class LifeService {
 
         logger.info("ライフ消費成功: userId={}, 残りlife={}", userId, user.getLife() - 1);
         return true;
+    }
+
+    /**
+     * マッチ成立時に2人分のライフを同時に消費
+     * @param user1Id プレイヤー1のID
+     * @param user2Id プレイヤー2のID
+     */
+    @Transactional
+    public void consumeLifeForMatch(Long user1Id, Long user2Id) {
+        User user1 = userRepository.findById(user1Id)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: " + user1Id));
+        User user2 = userRepository.findById(user2Id)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: " + user2Id));
+
+        applyRecovery(user1);
+        applyRecovery(user2);
+
+        userRepository.save(user1);
+        userRepository.save(user2);
+
+        java.util.Set<Long> insufficientUserIds = new java.util.HashSet<>();
+        if (user1.getLife() <= 0) {
+            insufficientUserIds.add(user1Id);
+        }
+        if (user2.getLife() <= 0) {
+            insufficientUserIds.add(user2Id);
+        }
+
+        if (!insufficientUserIds.isEmpty()) {
+            logger.info("ライフ不足によりマッチ消費失敗: userIds={}", insufficientUserIds);
+            throw new LifeConsumeException(insufficientUserIds);
+        }
+
+        int updatedRowsUser1 = userRepository.consumeLife(user1Id, user1.getLifeLastRecoveredAt());
+        int updatedRowsUser2 = userRepository.consumeLife(user2Id, user2.getLifeLastRecoveredAt());
+
+        if (updatedRowsUser1 == 0 || updatedRowsUser2 == 0) {
+            if (updatedRowsUser1 == 0) {
+                insufficientUserIds.add(user1Id);
+            }
+            if (updatedRowsUser2 == 0) {
+                insufficientUserIds.add(user2Id);
+            }
+            logger.warn("ライフ消費失敗（同時実行）: userIds={}", insufficientUserIds);
+            throw new LifeConsumeException(insufficientUserIds);
+        }
+
+        logger.info("マッチ用ライフ消費成功: user1Id={}, user2Id={}", user1Id, user2Id);
     }
 
     /**

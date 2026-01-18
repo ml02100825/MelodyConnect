@@ -86,7 +86,8 @@ class RoomInvitationService {
     );
 
     _stompClient!.activate();
-    _isConnecting = false;
+    // 注意: _isConnecting は onConnect コールバック内でリセットされる
+    // activate() は非同期なので、ここでリセットしてはいけない
   }
 
   /// 招待リストを取得

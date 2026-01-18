@@ -45,9 +45,11 @@ class PresenceWebSocketService {
           'Sec-WebSocket-Protocol': 'v12.stomp',
         },
         onConnect: (frame) {
+          _isConnecting = false;
           _startHeartbeat();
         },
         onWebSocketError: (dynamic error) {
+          _isConnecting = false;
           debugPrint('Presence WebSocket Error: $error');
         },
         onStompError: (frame) {
@@ -61,7 +63,8 @@ class PresenceWebSocketService {
     );
 
     _stompClient!.activate();
-    _isConnecting = false;
+    // 注意: _isConnecting は onConnect コールバック内でリセットされる
+    // activate() は非同期なので、ここでリセットしてはいけない
   }
 
   void _scheduleReconnect() {
@@ -101,11 +104,15 @@ class PresenceWebSocketService {
   }
 
   void handleLifecycle(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
+    // タブ切り替えでWebSocket接続を切断しない
+    // detachedの場合のみ切断（アプリ終了時）
+    if (state == AppLifecycleState.detached) {
       disconnect();
     } else if (state == AppLifecycleState.resumed) {
-      connect();
+      // 接続が切れている場合のみ再接続
+      if (_stompClient == null || !_stompClient!.connected) {
+        connect();
+      }
     }
   }
 }

@@ -3,9 +3,11 @@ package com.example.api.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.*;
+import org.hibernate.annotations.Where;
 
 @Entity
 @Table(name = "vocabulary")
+@Where(clause = "is_active = true AND is_deleted = false")
 @Getter
 @Setter
 @NoArgsConstructor
