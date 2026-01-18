@@ -25,4 +25,10 @@ public interface LHistoryRepository extends JpaRepository<LHistory, Long> {
      */
     @Query(value = "SELECT * FROM l_history WHERE user_id = :userId ORDER BY learning_at DESC LIMIT 1", nativeQuery = true)
     LHistory findLatestByUserId(@Param("userId") Long userId);
+
+    /**
+     * ユーザーIDで学習履歴を新しい順に上位20件取得（履歴表示用）
+     */
+    @Query(value = "SELECT * FROM l_history WHERE user_id = :userId ORDER BY learning_at DESC LIMIT 20", nativeQuery = true)
+    List<LHistory> findTop20ByUserIdOrderByLearningAtDesc(@Param("userId") Long userId);
 }

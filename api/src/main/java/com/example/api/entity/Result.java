@@ -42,6 +42,10 @@ public class Result {
     @Column(name = "updown_rate", nullable = false)
     private Integer updownRate;
 
+    /** 対戦終了時のレート */
+    @Column(name = "rate_after_match")
+    private Integer rateAfterMatch;
+
     @Column(name = "use_language", length = 30)
     private String useLanguage;
 
@@ -99,6 +103,9 @@ public class Result {
 
     public Integer getUpdownRate() { return updownRate; }
     public void setUpdownRate(Integer updownRate) { this.updownRate = updownRate; }
+
+    public Integer getRateAfterMatch() { return rateAfterMatch; }
+    public void setRateAfterMatch(Integer rateAfterMatch) { this.rateAfterMatch = rateAfterMatch; }
 
     public String getUseLanguage() { return useLanguage; }
     public void setUseLanguage(String useLanguage) { this.useLanguage = useLanguage; }

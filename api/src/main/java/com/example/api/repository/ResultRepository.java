@@ -92,4 +92,20 @@ public interface ResultRepository extends JpaRepository<Result, Long> {
      */
     @Query("SELECT r FROM Result r WHERE r.player.id = ?1 AND r.matchType = ?2 ORDER BY r.endedAt DESC")
     List<Result> findByPlayerIdAndMatchType(Long playerId, Result.MatchType matchType);
+
+    /**
+     * プレイヤーIDで結果を新しい順に上位N件検索（履歴表示用）
+     * @param playerId プレイヤーID
+     * @return 結果のリスト（新しい順、最大20件）
+     */
+    @Query("SELECT r FROM Result r JOIN FETCH r.player JOIN FETCH r.enemy WHERE r.player.id = :playerId ORDER BY r.endedAt DESC LIMIT 20")
+    List<Result> findTop20ByPlayerIdOrderByEndedAtDesc(@Param("playerId") Long playerId);
+
+    /**
+     * 結果IDで取得（User情報をfetch join）
+     * @param resultId 結果ID
+     * @return 結果（User情報初期化済み）
+     */
+    @Query("SELECT r FROM Result r JOIN FETCH r.player JOIN FETCH r.enemy WHERE r.id = :resultId")
+    Result findByIdWithUsers(@Param("resultId") Long resultId);
 }

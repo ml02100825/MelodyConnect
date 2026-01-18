@@ -8,6 +8,11 @@ import 'screens/quiz_selection_screen.dart';
 import 'screens/vocabulary_screen.dart';
 import 'screens/room_match_screen.dart';
 import 'screens/room_invitations_screen.dart';
+import 'screens/battle_history_screen.dart';
+import 'screens/battle_history_detail_screen.dart';
+import 'screens/learning_menu_screen.dart';
+import 'screens/learning_history_screen.dart';
+import 'screens/learning_history_detail_screen.dart';
 import 'widgets/room_invitation_overlay.dart';
 
 void main() => runApp(const MyApp());
@@ -39,7 +44,9 @@ class MyApp extends StatelessWidget {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),
         '/learning': (context) => const QuizSelectionScreen(),
+        '/learning-menu': (context) => const LearningMenuScreen(),
         '/room-invitations': (context) => const RoomInvitationsScreen(),
+        '/battle-history': (context) => const BattleHistoryScreen(),
       },
       onGenerateRoute: (settings) {
         // /room-match?roomId=123&isGuest=true&isReturning=true のようなクエリパラメータ付きルートを処理
@@ -106,6 +113,39 @@ class MyApp extends StatelessWidget {
               userId: userId,
               returnRoomId: returnRoomId,
             ),
+            settings: settings,
+          );
+        }
+
+        // /battle-history/detail?resultId=xxx
+        if (settings.name?.startsWith('/battle-history/detail') == true) {
+          final uri = Uri.parse(settings.name!);
+          final resultIdStr = uri.queryParameters['resultId'];
+          final resultId = resultIdStr != null ? int.tryParse(resultIdStr) ?? 0 : 0;
+          return MaterialPageRoute(
+            builder: (context) => BattleHistoryDetailScreen(resultId: resultId),
+            settings: settings,
+          );
+        }
+
+        // /learning-history?userId=xxx
+        if (settings.name?.startsWith('/learning-history/detail') == true) {
+          final uri = Uri.parse(settings.name!);
+          final historyIdStr = uri.queryParameters['historyId'];
+          final historyId = historyIdStr != null ? int.tryParse(historyIdStr) ?? 0 : 0;
+          return MaterialPageRoute(
+            builder: (context) => LearningHistoryDetailScreen(historyId: historyId),
+            settings: settings,
+          );
+        }
+
+        // /learning-history?userId=xxx
+        if (settings.name?.startsWith('/learning-history') == true) {
+          final uri = Uri.parse(settings.name!);
+          final userIdStr = uri.queryParameters['userId'];
+          final userId = userIdStr != null ? int.tryParse(userIdStr) : null;
+          return MaterialPageRoute(
+            builder: (context) => LearningHistoryScreen(userId: userId),
             settings: settings,
           );
         }

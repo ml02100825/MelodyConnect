@@ -595,7 +595,8 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
 
         // Result更新（既存の2レコードを更新）
         updateResultRecords(matchUuid, state, winnerId, loserId, isDraw,
-                winnerRateChange, loserRateChange, roundSummaries, outcomeReason);
+                winnerRateChange, loserRateChange, winnerNewRate, loserNewRate,
+                roundSummaries, outcomeReason);
 
         // 両プレイヤーの単語帳登録（学習と同じルール）
         registerVocabularyForBothPlayers(state);
@@ -760,6 +761,7 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
     private void updateResultRecords(String matchUuid, BattleStateService.BattleState state,
                                      Long winnerId, Long loserId, boolean isDraw,
                                      int winnerRateChange, int loserRateChange,
+                                     int winnerNewRate, int loserNewRate,
                                      List<RoundSummary> roundSummaries,
                                      Result.OutcomeReason outcomeReason) {
         List<Result> results = resultRepository.findAllByMatchUuid(matchUuid);
@@ -821,6 +823,7 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
 
             result.setResult(isDraw ? false : isWinner);
             result.setUpdownRate(isWinner ? winnerRateChange : loserRateChange);
+            result.setRateAfterMatch(isWinner ? winnerNewRate : loserNewRate);
             result.setUseQuestion(useQuestion);
             result.setOutcomeReason(outcomeReason);
             result.setEndedAt(endedAt);
