@@ -16,6 +16,8 @@ class QuizQuestionScreen extends StatefulWidget {
   final int userId;
   final List<QuizQuestion> questions;
   final SongInfo? songInfo;
+  
+
 
   const QuizQuestionScreen({
     super.key,
@@ -34,6 +36,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   final TokenStorageService _tokenStorage = TokenStorageService();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _answerController = TextEditingController();
+  bool _hasNavigatedToResult = false;
 
   int _currentIndex = 0;
   List<AnswerResult> _answers = [];
@@ -42,6 +45,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   bool _isCorrect = false;
   String _correctAnswer = '';
   String? _accessToken;
+  String? _userName = '';
   
   // ★ 追加: 音声再生スピード（0.75x = スロー、1.0x = 通常）
   // 英語学習アプリ（Duolingo, iKnow!等）では0.75xが一般的
@@ -52,10 +56,18 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserName();
     _loadAccessToken();
     // ★ デバッグ: 問題データを確認
     _debugPrintQuestions();
   }
+  Future<void> _loadUserName() async {
+    final name = await _tokenStorage.getUsername();
+        if (!mounted) return;
+        setState(() {
+          _userName = name;
+        });
+      }
 
   /// ★ 追加: デバッグ用 - 問題データをログ出力
   void _debugPrintQuestions() {
@@ -558,12 +570,16 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     );
   }
 
+  
   Widget _buildNextButton() {
+    final isResultButton = _isLastQuestion;
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: _nextQuestion,
+        onPressed: isResultButton
+            ? (_hasNavigatedToResult ? null : _nextQuestion)
+            : _nextQuestion,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
@@ -661,17 +677,22 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         .replaceAll(RegExp(r'''[.,!?'"]+'''), '');  // 句読点を削除
   }
 
-  void _nextQuestion() {
-    if (_isLastQuestion) {
-      _completeQuiz();
-    } else {
-      setState(() {
-        _currentIndex++;
-        _showResult = false;
-        _answerController.clear();
-      });
+ 
+    void _nextQuestion() {
+      if (_isLastQuestion) {
+        setState(() {
+          _hasNavigatedToResult = true;
+        });
+        _completeQuiz();
+      } else {
+        setState(() {
+          _currentIndex++;
+          _showResult = false;
+          _answerController.clear();
+        });
+      }
     }
-  }
+
 
   Future<void> _completeQuiz() async {
     if (_accessToken == null) {
@@ -695,6 +716,8 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
             builder: (context) => QuizResultScreen(
               result: response,
               songInfo: widget.songInfo,
+               userId: widget.userId,
+              userName: _userName,
             ),
           ),
         );

@@ -6,11 +6,15 @@ import 'vocabulary_screen.dart';
 class QuizResultScreen extends StatelessWidget {
   final QuizCompleteResponse result;
   final SongInfo? songInfo;
+  final int? userId;
+  final String? userName;
 
   const QuizResultScreen({
     super.key,
     required this.result,
     this.songInfo,
+    this.userId,
+    this.userName,
   });
 
   @override
@@ -282,6 +286,7 @@ class QuizResultScreen extends StatelessWidget {
                   itemCount: result.questionResults.length,
                   itemBuilder: (context, index) {
                     return _buildQuestionResultCard(
+                      context,
                       index + 1,
                       result.questionResults[index],
                     );
@@ -295,14 +300,14 @@ class QuizResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildQuestionResultCard(int number, QuestionResult questionResult) {
+  Widget _buildQuestionResultCard(BuildContext context, int number, QuestionResult questionResult) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: questionResult.isCorrect 
-              ? Colors.green.shade200 
+          color: questionResult.isCorrect
+              ? Colors.green.shade200
               : Colors.red.shade200,
           width: 1,
         ),
@@ -357,6 +362,28 @@ class QuizResultScreen extends StatelessWidget {
               style: const TextStyle(color: Colors.amber, fontSize: 12),
             ),
           ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(
+            Icons.flag,
+            color: Colors.red,
+          ),
+          onPressed: userId != null
+              ? () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ReportScreen(
+                        reportType: 'QUESTION',
+                        targetId: questionResult.questionId,
+                        targetDisplayText: questionResult.questionText,
+                        userName: userName ?? 'User',
+                        userId: userId!,
+                      ),
+                    ),
+                  );
+                }
+              : null,
         ),
         children: [
           Padding(
@@ -443,6 +470,12 @@ class QuizResultScreen extends StatelessWidget {
       );
     }
   }
+  Navigator.pushNamed(
+    context,
+    '/vocabulary?userId=$userId',
+  );
+}
+
 
   void _retryQuiz(BuildContext context) {
     // ホーム画面に戻る（そこから再挑戦）

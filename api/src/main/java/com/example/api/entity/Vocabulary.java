@@ -81,6 +81,7 @@ public class Vocabulary {
     /**
      * 削除フラグ
      */
+    
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = false;
 
@@ -90,6 +91,12 @@ public class Vocabulary {
     protected void onCreate() {
         if (created_at == null) {
             created_at = LocalDateTime.now();
+        if (isActive == null) {
+        isActive = true;
+             }
+        if (isDeleted == null) {
+        isDeleted = false;
+              }
         }
     }
 
