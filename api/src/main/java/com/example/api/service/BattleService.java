@@ -844,9 +844,26 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
     @Transactional
     public BattleResultDto surrender(String matchUuid, Long surrenderUserId) {
         BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+
+        // 状態が見つからない場合（既に終了処理済み）、DBから結果を取得して返す
         if (state == null) {
+            List<Result> existingResults = resultRepository.findAllByMatchUuid(matchUuid);
+            if (!existingResults.isEmpty()) {
+                logger.info("降参処理: 対戦は既に終了済み matchUuid={}", matchUuid);
+                return reconstructBattleResult(matchUuid, existingResults, null);
+            }
             throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
         }
+
+        // 既にFINISHED状態の場合も同様に処理
+        if (state.getStatus() == BattleStateService.Status.FINISHED) {
+            List<Result> existingResults = resultRepository.findAllByMatchUuid(matchUuid);
+            if (!existingResults.isEmpty()) {
+                logger.info("降参処理: 対戦は既にFINISHED状態 matchUuid={}", matchUuid);
+                return reconstructBattleResult(matchUuid, existingResults, state);
+            }
+        }
+
         if (!state.isParticipant(surrenderUserId)) {
             throw new IllegalArgumentException("参加者ではありません: " + surrenderUserId);
         }

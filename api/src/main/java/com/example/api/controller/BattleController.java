@@ -223,7 +223,7 @@ public class BattleController {
      * クライアントから /app/battle/surrender にメッセージを送信
      */
     @MessageMapping("/battle/surrender")
-    public void surrender(@Payload SurrenderRequest request) {
+    public synchronized void surrender(@Payload SurrenderRequest request) {
         try {
             logger.info("降参: matchId={}, userId={}", request.getMatchId(), request.getUserId());
 

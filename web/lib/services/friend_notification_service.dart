@@ -85,7 +85,8 @@ class FriendNotificationService {
     );
 
     _stompClient!.activate();
-    _isConnecting = false;
+    // 注意: _isConnecting は onConnect コールバック内でリセットされる
+    // activate() は非同期なので、ここでリセットしてはいけない
   }
 
   /// フレンド通知をサブスクライブ

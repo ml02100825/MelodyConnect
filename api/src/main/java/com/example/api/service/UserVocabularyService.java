@@ -327,6 +327,8 @@ public class UserVocabularyService {
                 .example_translate(wordInfo.getExampleTranslate())
                 .audio_url(wordInfo.getAudioUrl())
                 .language("en")  // デフォルトは英語
+                .isActive(true)
+                .isDeleted(false)
                 .build();
 
             Vocabulary savedVocab = vocabularyRepository.save(vocab);

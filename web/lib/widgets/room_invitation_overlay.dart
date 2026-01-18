@@ -79,11 +79,15 @@ void dispose() {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
+    // タブ切り替えでWebSocket接続を切断しない
+    // detachedの場合のみ切断（アプリ終了時）
+    if (state == AppLifecycleState.detached) {
       _stompClient?.deactivate();
     } else if (state == AppLifecycleState.resumed) {
-      _connectWebSocket();
+      // 接続が切れている場合のみ再接続
+      if (_stompClient == null || !_stompClient!.connected) {
+        _connectWebSocket();
+      }
     }
     _presenceService.handleLifecycle(state);
   }
@@ -149,7 +153,8 @@ void dispose() {
     );
 
     _stompClient!.activate();
-    _isConnecting = false;
+    // 注意: _isConnecting は onConnect コールバック内でリセットされる
+    // activate() は非同期なので、ここでリセットしてはいけない
   }
 
   void _handleInvitation(String body) {
