@@ -595,7 +595,8 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
 
         // Result更新（既存の2レコードを更新）
         updateResultRecords(matchUuid, state, winnerId, loserId, isDraw,
-                winnerRateChange, loserRateChange, roundSummaries, outcomeReason);
+                winnerRateChange, loserRateChange, winnerNewRate, loserNewRate,
+                roundSummaries, outcomeReason);
 
         // 両プレイヤーの単語帳登録（学習と同じルール）
         registerVocabularyForBothPlayers(state);
@@ -760,6 +761,7 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
     private void updateResultRecords(String matchUuid, BattleStateService.BattleState state,
                                      Long winnerId, Long loserId, boolean isDraw,
                                      int winnerRateChange, int loserRateChange,
+                                     int winnerNewRate, int loserNewRate,
                                      List<RoundSummary> roundSummaries,
                                      Result.OutcomeReason outcomeReason) {
         List<Result> results = resultRepository.findAllByMatchUuid(matchUuid);
@@ -772,6 +774,10 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
                     qMap.put("text", q.getText());
                     qMap.put("answer", q.getAnswer());
                     qMap.put("questionFormat", q.getQuestionFormat().name());
+                    // リスニング問題用にcompleteSentenceも保存
+                    if (q.getCompleteSentence() != null) {
+                        qMap.put("completeSentence", q.getCompleteSentence());
+                    }
                     return qMap;
                 })
                 .collect(Collectors.toList());
@@ -821,6 +827,7 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
 
             result.setResult(isDraw ? false : isWinner);
             result.setUpdownRate(isWinner ? winnerRateChange : loserRateChange);
+            result.setRateAfterMatch(isWinner ? winnerNewRate : loserNewRate);
             result.setUseQuestion(useQuestion);
             result.setOutcomeReason(outcomeReason);
             result.setEndedAt(endedAt);
@@ -1067,7 +1074,7 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
     }
 
     /**
-     * 個別プレイヤーの単語帳登録
+     * 個別プレイヤーの単語帳登録（学習と同じロジック・非同期で実行）
      *
      * @return 登録が行われた場合true
      */
@@ -1077,14 +1084,14 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
                                                  String correctAnswer) {
         try {
             if (QuestionFormat.FILL_IN_THE_BLANK.equals(format)) {
-                // FILL_IN_THE_BLANK: 全ての問題のanswerを登録
-                userVocabularyService.registerFillInBlankAnswer(userId, question.getAnswer());
+                // FILL_IN_THE_BLANK: 全ての問題のanswerを登録（非同期）
+                userVocabularyService.registerFillInBlankAnswerAsync(userId, question.getAnswer());
                 return true;
             } else if (QuestionFormat.LISTENING.equals(format) && !playerAnswer.isCorrect()) {
-                // LISTENING: 不正解の場合のみ、間違えた単語を登録
+                // LISTENING: 不正解の場合のみ、間違えた単語を登録（非同期）
                 String userAnswer = playerAnswer.getAnswer();
                 if (userAnswer != null && !userAnswer.isEmpty()) {
-                    userVocabularyService.registerListeningMistakes(userId, userAnswer, correctAnswer);
+                    userVocabularyService.registerListeningMistakesAsync(userId, userAnswer, correctAnswer);
                     return true;
                 }
             }

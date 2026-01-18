@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'screens/battle_mode_selection_screen.dart';
-import 'screens/quiz_selection_screen.dart';
+import 'screens/learning_menu_screen.dart';
 import 'screens/friend_screen.dart';
 import 'screens/other_screen.dart';
 
@@ -72,7 +72,7 @@ class BottomNavBar extends StatelessWidget {
         screen = const BattleModeSelectionScreen();
         break;
       case 2:
-        screen = const QuizSelectionScreen();
+        screen = const LearningMenuScreen();
         break;
       case 3:
         screen = const FriendScreen();

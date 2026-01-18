@@ -175,6 +175,14 @@ class _BattleModeSelectionScreenState extends State<BattleModeSelectionScreen> {
         title: const Text('Battle Mode'),
         centerTitle: true,
         actions: [
+          // 対戦履歴ボタン
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: '対戦履歴',
+            onPressed: () {
+              Navigator.pushNamed(context, '/battle-history');
+            },
+          ),
           // 招待ボタン（バッジ付き）
           Stack(
             alignment: Alignment.center,
