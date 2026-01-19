@@ -1,15 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../bottom_nav.dart';
-
+import './volume_settings_screen.dart';
+import './privacy_settings_screen.dart';
+import './profile_setup_screen.dart';
+import './subscription_screen.dart';
+import './payment_management_screen.dart';
+import 'contact_screen.dart';
 
 class OtherScreen extends StatefulWidget {
   const OtherScreen({Key? key}) : super(key: key);
 
-	@override
-	State<OtherScreen> createState() => _OtherScreenState();
+  @override
+  State<OtherScreen> createState() => _OtherScreenState();
 }
 
 class _OtherScreenState extends State<OtherScreen> {
+  int _userId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _userId = prefs.getInt('userId') ?? 0;
+      });
+    } catch (e) {
+      print('ユーザーID読み込みエラー: $e');
+    }
+  }
+
+  Future<void> _navigateToPrivacySettings(BuildContext context) async {
+    if (_userId == 0) {
+      // SharedPreferencesから再取得を試みる
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId') ?? 0;
+      
+      if (userId == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ユーザーIDを取得できませんでした')),
+        );
+        return;
+      }
+      
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PrivacySettingsScreen(userId: userId),
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PrivacySettingsScreen(userId: _userId),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,49 +126,72 @@ class _OtherScreenState extends State<OtherScreen> {
               context,
               icon: Icons.edit,
               label: 'プロフィール編集',
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileSetupScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.volume_up,
               label: '音量設定',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.language,
-              label: '言語設定',
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const VolumeSettingsScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.lock,
               label: 'プライバシー設定',
-              onTap: () {},
+              onTap: () => _navigateToPrivacySettings(context), // 修正
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.payment,
               label: '支払い情報管理',
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const AddPaymentMethodScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.subscriptions,
               label: 'サブスク登録・解約',
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const SubscriptionScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.support_agent,
               label: 'お問い合わせ',
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ContactScreen(),
+                  ),
+                );
+              },
             ),
           ],
         ),

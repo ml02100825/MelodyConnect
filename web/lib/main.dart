@@ -7,6 +7,7 @@ import 'screens/battle_screen.dart';
 import 'screens/quiz_selection_screen.dart';
 import 'screens/vocabulary_screen.dart';
 
+
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {

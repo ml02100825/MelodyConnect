@@ -1,5 +1,6 @@
 package com.example.api.service;
 
+import com.example.api.dto.PrivacyUpdateRequest;
 import com.example.api.dto.ProfileUpdateRequest;
 import com.example.api.entity.User;
 import com.example.api.repository.UserRepository;
@@ -10,8 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 /**
- * プロフィールサービスクラス
- * ユーザープロフィール（ユーザー名、アイコン）の更新を提供します
+ * プロフィールサービス
+ * ユーザー情報の更新（プロフィール、音量、プライバシー）を担当します
  */
 @Service
 public class ProfileService {
@@ -20,34 +21,25 @@ public class ProfileService {
     private UserRepository userRepository;
 
     /**
-     * プロフィール更新（ステップ2: ユーザー名、アイコン、ユーザーID設定）
-     * @param userId ユーザーID
-     * @param request プロフィール更新リクエスト
-     * @return 更新されたユーザー
-     * @throws IllegalArgumentException ユーザーが見つからない場合、またはユーザーIDが重複している場合
+     * プロフィール基本情報の更新
      */
     @Transactional
     public User updateProfile(Long userId, ProfileUpdateRequest request) {
-        // ユーザーを検索
-        Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isEmpty()) {
-            throw new IllegalArgumentException("ユーザーが見つかりません");
-        }
+        User user = getUserOrThrow(userId);
 
-        User user = userOpt.get();
-
-        // ユーザーUUIDの重複チェック（自分以外のユーザーで同じユーザーUUIDが存在するか）
-        if (request.getUserUuid() != null && !request.getUserUuid().isEmpty()) {
+        // ユーザーID(UUID)が変更されている場合、重複チェックを行う
+        if (request.getUserUuid() != null && !request.getUserUuid().equals(user.getUserUuid())) {
             Optional<User> existingUser = userRepository.findByUserUuid(request.getUserUuid());
-            if (existingUser.isPresent() && !existingUser.get().getId().equals(userId)) {
+            if (existingUser.isPresent()) {
                 throw new IllegalArgumentException("このユーザーIDは既に使用されています");
             }
             user.setUserUuid(request.getUserUuid());
         }
 
-        // プロフィールを更新（ユーザー名は重複可能）
         user.setUsername(request.getUsername());
-        if (request.getImageUrl() != null && !request.getImageUrl().isEmpty()) {
+        
+        // 画像URLは空文字が送られてきた場合も更新（削除）を許容する場合の処理
+        if (request.getImageUrl() != null) {
             user.setImageUrl(request.getImageUrl());
         }
 
@@ -55,13 +47,35 @@ public class ProfileService {
     }
 
     /**
-     * ユーザー情報を取得
-     * @param userId ユーザーID
-     * @return ユーザー
-     * @throws IllegalArgumentException ユーザーが見つからない場合
+     * 音量設定の更新
+     */
+    @Transactional
+    public void updateVolume(Long userId, int newVolume) {
+        User user = getUserOrThrow(userId);
+        user.setVolume(newVolume);
+        userRepository.save(user);
+    }
+
+    /**
+     * プライバシー設定の更新
+     */
+    @Transactional
+    public void updatePrivacy(Long userId, PrivacyUpdateRequest request) {
+        User user = getUserOrThrow(userId);
+        user.setPrivacy(request.getPrivacy());
+        userRepository.save(user);
+    }
+
+    /**
+     * ユーザー情報の取得
      */
     public User getUserProfile(Long userId) {
+        return getUserOrThrow(userId);
+    }
+
+    // 共通のユーザー検索メソッド
+    private User getUserOrThrow(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: ID=" + userId));
     }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
 import '../widgets/profile_edit_dialog.dart';
+import './volume_settings_screen.dart';
 
 /// ========================================
 /// 設定画面
@@ -152,7 +153,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.volume_up,
                     title: '音量設定',
                     subtitle: '効果音・BGMの音量を調整',
-                    onTap: null, // 将来的に音量設定機能を追加
+                    onTap: () {
+                      print("🎵 音量設定がタップされました！");
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (context) => const VolumeSettingsScreen()),
+                      );
+                    },
                   ),
                   _buildSettingsItem(
                     icon: Icons.language,
@@ -262,26 +268,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return Card(
       elevation: 1,
-      child: ListTile(
-        leading: Icon(icon, color: onTap != null ? Colors.blue : Colors.grey),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: onTap != null ? Colors.black : Colors.grey,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: onTap != null ? Colors.blue : Colors.grey,
+                  size: 28,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: onTap != null ? Colors.black87 : Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: onTap != null ? Colors.grey : Colors.grey[400],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  onTap != null ? Icons.chevron_right : Icons.lock_outline,
+                  color: onTap != null ? Colors.grey : Colors.grey[400],
+                  size: 24,
+                ),
+              ],
+            ),
           ),
         ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 12,
-            color: onTap != null ? Colors.grey : Colors.grey[400],
-          ),
-        ),
-        trailing: onTap != null
-            ? const Icon(Icons.chevron_right)
-            : const Icon(Icons.lock, size: 16, color: Colors.grey),
-        onTap: onTap,
-        enabled: onTap != null,
       ),
     );
   }
