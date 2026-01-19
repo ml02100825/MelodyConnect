@@ -16,8 +16,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * JWTトークン認証フィルター
@@ -31,27 +29,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Autowired
     private JwtUtil jwtUtil;
 
-    // ★認証をスキップするパスのリスト
-    private static final List<String> PUBLIC_PATHS = Arrays.asList(
-        "/api/auth/register",
-        "/api/auth/login",
-        "/api/auth/refresh",
-        "/api/auth/validate",
-        "/api/upload/",
-        "/uploads/",
-        "/audio/",
-        "/ws/",
-        "/app/",
-        "/topic/",
-        "/queue/",
-        "/actuator/",
-        "/hello",
-        "/samples/",
-        "/api/dev/",
-        "/api/vocabulary/",
-        "/api/v1/rankings/"
-    );
-
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -61,14 +38,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         logger.debug("=== JWT認証フィルター開始 ===");
         logger.debug("リクエスト: {} {}", method, requestUri);
-        
-        // ★認証不要のパスかチェック
-        if (isPublicPath(requestUri)) {
-            logger.debug("認証スキップ: このパスは認証不要です");
-            logger.debug("=== JWT認証フィルター終了 (スキップ) ===");
-            filterChain.doFilter(request, response);
-            return;
-        }
         
         try {
             // Authorizationヘッダーからトークンを取得
@@ -122,15 +91,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         // 次のフィルターに処理を渡す
         filterChain.doFilter(request, response);
-    }
-
-    /**
-     * ★認証不要のパスかどうかをチェック
-     * @param requestUri リクエストURI
-     * @return 認証不要の場合true
-     */
-    private boolean isPublicPath(String requestUri) {
-        return PUBLIC_PATHS.stream().anyMatch(requestUri::startsWith);
     }
 
     /**
