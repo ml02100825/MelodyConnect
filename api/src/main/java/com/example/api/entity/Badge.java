@@ -29,8 +29,20 @@ public class Badge {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "active_flag", nullable = false)
-    private boolean activeFlag = true; // 既定で有効
+      /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    /**     * バッジが取得できるモード
+     */
 
     @Column(name = "mode", length = 20)
     private String mode; // 「バッジが取得できるモード」想定
@@ -56,8 +68,8 @@ public class Badge {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public boolean isActiveFlag() { return activeFlag; }
-    public void setActiveFlag(boolean activeFlag) { this.activeFlag = activeFlag; }
+    public boolean isActiveFlag() { return isActive; }
+    public void setActiveFlag(boolean isActive) { this.isActive = isActive; }
 
     public String getMode() { return mode; }
     public void setMode(String mode) { this.mode = mode; }

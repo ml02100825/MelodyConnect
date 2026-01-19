@@ -3,12 +3,14 @@ package com.example.api.entity;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Where;
 
 /**
  * Song テーブル Entity（ファイル名・クラス名とも物理名に合わせています）
  */
 @Entity
 @Table(name = "song")
+@Where(clause = "is_active = true AND is_deleted = false")
 public class Song {
 
     @Id
@@ -34,6 +36,18 @@ public class Song {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime created_at;
+
+    /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
 
     @PrePersist
     void onCreate() {
@@ -100,7 +114,21 @@ public class Song {
         this.created_at = created_at;
     }
 
+    public Boolean getIsActive() {
+        return isActive;
+    }
 
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public Boolean getIsDeleted() {
+        return isDeleted;
+    }
+
+    public void setIsDeleted(Boolean isDeleted) {
+        this.isDeleted = isDeleted;
+    }
 
 
 

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Where;
 
 import java.time.LocalDateTime;
 
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "artist")
+@Where(clause = "is_active = true AND is_deleted = false")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -59,6 +61,19 @@ public class Artist {
     @Column(name = "last_synced_at")
     private LocalDateTime lastSyncedAt;
 
+      /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    /**
     /**
      * エンティティ保存前に自動的に追加日時を設定
      */

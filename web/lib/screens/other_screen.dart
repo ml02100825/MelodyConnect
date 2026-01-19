@@ -1,15 +1,119 @@
 import 'package:flutter/material.dart';
 import '../bottom_nav.dart';
-
+// import 'my_profile.dart';
+// import 'volume_settings_screen.dart';
+// import 'contact_screen.dart';
+// import 'language_settings_screen.dart';
+// import 'privacy_settings_screen.dart';
+// import 'subscription_screen.dart';
+// import 'payment_management_screen.dart';
+import '../services/auth_api_service.dart';
+import '../services/token_storage_service.dart';
+import 'login_screen.dart';
 
 class OtherScreen extends StatefulWidget {
   const OtherScreen({Key? key}) : super(key: key);
 
-	@override
-	State<OtherScreen> createState() => _OtherScreenState();
+  @override
+  State<OtherScreen> createState() => _OtherScreenState();
 }
 
 class _OtherScreenState extends State<OtherScreen> {
+  final TokenStorageService _tokenStorage = TokenStorageService();
+  final AuthApiService _authApiService = AuthApiService();
+
+  // ログアウト処理
+  Future<void> _handleLogout() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (userId != null && accessToken != null) {
+        await _authApiService.logout(userId, accessToken);
+      }
+
+      // ローカルの認証情報を削除
+      await _tokenStorage.clearAuthData();
+
+      if (!mounted) return;
+
+      // ログイン画面に戻る
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('ログアウトに失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // 退会確認ダイアログ（OtherScreen から直接実行する）
+  void _confirmWithdraw() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('本当に退会しますか？'),
+        content: const Text(
+          '退会すると今までの履歴や\nサブスクリプションの情報が\n閲覧できなくなります。\n退会する場合は退会するを押してください',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('戻る'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _performWithdraw();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('退会する', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 退会処理（アカウント削除またはログアウト）
+  Future<void> _performWithdraw() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (userId != null && accessToken != null) {
+        // バックエンドに専用の削除 API があればそちらを実装してください。
+        // 現状は logout を呼んでセッションを切断します。
+        await _authApiService.logout(userId, accessToken);
+      }
+
+      await _tokenStorage.clearAuthData();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('退会に失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,15 +156,6 @@ class _OtherScreenState extends State<OtherScreen> {
             decoration: BoxDecoration(
               color: Colors.grey[100],
               borderRadius: BorderRadius.circular(16),
-            ),
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.person_add,
-                color: Colors.black87,
-                size: 20,
-              ),
-              onPressed: () {},
             ),
           ),
         ],
@@ -118,6 +213,13 @@ class _OtherScreenState extends State<OtherScreen> {
               icon: Icons.support_agent,
               label: 'お問い合わせ',
               onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildMenuButton(
+              context,
+              icon: Icons.delete_outline,
+              label: '退会',
+              onTap: _confirmWithdraw,
             ),
           ],
         ),

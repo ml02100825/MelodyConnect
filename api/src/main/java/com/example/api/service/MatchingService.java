@@ -126,7 +126,7 @@ public class MatchingService {
     }
 
     /**
-     * プレイヤーをマッチングキューに追加（ライフ消費あり - ランクマッチ用）
+     * プレイヤーをマッチングキューに追加（ランクマッチ用）
      * @param userId ユーザーID
      * @param language 言語
      * @return キュー参加結果
@@ -139,11 +139,9 @@ public class MatchingService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
 
-        // ライフを消費（ランクマッチのみ）
-        boolean lifeConsumed = lifeService.consumeLife(userId);
-        if (!lifeConsumed) {
-            // ライフ不足
-            LifeStatusResponse lifeStatus = lifeService.getLifeStatusAfterConsume(userId);
+        // ライフが0の場合は参加不可（消費はマッチ成立時に実施）
+        LifeStatusResponse lifeStatus = lifeService.getLifeStatus(userId);
+        if (lifeStatus.getCurrentLife() <= 0) {
             logger.info("ライフ不足によりキュー参加拒否: userId={}, life={}", userId, lifeStatus.getCurrentLife());
             return JoinQueueResult.insufficientLife(lifeStatus);
         }
@@ -167,6 +165,52 @@ public class MatchingService {
         }
 
         logger.info("キュー参加成功: userId={}", userId);
+        return JoinQueueResult.success();
+    }
+
+    /**
+     * プレイヤーのマッチングキュー情報を更新
+     * @param userId ユーザーID
+     * @param language 言語
+     * @return キュー更新結果
+     */
+    @Transactional
+    public JoinQueueResult updateQueue(Long userId, String language) {
+        logger.info("キュー更新処理開始: userId={}, language={}", userId, language);
+
+        // ユーザーのレーティングを取得
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+
+        // ライフが0の場合は参加不可（消費はマッチ成立時に実施）
+        LifeStatusResponse lifeStatus = lifeService.getLifeStatus(userId);
+        if (lifeStatus.getCurrentLife() <= 0) {
+            logger.info("ライフ不足によりキュー更新拒否: userId={}, life={}", userId, lifeStatus.getCurrentLife());
+            return JoinQueueResult.insufficientLife(lifeStatus);
+        }
+
+        Integer currentSeason = seasonCalculator.getCurrentSeason();
+        Rate rate = rateRepository.findByUserAndSeason(user, currentSeason)
+                .orElseGet(() -> {
+                    // レーティングが存在しない場合は作成
+                    Rate newRate = new Rate(user, currentSeason);
+                    return rateRepository.save(newRate);
+                });
+
+        logger.info("更新プレイヤー情報: userId={}, rating={}, language={}", userId, rate.getRate(), language);
+
+        if (!queueService.isInQueue(userId)) {
+            logger.info("キューに存在しないため参加処理を実行: userId={}", userId);
+            return joinQueue(userId, language);
+        }
+
+        boolean updated = queueService.updateQueue(userId, rate.getRate(), language);
+        if (!updated) {
+            logger.warn("キュー更新失敗: userId={}", userId);
+            return JoinQueueResult.error("マッチング条件の更新に失敗しました");
+        }
+
+        logger.info("キュー更新成功: userId={}", userId);
         return JoinQueueResult.success();
     }
 
@@ -204,8 +248,10 @@ public class MatchingService {
 
             // 待機時間に応じたレーティング差の許容範囲を決定
             int allowedDiff;
-            if (waitTime >= 15) {
-                allowedDiff = 200;
+            if (waitTime >= 30) {
+                allowedDiff = 250;  // 15秒以上: 300（最大）
+            } else if (waitTime >= 15) {
+                allowedDiff = 250;  // 10-15秒: 250
             } else {
                 allowedDiff = 150;
             }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../bottom_nav.dart';
+import 'user-search_screen.dart';
+import 'friend_list.dart';
+import 'friend_requests_screen.dart';
 
 
 class FriendScreen extends StatelessWidget {
@@ -69,21 +72,36 @@ class FriendScreen extends StatelessWidget {
               context,
               icon: Icons.search,
               label: 'ユーザー検索',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const UserSearchScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.people,
               label: 'フレンド一覧',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FriendListScreen()),
+                );
+              },
             ),
             const SizedBox(height: 12),
             _buildMenuButton(
               context,
               icon: Icons.schedule,
               label: 'フレンド申請一覧',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FriendRequestsScreen()),
+                );
+              },
             ),
           ],
         ),

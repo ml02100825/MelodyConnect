@@ -16,7 +16,8 @@ class MatchingScreen extends StatefulWidget {
   State<MatchingScreen> createState() => _MatchingScreenState();
 }
 
-class _MatchingScreenState extends State<MatchingScreen> {
+class _MatchingScreenState extends State<MatchingScreen>
+    with WidgetsBindingObserver {
   final _tokenStorage = TokenStorageService();
   StompClient? _stompClient;
   bool _isConnecting = true;
@@ -24,10 +25,16 @@ class _MatchingScreenState extends State<MatchingScreen> {
   String _statusMessage = 'サーバーに接続中...';
   int _waitTime = 0;
   Timer? _waitTimer;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  bool _isConnectingSocket = false;
+  bool _hasSentUpdate = false;
+  int? _userId;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _connectWebSocket();
   }
 
@@ -35,26 +42,66 @@ class _MatchingScreenState extends State<MatchingScreen> {
   void dispose() {
     _waitTimer?.cancel();
     _stompClient?.deactivate();
+    _reconnectTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // タブ切り替えでWebSocket接続を切断しない
+    // detachedの場合のみ切断（アプリ終了時）
+    if (state == AppLifecycleState.detached) {
+      _stompClient?.deactivate();
+    } else if (state == AppLifecycleState.resumed) {
+      // 接続が切れている場合のみ再接続
+      if (_stompClient == null || !_stompClient!.connected) {
+        _connectWebSocket(forceReconnect: true);
+      }
+    }
+  }
+
   /// WebSocket接続とマッチングキューへの参加
-  Future<void> _connectWebSocket() async {
+  Future<void> _connectWebSocket({bool forceReconnect = false}) async {
     try {
+      if (!forceReconnect &&
+          _stompClient != null &&
+          _stompClient!.connected) {
+        return;
+      }
+      if (_isConnectingSocket) {
+        return;
+      }
+      _isConnectingSocket = true;
+      _stompClient?.deactivate();
+
       final userId = await _tokenStorage.getUserId();
       if (userId == null) {
-        throw Exception('ユーザーIDが見つかりません');
+        if (!mounted) return;
+        setState(() {
+          _isConnecting = false;
+          _isMatching = false;
+          _statusMessage = 'ユーザーIDが見つかりません';
+        });
+        return;
       }
+      _userId = userId;
 
       // STOMP WebSocket接続
       _stompClient = StompClient(
         config: StompConfig(
           url: 'ws://localhost:8080/ws',
+          stompConnectHeaders: {
+            if (userId != null) 'userId': userId.toString(),
+            'clientType': 'matching',
+          },
           webSocketConnectHeaders: {
             'Sec-WebSocket-Protocol': 'v12.stomp',
           },
           onConnect: (StompFrame frame) {
             if (!mounted) return;
+            _reconnectAttempts = 0;
+            _isConnectingSocket = false;
 
             setState(() {
               _isConnecting = false;
@@ -86,27 +133,20 @@ class _MatchingScreenState extends State<MatchingScreen> {
             _startWaitTimer();
           },
           onWebSocketError: (dynamic error) {
-            if (!mounted) return;
-
-            setState(() {
-              _isConnecting = false;
-              _isMatching = false;
-              _statusMessage = 'WebSocket接続エラー: $error';
-            });
+            _handleReconnect('WebSocket接続エラー: $error');
           },
           onStompError: (StompFrame frame) {
-            if (!mounted) return;
-
-            setState(() {
-              _isConnecting = false;
-              _isMatching = false;
-              _statusMessage = 'STOMPエラー: ${frame.body}';
-            });
+            _handleReconnect('STOMPエラー: ${frame.body}');
+          },
+          onDisconnect: (frame) {
+            _handleReconnect('接続が切断されました。再接続中...');
           },
         ),
       );
 
       _stompClient!.activate();
+      // 注意: _isConnectingSocket は onConnect コールバック内でリセットされる
+      // activate() は非同期なので、ここでリセットしてはいけない
     } catch (e) {
       if (!mounted) return;
 
@@ -118,8 +158,34 @@ class _MatchingScreenState extends State<MatchingScreen> {
     }
   }
 
+  void _handleReconnect(String message) {
+    if (!mounted) return;
+    _isConnectingSocket = false;
+    setState(() {
+      _isConnecting = true;
+      _statusMessage = message;
+    });
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (_reconnectTimer?.isActive ?? false) {
+      return;
+    }
+    _reconnectAttempts += 1;
+    final delaySeconds = (_reconnectAttempts + 1).clamp(2, 6);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (!mounted) return;
+      if (_stompClient?.connected ?? false) return;
+      _connectWebSocket(forceReconnect: true);
+    });
+  }
+
   /// 待機時間タイマーを開始
   void _startWaitTimer() {
+    _waitTimer?.cancel();
+    _waitTime = 0;
+    _hasSentUpdate = false;
     _waitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -129,6 +195,11 @@ class _MatchingScreenState extends State<MatchingScreen> {
       setState(() {
         _waitTime++;
       });
+
+      if (_waitTime >= 15 && !_hasSentUpdate) {
+        _hasSentUpdate = true;
+        _sendMatchingUpdate();
+      }
     });
   }
 
@@ -142,6 +213,11 @@ class _MatchingScreenState extends State<MatchingScreen> {
       if (!mounted) return;
       setState(() {
         _statusMessage = 'マッチング相手を探しています...';
+      });
+    } else if (status == 'updated') {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = data['message'] ?? 'マッチング条件を更新しました';
       });
     } else if (status == 'matched') {
       // マッチング成立
@@ -183,6 +259,29 @@ class _MatchingScreenState extends State<MatchingScreen> {
           _statusMessage = 'エラー: ${data['message']}';
         });
       }
+    }
+  }
+
+  Future<void> _sendMatchingUpdate() async {
+    try {
+      final userId = _userId ?? await _tokenStorage.getUserId();
+      if (userId == null) return;
+
+      _stompClient?.send(
+        destination: '/app/matching/update',
+        body: jsonEncode({
+          'userId': userId,
+          'language': widget.language,
+        }),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('更新に失敗しました: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

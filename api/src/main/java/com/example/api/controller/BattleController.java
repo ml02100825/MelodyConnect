@@ -223,7 +223,7 @@ public class BattleController {
      * クライアントから /app/battle/surrender にメッセージを送信
      */
     @MessageMapping("/battle/surrender")
-    public void surrender(@Payload SurrenderRequest request) {
+    public synchronized void surrender(@Payload SurrenderRequest request) {
         try {
             logger.info("降参: matchId={}, userId={}", request.getMatchId(), request.getUserId());
 
@@ -327,6 +327,8 @@ public class BattleController {
             BattleService.BattleResultDto battleResult =
                     battleService.finalizeBattle(matchId, Result.OutcomeReason.normal);
             sendBattleResult(battleResult);
+
+            
             return;
         }
         // 試合継続の場合は、クライアントからのnext_roundリクエストを待つ
@@ -423,12 +425,17 @@ public class BattleController {
             return;
         }
 
+        String songName = question.getSong().getSongname();
+        String artistName = question.getArtist().getArtistName();
+
         QuestionResponse response = new QuestionResponse(
                 question.getQuestionId(),
                 question.getText(),
                 question.getQuestionFormat().name(),
                 question.getAudioUrl(),
                 question.getTranslationJa(),
+                songName,
+                artistName,
                 state.getCurrentRound() + 1,
                 state.getQuestions().size(),
                 BattleStateService.ROUND_TIME_LIMIT_SECONDS * 1000L,
@@ -457,7 +464,11 @@ public class BattleController {
     private RoundResultResponse createRoundResultResponse(BattleStateService.RoundResult roundResult,
                                                           BattleStateService.BattleState state,
                                                           String correctAnswer) {
+    Question currentQuestion = state.getCurrentQuestion();
+
+
         RoundResultResponse response = new RoundResultResponse();
+        response.setQuestionText(currentQuestion != null ? currentQuestion.getText() : "");
         response.setRoundNumber(roundResult.getRoundNumber());
         response.setQuestionId(roundResult.getQuestionId());
         response.setCorrectAnswer(correctAnswer);
@@ -506,6 +517,10 @@ public class BattleController {
 
         logger.info("試合結果送信: matchId={}, winnerId={}, loserId={}",
                 result.getMatchUuid(), result.getWinnerId(), result.getLoserId());
+    logger.info("sendBattleResult: matchUuid={}, winnerRounds={}",
+    result.getMatchUuid(),
+    result.getRounds() != null ? result.getRounds().size() : null);
+
     }
 
     /**

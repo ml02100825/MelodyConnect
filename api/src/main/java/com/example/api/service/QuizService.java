@@ -198,22 +198,17 @@ public class QuizService {
                     boolean isCorrect = correctAnswer.trim().equalsIgnoreCase(answer.getUserAnswer().trim());
                     if (isCorrect) correctCount++;
 
-                    // ★ UserVocabularyに登録
-                    try {
-                        if (com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK.equals(q.getQuestionFormat())) {
-                            // FILL_IN_BLANK: 全ての問題のanswerを登録
-                            userVocabularyService.registerFillInBlankAnswer(request.getUserId(), q.getAnswer());
-                        } else if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat()) && !isCorrect) {
-                            // LISTENING: 不正解の場合、間違えた単語を登録
-                            userVocabularyService.registerListeningMistakes(
-                                request.getUserId(), 
-                                answer.getUserAnswer(), 
-                                correctAnswer
-                            );
-                        }
-                    } catch (Exception e) {
-                        // UserVocabulary登録に失敗してもクイズ完了処理は続行
-                        logger.warn("UserVocabulary登録中にエラーが発生しましたが、処理を続行します: {}", e.getMessage());
+                    // ★ UserVocabularyに非同期で登録（レスポンスを高速化）
+                    if (com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK.equals(q.getQuestionFormat())) {
+                        // FILL_IN_BLANK: 全ての問題のanswerを登録
+                        userVocabularyService.registerFillInBlankAnswerAsync(request.getUserId(), q.getAnswer());
+                    } else if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat()) && !isCorrect) {
+                        // LISTENING: 不正解の場合、間違えた単語を登録
+                        userVocabularyService.registerListeningMistakesAsync(
+                            request.getUserId(),
+                            answer.getUserAnswer(),
+                            correctAnswer
+                        );
                     }
 
                     questionResults.add(QuizCompleteResponse.QuestionResult.builder()

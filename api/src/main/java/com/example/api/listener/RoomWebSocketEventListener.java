@@ -1,0 +1,378 @@
+package com.example.api.listener;
+
+import com.example.api.entity.Room;
+import com.example.api.entity.Session;
+import com.example.api.entity.User;
+import com.example.api.repository.SessionRepository;
+import com.example.api.repository.UserRepository;
+import com.example.api.service.BattleService;
+import com.example.api.service.BattleStateService;
+import com.example.api.service.MatchingService;
+import com.example.api.service.RoomService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.messaging.SessionConnectEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * WebSocket接続・切断イベントリスナー
+ * ルームマッチの切断処理を担当します
+ */
+@Component
+public class RoomWebSocketEventListener {
+
+    private static final Logger logger = LoggerFactory.getLogger(RoomWebSocketEventListener.class);
+    private static final Duration OFFLINE_TIMEOUT = Duration.ofSeconds(90);
+
+    private final RoomService roomService;
+    private final BattleService battleService;
+    private final BattleStateService battleStateService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final SessionRepository sessionRepository;
+    private final MatchingService matchingService;
+    @Autowired
+    private UserRepository userRepository;
+    
+    
+
+    // セッションID → ユーザーID のマッピング
+    private final ConcurrentHashMap<String, Long> sessionUserMap = new ConcurrentHashMap<>();
+
+    // ユーザーID → セッションID のマッピング（逆引き用）
+    private final ConcurrentHashMap<Long, Set<String>> userSessionMap = new ConcurrentHashMap<>();
+
+    // セッションID → クライアント種別
+    private final ConcurrentHashMap<String, String> sessionClientTypeMap = new ConcurrentHashMap<>();
+
+    // ユーザーID → 最終アクティブ時刻
+    private final ConcurrentHashMap<Long, Instant> userLastSeenMap = new ConcurrentHashMap<>();
+
+    public RoomWebSocketEventListener(RoomService roomService,
+                                      BattleService battleService,
+                                      BattleStateService battleStateService,
+                                      SimpMessagingTemplate messagingTemplate,
+                                      SessionRepository sessionRepository,
+                                      MatchingService matchingService) {
+        this.roomService = roomService;
+        this.battleService = battleService;
+        this.battleStateService = battleStateService;
+        this.messagingTemplate = messagingTemplate;
+        this.sessionRepository = sessionRepository;
+        this.matchingService = matchingService;
+    }
+
+    /**
+     * ユーザーをセッションに登録（接続時またはルーム参加時に呼び出す）
+     */
+    public void registerUser(String sessionId, Long userId) {
+        sessionUserMap.put(sessionId, userId);
+        userSessionMap.computeIfAbsent(userId, key -> ConcurrentHashMap.newKeySet())
+                .add(sessionId);
+        userLastSeenMap.put(userId, Instant.now());
+        logger.debug("セッション登録: sessionId={}, userId={}", sessionId, userId);
+    }
+
+    /**
+     * 最終アクティブ時刻を更新
+     */
+    public void refreshLastSeen(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        userLastSeenMap.put(userId, Instant.now());
+    }
+
+    /**
+     * セッションIDから最終アクティブ時刻を更新
+     */
+    public void refreshLastSeenBySessionId(String sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        Long userId = sessionUserMap.get(sessionId);
+        if (userId != null) {
+            refreshLastSeen(userId);
+        }
+    }
+
+    /**
+     * ユーザーがオンライン（WebSocket接続中）かどうかを確認
+     * @param userId ユーザーID
+     * @return オンラインの場合true
+     */
+    public boolean isUserOnline(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        Instant lastSeen = userLastSeenMap.get(userId);
+        if (lastSeen == null) {
+            return false;
+        }
+        if (Duration.between(lastSeen, Instant.now()).compareTo(OFFLINE_TIMEOUT) > 0) {
+            removeUserSession(userId);
+            return false;
+        }
+        Set<String> sessions = userSessionMap.get(userId);
+        return sessions != null && !sessions.isEmpty();
+    }
+
+    private void removeUserSession(Long userId) {
+        Set<String> sessionIds = userSessionMap.remove(userId);
+        if (sessionIds != null) {
+            for (String sessionId : sessionIds) {
+                sessionUserMap.remove(sessionId);
+                sessionClientTypeMap.remove(sessionId);
+            }
+        }
+        userLastSeenMap.remove(userId);
+    }
+
+    private void updateLatestSessionClientType(Long userId, String clientType) {
+        
+        if (userId == null) {
+            return;
+        }
+         User user = userRepository.findById(userId)
+        .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        String resolvedClientType = Optional.ofNullable(clientType).orElse("unknown");
+        Optional<Session> latestSession = sessionRepository.findTopByUserOrderByCreatedAtDesc(user);
+        if (latestSession.isEmpty()) {
+            logger.debug("clientType保存対象セッションが見つかりません: userId={}", user);
+            return;
+        }
+        Session session = latestSession.get();
+        session.setClientType(resolvedClientType);
+        sessionRepository.save(session);
+    }
+
+    /**
+     * WebSocket接続イベント
+     */
+    @EventListener
+    @Transactional
+    public void handleWebSocketConnectListener(SessionConnectEvent event) {
+        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+        String sessionId = headerAccessor.getSessionId();
+        String clientType = Optional.ofNullable(headerAccessor.getFirstNativeHeader("clientType"))
+                .orElse("unknown");
+
+        sessionClientTypeMap.put(sessionId, clientType);
+
+        // ネイティブヘッダーからuserIdを取得
+        String userIdHeader = headerAccessor.getFirstNativeHeader("userId");
+        if (userIdHeader != null) {
+            try {
+                Long userId = Long.parseLong(userIdHeader);
+                registerUser(sessionId, userId);
+                updateLatestSessionClientType(userId, clientType);
+                logger.info("WebSocket接続: sessionId={}, userId={}, clientType={}",
+                        sessionId, userId, clientType);
+            } catch (NumberFormatException e) {
+                logger.warn("無効なuserId: {}", userIdHeader);
+            }
+        }
+    }
+
+    /**
+     * WebSocket切断イベント
+     */
+    @EventListener
+    public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
+        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+        String sessionId = headerAccessor.getSessionId();
+        String clientType = Optional.ofNullable(sessionClientTypeMap.remove(sessionId))
+                .orElse("unknown");
+
+        Long userId = sessionUserMap.remove(sessionId);
+        if (userId == null) {
+            logger.debug("切断: 登録されていないセッション sessionId={}, clientType={}",
+                    sessionId, clientType);
+            return;
+        }
+
+        Set<String> sessions = userSessionMap.get(userId);
+        if (sessions != null) {
+            sessions.remove(sessionId);
+            if (!sessions.isEmpty()) {
+                logger.info("WebSocket切断検知: sessionId={}, userId={}, clientType={}, remainingSessions={}",
+                        sessionId, userId, clientType, sessions.size());
+                return;
+            }
+        }
+
+        removeUserSession(userId);
+
+        // マッチングキューから削除（最後のセッションが切断された時のみ実行される）
+        try {
+            boolean removed = matchingService.leaveQueue(userId);
+            if (removed) {
+                logger.info("マッチングキューから削除: userId={}", userId);
+            }
+        } catch (Exception e) {
+            logger.error("マッチングキュー削除時にエラー: userId={}", userId, e);
+        }
+
+        logger.info("WebSocket切断検知: sessionId={}, userId={}, clientType={}",
+                sessionId, userId, clientType);
+
+        try {
+            // ユーザーのアクティブなルームを確認
+            Optional<Room> activeRoom = roomService.getActiveRoom(userId);
+
+            if (activeRoom.isEmpty()) {
+                logger.debug("切断ユーザーにはアクティブな部屋がありません: userId={}", userId);
+                return;
+            }
+
+            Room room = activeRoom.get();
+            Long roomId = room.getRoom_id();
+            Room.Status status = room.getStatus();
+
+            logger.info("切断ユーザーのルーム状態: roomId={}, status={}, hostId={}, guestId={}, disconnectedUserId={}",
+                    roomId, status, room.getHost_id(), room.getGuest_id(), userId);
+
+            // 対戦中の場合：切断側を敗北として処理
+            if (status == Room.Status.PLAYING) {
+                handleBattleDisconnect(room, userId);
+            }
+            // 対戦中でない場合：ルームからの退出/解散
+            else if (status == Room.Status.WAITING || status == Room.Status.READY) {
+                handleRoomDisconnect(room, userId);
+            }
+
+        } catch (Exception e) {
+            logger.error("切断処理中にエラー: userId={}", userId, e);
+        }
+    }
+
+    /**
+     * 一定時間アクティブでないユーザーをオフライン扱いにする
+     */
+    @Scheduled(fixedRate = 30000)
+    public void removeInactiveUsers() {
+        Instant now = Instant.now();
+        for (Map.Entry<Long, Instant> entry : userLastSeenMap.entrySet()) {
+            if (Duration.between(entry.getValue(), now).compareTo(OFFLINE_TIMEOUT) > 0) {
+                Long userId = entry.getKey();
+                removeUserSession(userId);
+                logger.info("タイムアウトによりオフライン判定: userId={}", userId);
+            }
+        }
+    }
+
+    /**
+     * 対戦中の切断処理（敗北扱い）
+     */
+    private void handleBattleDisconnect(Room room, Long disconnectedUserId) {
+        Long roomId = room.getRoom_id();
+        Long hostId = room.getHost_id();
+        Long guestId = room.getGuest_id();
+
+        // 相手を特定
+        Long winnerId = disconnectedUserId.equals(hostId) ? guestId : hostId;
+
+        logger.info("対戦中の切断 → 切断者敗北: roomId={}, disconnectedUserId={}, winnerId={}",
+                roomId, disconnectedUserId, winnerId);
+
+        try {
+            // BattleServiceで対戦終了処理（切断による敗北）
+            String matchUuid = battleStateService.getMatchUuidByRoomId(roomId);
+            if (matchUuid != null) {
+                BattleService.BattleResultDto result =
+                        battleService.handleDisconnection(matchUuid, disconnectedUserId, winnerId);
+                if (result != null) {
+                    Map<String, Object> winnerView = result.toPlayerView(result.getWinnerId());
+                    winnerView.put("type", "battle_result");
+
+                    Map<String, Object> loserView = result.toPlayerView(result.getLoserId());
+                    loserView.put("type", "battle_result");
+
+                    messagingTemplate.convertAndSend("/topic/battle/" + result.getWinnerId(), winnerView);
+                    messagingTemplate.convertAndSend("/topic/battle/" + result.getLoserId(), loserView);
+                }
+            }
+
+            if (disconnectedUserId.equals(hostId)) {
+                roomService.leaveRoom(roomId, hostId);
+                if (guestId != null) {
+                    Map<String, Object> notification = Map.of(
+                            "type", "room_canceled",
+                            "roomId", roomId,
+                            "message", "ホストが切断したため、部屋が解散されました"
+                    );
+                    messagingTemplate.convertAndSend("/topic/room/" + guestId, notification);
+                }
+            } else if (disconnectedUserId.equals(guestId)) {
+                roomService.leaveRoom(roomId, guestId);
+                Map<String, Object> notification = Map.of(
+                        "type", "guest_left",
+                        "roomId", roomId,
+                        "message", "ゲストが切断しました"
+                );
+                messagingTemplate.convertAndSend("/topic/room/" + hostId, notification);
+            }
+
+        } catch (Exception e) {
+            logger.error("対戦中切断処理エラー: roomId={}", roomId, e);
+        }
+    }
+
+    /**
+     * 待機中/準備中の切断処理（退出/解散）
+     */
+    private void handleRoomDisconnect(Room room, Long disconnectedUserId) {
+        Long roomId = room.getRoom_id();
+        Long hostId = room.getHost_id();
+        Long guestId = room.getGuest_id();
+
+        try {
+            if (disconnectedUserId.equals(hostId)) {
+                // ホストが切断 → ルーム解散
+                logger.info("ホスト切断 → ルーム解散: roomId={}, hostId={}", roomId, hostId);
+
+                RoomService.LeaveResult result = roomService.leaveRoom(roomId, hostId);
+
+                // ゲストに通知
+                if (guestId != null) {
+                    Map<String, Object> notification = Map.of(
+                            "type", "room_canceled",
+                            "roomId", roomId,
+                            "message", "ホストが切断したため、部屋が解散されました"
+                    );
+                    messagingTemplate.convertAndSend("/topic/room/" + guestId, notification);
+                }
+
+            } else if (disconnectedUserId.equals(guestId)) {
+                // ゲストが切断 → 退出
+                logger.info("ゲスト切断 → 退出: roomId={}, guestId={}", roomId, guestId);
+
+                roomService.leaveRoom(roomId, guestId);
+
+                // ホストに通知
+                Map<String, Object> notification = Map.of(
+                        "type", "guest_left",
+                        "roomId", roomId,
+                        "message", "ゲストが切断しました"
+                );
+                messagingTemplate.convertAndSend("/topic/room/" + hostId, notification);
+            }
+
+        } catch (Exception e) {
+            logger.error("ルーム切断処理エラー: roomId={}", roomId, e);
+        }
+    }
+}
