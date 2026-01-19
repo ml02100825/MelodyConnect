@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
@@ -32,6 +33,9 @@ public class S3ImageUploadService implements ImageUploadService {
     @Value("${aws.secret-access-key:}")
     private String secretAccessKey;
 
+    @Value("${aws.session-token:}")
+    private String sessionToken;
+
     @Value("${aws.s3.folder:uploads/images}")
     private String s3Folder;
 
@@ -43,10 +47,21 @@ public class S3ImageUploadService implements ImageUploadService {
         if (accessKeyId != null && !accessKeyId.isEmpty() &&
             secretAccessKey != null && !secretAccessKey.isEmpty()) {
 
-            AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
+            StaticCredentialsProvider credentialsProvider;
+
+            // AWS Academy Learner Lab用: セッショントークンがある場合は一時認証情報を使用
+            if (sessionToken != null && !sessionToken.isEmpty()) {
+                AwsSessionCredentials credentials = AwsSessionCredentials.create(
+                    accessKeyId, secretAccessKey, sessionToken);
+                credentialsProvider = StaticCredentialsProvider.create(credentials);
+            } else {
+                AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
+                credentialsProvider = StaticCredentialsProvider.create(credentials);
+            }
+
             this.s3Client = S3Client.builder()
                     .region(Region.of(region))
-                    .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                    .credentialsProvider(credentialsProvider)
                     .build();
         }
     }

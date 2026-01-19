@@ -7,6 +7,7 @@ import com.example.api.entity.User;
 import com.example.api.repository.ResultRepository;
 import com.example.api.service.BattleService;
 import com.example.api.service.BattleStateService;
+import com.example.api.service.S3PresignService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,9 @@ public class BattleController {
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    private S3PresignService s3PresignService;
 
     // ==================== REST API ====================
 
@@ -428,11 +432,14 @@ public class BattleController {
         String songName = question.getSong().getSongname();
         String artistName = question.getArtist().getArtistName();
 
+        // S3キーの場合は署名付きURLに変換（毎回新しいURLを生成、有効期限15分）
+        String audioUrl = s3PresignService.convertToPresignedUrl(question.getAudioUrl());
+
         QuestionResponse response = new QuestionResponse(
                 question.getQuestionId(),
                 question.getText(),
                 question.getQuestionFormat().name(),
-                question.getAudioUrl(),
+                audioUrl,
                 question.getTranslationJa(),
                 songName,
                 artistName,
