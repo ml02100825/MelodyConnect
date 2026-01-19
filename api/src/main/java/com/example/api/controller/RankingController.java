@@ -9,22 +9,28 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/rankings")
 @RequiredArgsConstructor
-@CrossOrigin // localhostでの開発用にCORSを許可
+@CrossOrigin
 public class RankingController {
 
     private final RankingService rankingService;
 
+    // ★追加: Rateテーブルに存在するシーズン一覧を取得
+    @GetMapping("/seasons")
+    public ResponseEntity<List<String>> getSeasons() {
+        return ResponseEntity.ok(rankingService.getAvailableSeasons());
+    }
+
     // シーズンランキング
-    // URL: /api/v1/rankings/season?season=シーズン3&limit=50&userId=1&friendsOnly=false
     @GetMapping("/season")
     public ResponseEntity<RankingDto.SeasonResponse> getSeasonRanking(
             @RequestParam(defaultValue = "シーズン3") String season,
             @RequestParam(defaultValue = "50") int limit,
-            @RequestParam Long userId, // Flutter側で渡しているパラメータ
+            @RequestParam Long userId,
             @RequestParam(defaultValue = "false") boolean friendsOnly
     ) {
         return ResponseEntity.ok(
@@ -33,7 +39,6 @@ public class RankingController {
     }
 
     // 週間ランキング
-    // URL: /api/v1/rankings/weekly?limit=50&userId=1&weekStart=2024-01-01
     @GetMapping("/weekly")
     public ResponseEntity<RankingDto.WeeklyResponse> getWeeklyRanking(
             @RequestParam(defaultValue = "50") int limit,
@@ -41,15 +46,8 @@ public class RankingController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
             @RequestParam(defaultValue = "false") boolean friendsOnly
     ) {
-        // weekStartがnullの場合は、今週の始まり（例えば直近の日曜日など）を計算
-        LocalDateTime startDateTime;
-        if (weekStart != null) {
-            startDateTime = weekStart.atStartOfDay();
-        } else {
-            // 指定がなければ今日を基準に週初め(日曜)を計算するなど
-            LocalDateTime now = LocalDateTime.now();
-            startDateTime = now.minusDays(now.getDayOfWeek().getValue() % 7).withHour(0).withMinute(0).withSecond(0);
-        }
+        // weekStart引数は互換性のために残していますが、Service内では無視されweekFlagが優先されます
+        LocalDateTime startDateTime = (weekStart != null) ? weekStart.atStartOfDay() : LocalDateTime.now();
 
         return ResponseEntity.ok(
             rankingService.getWeeklyRanking(startDateTime, limit, userId, friendsOnly)

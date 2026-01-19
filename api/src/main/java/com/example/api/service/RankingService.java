@@ -27,12 +27,18 @@ public class RankingService {
     private final WeeklyLessonsRepository weeklyLessonsRepository;
     private final FriendRepository friendRepository;
 
-    /**
-     * シーズンランキングを取得
-     */
+    // Rateテーブルの実データに基づいてシーズンリストを作成
+    @Transactional(readOnly = true)
+    public List<String> getAvailableSeasons() {
+        List<Integer> seasons = rateRepository.findDistinctSeasons();
+        if (seasons.isEmpty()) return List.of("シーズン1");
+        List<String> formattedSeasons = new ArrayList<>();
+        for (Integer s : seasons) formattedSeasons.add("シーズン" + s);
+        return formattedSeasons;
+    }
+
     @Transactional(readOnly = true)
     public RankingDto.SeasonResponse getSeasonRanking(String seasonName, int limit, Long currentUserId, boolean friendsOnly) {
-        
         Integer seasonInt = parseSeason(seasonName);
         Set<Long> friendIds = friendRepository.findFriendUserIds(currentUserId);
         
@@ -42,10 +48,8 @@ public class RankingService {
         if (friendsOnly) {
             List<Long> targetIds = new ArrayList<>(friendIds);
             targetIds.add(currentUserId);
-            // フレンド限定（自分含む）
             rates = rateRepository.findFriendRankingBySeason(seasonInt, targetIds, pageable);
         } else {
-            // 全体
             rates = rateRepository.findRankingBySeason(seasonInt, pageable);
         }
 
@@ -61,24 +65,17 @@ public class RankingService {
                     .avatarUrl(r.getUser().getImageUrl())
                     .build());
         }
-
-        // シーズン3を仮のアクティブシーズンとする
-        boolean isActive = (seasonInt == 3); 
-
         return RankingDto.SeasonResponse.builder()
                 .entries(entries)
-                .isActive(isActive)
+                .isActive(true)
                 .lastUpdated(LocalDateTime.now())
                 .build();
     }
 
-    /**
-     * 週間ランキングを取得
-     * (日付範囲ではなく、DB上の weekFlag=true のデータを集計します)
-     */
+    // ★修正: weekFlag=true のレコードだけを集計してランキング化
     @Transactional(readOnly = true)
     public RankingDto.WeeklyResponse getWeeklyRanking(LocalDateTime weekStart, int limit, Long currentUserId, boolean friendsOnly) {
-        
+
         Set<Long> friendIds = friendRepository.findFriendUserIds(currentUserId);
         Pageable pageable = PageRequest.of(0, limit);
 
@@ -87,10 +84,10 @@ public class RankingService {
         if (friendsOnly) {
             List<Long> targetIds = new ArrayList<>(friendIds);
             targetIds.add(currentUserId);
-            // フレンド + 自分 の weekFlag=true を検索
+            // weekFlag=true を検索
             results = weeklyLessonsRepository.findCurrentFriendWeeklyRanking(targetIds, pageable);
         } else {
-            // 全体の weekFlag=true を検索
+            // weekFlag=true を検索
             results = weeklyLessonsRepository.findCurrentWeeklyRanking(pageable);
         }
 
@@ -99,7 +96,7 @@ public class RankingService {
 
         for (Object[] row : results) {
             User user = (User) row[0];
-            Long totalLessons = (Long) row[1]; // SUMの結果
+            Long totalLessons = (Long) row[1];
 
             entries.add(RankingDto.Entry.builder()
                     .rank(rank++)
@@ -116,7 +113,6 @@ public class RankingService {
                 .build();
     }
 
-    // "シーズンX" から数値を抽出するヘルパー
     private Integer parseSeason(String seasonName) {
         if (seasonName == null) return 3;
         Matcher m = Pattern.compile(".*?(\\d+)").matcher(seasonName);

@@ -15,14 +15,12 @@ class RankingScreen extends StatefulWidget {
 class _RankingScreenState extends State<RankingScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  String _selectedSeason = 'シーズン3';
-  final List<String> _seasons = ['シーズン1', 'シーズン2', 'シーズン3'];
+  // ★修正: 固定リストを廃止し、サーバーから取得するように変更
+  String _selectedSeason = '';
+  List<String> _seasons = []; 
 
-  final Map<String, bool> _seasonStatus = {
-    'シーズン1': false,
-    'シーズン2': false,
-    'シーズン3': true,
-  };
+  // シーズンの開催ステータス
+  final Map<String, bool> _seasonStatus = {};
 
   Timer? _updateTimer;
   DateTime? _lastUpdateTime;
@@ -34,6 +32,7 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
   final Map<String, List<Map<String, dynamic>>> _rankings = {};
   List<Map<String, dynamic>> _weeklyRankings = [];
 
+  // サーバーのURL（環境に合わせて変更してください）
   final String _baseUrl = 'http://localhost:8080';
   final int _currentUserId = 1;
 
@@ -57,16 +56,20 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
   Future<void> _initializeData() async {
     await _loadToken();
 
-    // 初回ロード
-    await _fetchSeasonRanking(_selectedSeason);
+    // 1. まずシーズン一覧を取得 (DBに存在するシーズンを確認)
+    await _fetchSeasons();
+
+    // 2. 次に週間ランキングを取得
     await _fetchWeeklyRanking();
 
     final now = DateTime.now();
     _weekStartDate = now.subtract(Duration(days: now.weekday % 7));
 
-    setState(() {
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
 
     _startRealtimeUpdate();
   }
@@ -75,9 +78,6 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
-      
-      final keys = prefs.getKeys();
-      debugPrint('📦 SharedPreferences keys: $keys');
       
       setState(() {
         _authToken = token;
@@ -88,17 +88,10 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                                  prefs.getString('access_token') ??
                                  prefs.getString('jwt_token');
         if (alternativeToken != null) {
-          debugPrint('⚠️ Token found with different key');
           setState(() {
             _authToken = alternativeToken;
           });
         }
-      }
-      
-      if (_authToken != null) {
-        debugPrint('✅ Token loaded: ${_authToken!.substring(0, 20)}...');
-      } else {
-        debugPrint('⚠️ No token (認証不要のエンドポイントなので問題なし)');
       }
     } catch (e) {
       debugPrint('❌ Error loading token: $e');
@@ -118,9 +111,61 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
     return headers;
   }
 
-  Future<void> _fetchSeasonRanking(String season) async {
+  // ★追加: DBに存在するシーズン一覧を取得するメソッド
+  Future<void> _fetchSeasons() async {
     try {
-      // ★修正: Uri.replace を使用してクエリパラメータを構築
+      final uri = Uri.parse('$_baseUrl/api/v1/rankings/seasons');
+      debugPrint('📡 [Seasons] Fetching: $uri');
+
+      final res = await http.get(uri, headers: _getHeaders());
+
+      if (res.statusCode == 200) {
+        // 文字化け対策のため utf8.decode を使用
+        final List<dynamic> seasonList = json.decode(utf8.decode(res.bodyBytes));
+        final List<String> fetchedSeasons = seasonList.cast<String>();
+
+        debugPrint('✅ [Seasons] 取得成功: $fetchedSeasons');
+
+        if (fetchedSeasons.isNotEmpty && mounted) {
+          setState(() {
+            _seasons = fetchedSeasons;
+            
+            // 現在選択中のシーズンが新しいリストに無ければ、最新（最後）を選択
+            if (!_seasons.contains(_selectedSeason)) {
+              _selectedSeason = _seasons.last;
+            }
+            
+            // 最新のシーズンだけを「開催中」にする（簡易ロジック）
+            _seasonStatus.clear();
+            for (var s in _seasons) {
+               _seasonStatus[s] = (s == _seasons.last);
+            }
+          });
+          
+          // シーズンが確定したら、そのランキングデータを取得
+          await _fetchSeasonRanking(_selectedSeason);
+        }
+      } else {
+        debugPrint('❌ [Seasons] Error ${res.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ [Seasons] Exception: $e');
+      // エラー時のフォールバック
+      if (mounted && _seasons.isEmpty) {
+        setState(() {
+          _seasons = ['シーズン3'];
+          _selectedSeason = 'シーズン3';
+          _seasonStatus['シーズン3'] = true;
+        });
+        await _fetchSeasonRanking(_selectedSeason);
+      }
+    }
+  }
+
+  Future<void> _fetchSeasonRanking(String season) async {
+    if (season.isEmpty) return; // シーズン未定なら何もしない
+
+    try {
       final queryParams = {
         'season': season,
         'limit': '50',
@@ -132,19 +177,14 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
           .replace(queryParameters: queryParams);
       
       debugPrint('📡 [Season] Fetching: $uri');
-      debugPrint('   Headers: ${_getHeaders()}');
       
       final res = await http.get(
         uri,
         headers: _getHeaders(),
       ).timeout(const Duration(seconds: 10));
       
-      debugPrint('📥 [Season] Status: ${res.statusCode}');
-      
       if (res.statusCode == 200) {
-        debugPrint('✅ [Season] Body: ${res.body.substring(0, res.body.length < 200 ? res.body.length : 200)}...');
-        
-        final Map<String, dynamic> body = json.decode(res.body);
+        final Map<String, dynamic> body = json.decode(utf8.decode(res.bodyBytes)); // 文字化け対策
         final List<dynamic> entries = body['entries'] ?? [];
         final bool isActive = body['isActive'] ?? _seasonStatus[season] ?? false;
         final lastUpdatedRaw = body['lastUpdated'];
@@ -168,58 +208,18 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
           });
         }
 
-        setState(() {
-          _rankings[season] = list;
-          _seasonStatus[season] = isActive;
-          _lastUpdateTime = parsedUpdated;
-        });
-        
-        debugPrint('✅ [Season] データ取得成功: ${list.length}件');
-      } else if (res.statusCode == 403) {
-        debugPrint('❌ [Season] 403 Forbidden');
-        debugPrint('   Body: ${res.body}');
         if (mounted) {
-          _showAuthError();
-        }
-      } else if (res.statusCode == 401) {
-        debugPrint('❌ [Season] 401 Unauthorized');
-        if (mounted) {
-          _showAuthError();
+          setState(() {
+            _rankings[season] = list;
+            _seasonStatus[season] = isActive;
+            _lastUpdateTime = parsedUpdated;
+          });
         }
       } else {
         debugPrint('❌ [Season] Error ${res.statusCode}');
-        debugPrint('   Body: ${res.body}');
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('シーズンランキング取得失敗: ${res.statusCode}'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } on TimeoutException catch (e) {
-      debugPrint('⏱️ [Season] Timeout: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('タイムアウト: サーバーからの応答がありません'),
-            backgroundColor: Colors.orange,
-          ),
-        );
       }
     } catch (e) {
       debugPrint('❌ [Season] Exception: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('エラー: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
   }
 
@@ -230,6 +230,7 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
         'userId': '$_currentUserId',
         'friendsOnly': 'false'
       };
+      // ※バックエンドの仕様変更により weekStart は無視されますが、送信しても問題ありません
       if (weekStart != null) {
         params['weekStart'] = '${weekStart.year.toString().padLeft(4, '0')}-${weekStart.month.toString().padLeft(2, '0')}-${weekStart.day.toString().padLeft(2, '0')}';
       }
@@ -242,10 +243,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
         headers: _getHeaders(),
       ).timeout(const Duration(seconds: 10));
       
-      debugPrint('📥 [Weekly] Status: ${res.statusCode}');
-      
       if (res.statusCode == 200) {
-        final Map<String, dynamic> body = json.decode(res.body);
+        final Map<String, dynamic> body = json.decode(utf8.decode(res.bodyBytes));
         final List<dynamic> entries = body['entries'] ?? [];
         final List<Map<String, dynamic>> list = [];
         for (var e in entries) {
@@ -258,54 +257,27 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
           });
         }
 
-        setState(() {
-          _weeklyRankings = list;
-        });
-        
-        debugPrint('✅ [Weekly] データ取得成功: ${list.length}件');
-      } else if (res.statusCode == 403 || res.statusCode == 401) {
-        debugPrint('❌ [Weekly] Authentication failed: ${res.statusCode}');
         if (mounted) {
-          _showAuthError();
+          setState(() {
+            _weeklyRankings = list;
+          });
         }
-      } else {
-        debugPrint('❌ [Weekly] Error ${res.statusCode}: ${res.body}');
       }
     } catch (e) {
       debugPrint('❌ [Weekly] Exception: $e');
     }
   }
 
-  void _showAuthError() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('認証エラー'),
-        content: const Text('ログインセッションが無効です。再度ログインしてください。'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-              // TODO: ログイン画面へ遷移
-              // Navigator.pushReplacementNamed(context, '/login');
-            },
-            child: const Text('ログイン画面へ'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _startRealtimeUpdate() {
-    _updateTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      final isActive = _seasonStatus[_selectedSeason] ?? false;
-      if (isActive) {
+    _updateTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      // 選択中のシーズンがあり、かつそれがアクティブ（開催中）なら更新
+      if (_selectedSeason.isNotEmpty && (_seasonStatus[_selectedSeason] ?? false)) {
         await _fetchSeasonRanking(_selectedSeason);
-        setState(() {
-          _lastUpdateTime = DateTime.now();
-        });
+        if (mounted) {
+          setState(() {
+            _lastUpdateTime = DateTime.now();
+          });
+        }
       }
     });
   }
@@ -427,26 +399,28 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                       ],
                     ),
                   ),
-                  Row(
-                    children: [
-                      const Text('シーズン: ', style: TextStyle(fontSize: 16)),
-                      DropdownButton<String>(
-                        value: _selectedSeason,
-                        items: _seasons.map((season) {
-                          return DropdownMenuItem<String>(
-                            value: season,
-                            child: Text(season),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedSeason = value!;
-                            _fetchSeasonRanking(_selectedSeason);
-                          });
-                        },
-                      ),
-                    ],
-                  ),
+                  // ★修正: 「シーズン:」のテキストを削除し、動的なプルダウンを配置
+                  _seasons.isEmpty
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : DropdownButton<String>(
+                          value: _selectedSeason.isNotEmpty ? _selectedSeason : null,
+                          items: _seasons.map((season) {
+                            return DropdownMenuItem<String>(
+                              value: season,
+                              child: Text(season),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedSeason = value!;
+                              _fetchSeasonRanking(_selectedSeason);
+                            });
+                          },
+                        ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -475,7 +449,7 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                         Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
                         const SizedBox(width: 4),
                         Text(
-                          '${_formatUpdateTime(_lastUpdateTime!)}',
+                          _formatUpdateTime(_lastUpdateTime!),
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
@@ -726,6 +700,14 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                                         ? Colors.grey[600]
                                         : Colors.brown[400],
                               ),
+                            if (isMe) ...[
+                              const SizedBox(width: 4),
+                              Icon(Icons.person, size: 16, color: Colors.amber[700]),
+                            ],
+                            if (isFriend && !isMe) ...[
+                              const SizedBox(width: 4),
+                              Icon(Icons.people, size: 16, color: Colors.green[600]),
+                            ],
                           ],
                         ),
                         title: Row(
