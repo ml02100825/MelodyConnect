@@ -91,6 +91,7 @@ public class S3ImageUploadService implements ImageUploadService {
                     .bucket(bucketName)
                     .key(s3Key)
                     .contentType(contentType)
+                    .cacheControl("public, max-age=31536000, immutable")
                     .build();
 
             s3Client.putObject(putObjectRequest,
