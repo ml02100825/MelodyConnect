@@ -205,13 +205,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       }
 
       // プロフィール更新API呼び出し
-      final response = await _profileApiService.updateProfile(
-        userId: userId,
-        username: _usernameController.text.trim(),
-        userUuid: _userUuidController.text.trim(),
-        imageUrl: _uploadedImageUrl!,
-        accessToken: accessToken,
-      );
+     final response = await _profileApiService.updateProfileMultipart(
+      userId: userId,
+      username: _usernameController.text.trim(),
+      userUuid: _userUuidController.text.trim(),
+      imageBytes: _imageBytes,
+      filename: _selectedImageFile?.name,
+      accessToken: accessToken,
+    );
+
 
       // ユーザー名を保存
       await _tokenStorage.saveUsername(response['username']);

@@ -35,6 +35,7 @@ public class S3ImageUploadService implements ImageUploadService {
 
     @Value("${aws.session-token:}")
     private String sessionToken;
+    
 
     @Value("${aws.s3.folder:uploads/images}")
     private String s3Folder;
@@ -90,7 +91,6 @@ public class S3ImageUploadService implements ImageUploadService {
                     .bucket(bucketName)
                     .key(s3Key)
                     .contentType(contentType)
-                    .acl(ObjectCannedACL.PUBLIC_READ) // パブリックアクセス許可
                     .build();
 
             s3Client.putObject(putObjectRequest,
