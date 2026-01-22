@@ -2,6 +2,7 @@ package com.example.api.repository;
 
 import com.example.api.entity.Song;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,7 +14,7 @@ import java.util.Optional;
  * Song Repository
  */
 @Repository
-public interface SongRepository extends JpaRepository<Song, Long> {
+public interface SongRepository extends JpaRepository<Song, Long>, JpaSpecificationExecutor<Song> {
 
     /**
      * Genius Song IDで検索

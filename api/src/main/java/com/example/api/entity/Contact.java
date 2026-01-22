@@ -1,12 +1,14 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
     name = "contact",
     indexes = {
-        @Index(name = "idx_contact_user_id", columnList = "user_id")
+        @Index(name = "idx_contact_user_id", columnList = "user_id"),
+        @Index(name = "idx_contact_status", columnList = "status")
     }
 )
 public class Contact {
@@ -28,6 +30,25 @@ public class Contact {
 
     @Column(name = "title", nullable = false, length = 50)
     private String title;
+
+    @Column(name = "status", length = 20)
+    private String status = "未対応";
+
+    @Column(name = "admin_memo", columnDefinition = "TEXT")
+    private String adminMemo;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (status == null) {
+            status = "未対応";
+        }
+    }
 
     // ====== getters / setters ======
     public Long getContact_id() {
@@ -63,5 +84,26 @@ public class Contact {
     }
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getAdminMemo() {
+        return adminMemo;
+    }
+    public void setAdminMemo(String adminMemo) {
+        this.adminMemo = adminMemo;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

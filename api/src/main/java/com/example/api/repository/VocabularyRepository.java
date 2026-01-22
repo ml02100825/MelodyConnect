@@ -2,6 +2,7 @@ package com.example.api.repository;
 
 import com.example.api.entity.Vocabulary;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,7 +14,7 @@ import java.util.Optional;
  * Vocabulary Repository
  */
 @Repository
-public interface VocabularyRepository extends JpaRepository<Vocabulary, Integer> {
+public interface VocabularyRepository extends JpaRepository<Vocabulary, Integer>, JpaSpecificationExecutor<Vocabulary> {
 
     /**
      * 単語で検索

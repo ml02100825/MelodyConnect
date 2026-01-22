@@ -16,6 +16,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
  * JWTトークン認証フィルター
@@ -60,12 +62,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         Long userId = jwtUtil.getUserIdFromToken(token);
                         logger.debug("ユーザーID: {}", userId);
 
+                        // ロールを取得して権限リストを作成
+                        String role = jwtUtil.getRoleFromToken(token);
+                        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+
+                        if ("ADMIN".equals(role)) {
+                            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                            logger.debug("管理者権限を付与: ROLE_ADMIN");
+                        } else {
+                            authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+                            logger.debug("ユーザー権限を付与: ROLE_USER");
+                        }
+
                         // 認証オブジェクトを作成
                         UsernamePasswordAuthenticationToken authentication =
                                 new UsernamePasswordAuthenticationToken(
                                         userId,
                                         null,
-                                        new ArrayList<>() // 権限リスト（必要に応じて追加）
+                                        authorities
                                 );
 
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
