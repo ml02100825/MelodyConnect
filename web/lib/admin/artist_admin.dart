@@ -146,7 +146,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         isActive: isActive,
       );
 
-      final content = response['content'] as List<dynamic>? ?? [];
+      final content = response['artists'] as List<dynamic>? ?? [];
       final loadedArtists = content.map((json) => Artist.fromJson(json)).toList();
 
       setState(() {

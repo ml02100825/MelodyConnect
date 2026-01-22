@@ -129,7 +129,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         isActive: isActive,
       );
 
-      final content = response['content'] as List<dynamic>? ?? [];
+      final content = response['badges'] as List<dynamic>? ?? [];
       final loadedBadges = content.map((json) => Badge.fromJson(json)).toList();
 
       setState(() {

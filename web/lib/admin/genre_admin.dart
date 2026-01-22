@@ -108,7 +108,7 @@ class _GenreAdminState extends State<GenreAdmin> {
         name: genreSearch.isNotEmpty ? genreSearch : null,
       );
 
-      final content = response['content'] as List<dynamic>? ?? [];
+      final content = response['genres'] as List<dynamic>? ?? [];
       final loadedGenres = content.map((json) => Genre.fromJson(json)).toList();
 
       setState(() {

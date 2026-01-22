@@ -88,7 +88,7 @@ class _UserListAdminState extends State<UserListAdmin> {
         subscribeFlag: subscribeFlag,
       );
 
-      final content = response['content'] as List<dynamic>? ?? [];
+      final content = response['users'] as List<dynamic>? ?? [];
       final loadedUsers = content.map((json) => User.fromJson(json)).toList();
 
       setState(() {

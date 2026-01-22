@@ -58,7 +58,7 @@ class _ContactAdminState extends State<ContactAdmin> {
         status: _getStatusForTab(),
       );
 
-      final content = response['content'] as List<dynamic>? ?? [];
+      final content = response['contacts'] as List<dynamic>? ?? [];
       final loadedContacts = content.map((json) {
         return {
           'id': json['id']?.toString() ?? '0',

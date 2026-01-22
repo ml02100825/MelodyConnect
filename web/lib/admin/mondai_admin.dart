@@ -76,7 +76,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         isActive: isActive,
       );
 
-      final content = response['content'] as List<dynamic>? ?? [];
+      final content = response['questions'] as List<dynamic>? ?? [];
       final loadedQuestions = content.map((json) {
         // APIレスポンスをUIフォーマットに変換
         String category = '穴埋め';
