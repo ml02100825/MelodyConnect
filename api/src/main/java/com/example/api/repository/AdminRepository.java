@@ -3,6 +3,8 @@ package com.example.api.repository;
 import com.example.api.entity.Admin;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
@@ -18,5 +20,6 @@ public interface AdminRepository extends JpaRepository<Admin, Long> {
      * @param adminId 管理者ID
      * @return 管理者エンティティ
      */
+    @Query("SELECT a FROM Admin a WHERE a.admin_id = :adminId")
     Optional<Admin> findByAdmin_id(Long adminId);
 }

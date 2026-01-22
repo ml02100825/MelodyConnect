@@ -1,4 +1,5 @@
 class User {
+  int numericId;
   String id;
   final String uuid;
   String username;
@@ -11,6 +12,7 @@ class User {
   bool isFrozen;
 
   User({
+    required this.numericId,
     required this.id,
     required this.uuid,
     required this.username,
@@ -22,6 +24,30 @@ class User {
     required this.subscription,
     required this.isFrozen,
   });
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      numericId: json['id'] ?? 0,
+      id: json['id']?.toString().padLeft(5, '0') ?? '00000',
+      uuid: json['userUuid'] ?? '',
+      username: json['username'] ?? '',
+      email: json['email'] ?? '',
+      accountCreated: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
+      lastLogin: json['offlineAt'] != null
+          ? DateTime.parse(json['offlineAt'])
+          : DateTime.now(),
+      subscriptionRegistered: json['subscriptionRegisteredAt'] != null
+          ? DateTime.parse(json['subscriptionRegisteredAt'])
+          : null,
+      subscriptionCancelled: json['subscriptionCancelledAt'] != null
+          ? DateTime.parse(json['subscriptionCancelledAt'])
+          : null,
+      subscription: json['subscribeFlag'] == true ? '加入中' : '×',
+      isFrozen: json['banFlag'] ?? false,
+    );
+  }
 
   // 状態変更メソッドを追加
   void freeze() {

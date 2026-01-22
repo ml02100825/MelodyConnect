@@ -15,6 +15,18 @@ import 'screens/learning_history_screen.dart';
 import 'screens/learning_history_detail_screen.dart';
 import 'widgets/room_invitation_overlay.dart';
 
+// 管理者画面
+import 'admin/admin_login_screen.dart';
+import 'admin/admin_route_guard.dart';
+import 'admin/user_list_admin.dart';
+import 'admin/vocabulary_admin.dart';
+import 'admin/mondai_admin.dart';
+import 'admin/music_admin.dart';
+import 'admin/artist_admin.dart';
+import 'admin/genre_admin.dart';
+import 'admin/badge_admin.dart';
+import 'admin/contact_admin.dart';
+
 void main() => runApp(const MyApp());
 
 /// ナビゲーターキー（オーバーレイからのナビゲーション用）
@@ -47,6 +59,16 @@ class MyApp extends StatelessWidget {
         '/learning-menu': (context) => const LearningMenuScreen(),
         '/room-invitations': (context) => const RoomInvitationsScreen(),
         '/battle-history': (context) => const BattleHistoryScreen(),
+        // 管理者画面
+        '/admin/login': (context) => const AdminLoginScreen(),
+        '/admin/users': (context) => AdminRouteGuard(child: UserListAdmin()),
+        '/admin/vocabularies': (context) => AdminRouteGuard(child: VocabularyAdmin()),
+        '/admin/questions': (context) => AdminRouteGuard(child: MondaiAdmin()),
+        '/admin/music': (context) => AdminRouteGuard(child: MusicAdmin()),
+        '/admin/artists': (context) => AdminRouteGuard(child: ArtistAdmin()),
+        '/admin/genres': (context) => AdminRouteGuard(child: GenreAdmin()),
+        '/admin/badges': (context) => AdminRouteGuard(child: BadgeAdmin()),
+        '/admin/contacts': (context) => AdminRouteGuard(child: ContactAdmin()),
       },
       onGenerateRoute: (settings) {
         // /room-match?roomId=123&isGuest=true&isReturning=true のようなクエリパラメータ付きルートを処理

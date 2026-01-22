@@ -237,8 +237,8 @@ class BottomAdminLayout extends StatelessWidget {
           MaterialPageRoute(builder: (context) => const MondaiAdmin()));
         break;
       case '楽曲':
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MusicAdmin()));
-        break;
+        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MusicAdmin()));
+        // break;
       case 'アーティスト':
         Navigator.pushReplacement(
           context,

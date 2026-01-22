@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'user_model.dart';
-import 'user_list_admin.dart';
 import 'bottom_admin.dart';
+import 'services/admin_api_service.dart';
 
 class UserDetailAdmin extends StatefulWidget {
   final User user;
@@ -13,12 +13,21 @@ class UserDetailAdmin extends StatefulWidget {
 }
 
 class _UserDetailAdminState extends State<UserDetailAdmin> {
+  late User _user;
+  bool _isLoading = false;
+
   // 削除確認用チェックボックス
   bool usernameChecked = false;
   bool idChecked = false;
   bool uuidChecked = false;
   bool emailChecked = false;
   bool refundChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _user = widget.user;
+  }
 
   void _showDeleteConfirmation() {
     showDialog(
@@ -39,26 +48,26 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildDeleteCheckbox(
-                    'ユーザー名: ${widget.user.username}',
+                    'ユーザー名: ${_user.username}',
                     usernameChecked,
                     (value) => setDialogState(() => usernameChecked = value ?? false),
                   ),
                   _buildDeleteCheckbox(
-                    'ID: ${widget.user.id}',
+                    'ID: ${_user.id}',
                     idChecked,
                     (value) => setDialogState(() => idChecked = value ?? false),
                   ),
                   _buildDeleteCheckbox(
-                    'UUID: ${widget.user.uuid}',
+                    'UUID: ${_user.uuid}',
                     uuidChecked,
                     (value) => setDialogState(() => uuidChecked = value ?? false),
                   ),
                   _buildDeleteCheckbox(
-                    'メールアドレス: ${widget.user.email}',
+                    'メールアドレス: ${_user.email}',
                     emailChecked,
                     (value) => setDialogState(() => emailChecked = value ?? false),
                   ),
-                  if (widget.user.subscription == '加入中')
+                  if (_user.subscription == '加入中')
                     _buildDeleteCheckbox(
                       'サブスク加入中のため、返金処理を行う',
                       refundChecked,
@@ -67,14 +76,14 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
                     ),
                 ],
               ),
-            ),            
+            ),
             actions: [
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   ElevatedButton(
-                    onPressed: (usernameChecked && idChecked && uuidChecked && emailChecked && 
-                              (widget.user.subscription != '加入中' || refundChecked))
+                    onPressed: (usernameChecked && idChecked && uuidChecked && emailChecked &&
+                              (_user.subscription != '加入中' || refundChecked))
                         ? () {
                             _deleteAccount();
                             Navigator.pop(context);
@@ -89,9 +98,9 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
                     ),
                     child: Text('アカウントを削除する', style: TextStyle(color: Colors.white)),
                   ),
-                  
+
                   SizedBox(height: 8),
-                  
+
                   TextButton(
                     onPressed: () {
                       Navigator.pop(context);
@@ -130,73 +139,130 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
 
   void _deleteAccount() {
     // 削除前に結果を返す
-    Navigator.pop(context, {'action': 'delete', 'user': widget.user});
+    Navigator.pop(context, {'action': 'delete', 'user': _user});
   }
 
-  void _freezeAccount() {
-    showDialog(
+  Future<void> _freezeAccount() async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('アカウント停止'),
         content: Text('本当にこのアカウントを停止しますか？'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text('キャンセル'),
           ),
           TextButton(
-            onPressed: () {
-              // アカウント停止処理
-              widget.user.freeze();
-              setState(() {}); // 画面を更新
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('アカウントを停止しました')),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: Text('停止', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AdminApiService.freezeUsers([_user.numericId]);
+      setState(() {
+        _user.freeze();
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('アカウントを停止しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('アカウント停止に失敗しました: $e')),
+        );
+      }
+    }
   }
 
-  void _unfreezeAccount() {
-    showDialog(
+  Future<void> _unfreezeAccount() async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('アカウント復旧'),
         content: Text('本当にこのアカウントを復旧しますか？'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text('キャンセル'),
           ),
           TextButton(
-            onPressed: () {
-              // アカウント復旧処理
-              widget.user.unfreeze();
-              setState(() {}); // 画面を更新
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('アカウントを復旧しました')),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: Text('復旧', style: TextStyle(color: Colors.green)),
           ),
         ],
       ),
     );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AdminApiService.unfreezeUsers([_user.numericId]);
+      setState(() {
+        _user.unfreeze();
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('アカウントを復旧しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('アカウント復旧に失敗しました: $e')),
+        );
+      }
+    }
+  }
+
+  String _formatDateTime(DateTime? dateTime) {
+    if (dateTime == null) return '－';
+    return '${dateTime.year}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.day.toString().padLeft(2, '0')} '
+           '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: BottomAdminLayout(
-        mainContent: _buildMainContent(),
-        selectedMenu: 'ユーザー管理',
-        showTabs: false,
+      body: Stack(
+        children: [
+          BottomAdminLayout(
+            mainContent: _buildMainContent(),
+            selectedMenu: 'ユーザー管理',
+            showTabs: false,
+          ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -246,7 +312,7 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
                   Row(
                     children: [
                       Text(
-                        widget.user.username,
+                        _user.username,
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -267,15 +333,11 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
         Expanded(
           child: Column(
             children: [
-              _buildInfoRow('ID', widget.user.id),
-              _buildInfoRow('UUID', widget.user.uuid),
-              _buildInfoRow('メールアドレス', widget.user.email),
+              _buildInfoRow('ID', _user.id),
+              _buildInfoRow('UUID', _user.uuid),
+              _buildInfoRow('メールアドレス', _user.email),
               SizedBox(height: 40),
-              _buildInfoRow('サブスク', widget.user.subscription),
-              _buildInfoRow('オンラインステータス', '公開'),
-              _buildInfoRow('累計プレイ回数', '123456'),
-              _buildInfoRow('ライフ', '4'),
-              _buildInfoRow('音量', '65'),
+              _buildInfoRow('サブスク', _user.subscription),
             ],
           ),
         ),
@@ -283,13 +345,12 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
         Expanded(
           child: Column(
             children: [
-              _buildInfoRow('アカウント作成日', '2026/01/01 00:00:00'),
-              _buildInfoRow('最終ログイン日時', '2026/01/01 00:00:00'),
-              _buildInfoRow('最終オフライン日時', '2026/01/01 00:00:00'),
-              _buildInfoRow('サブスク登録日時', '2026/01/01 00:00:00'),
-              _buildInfoRow('サブスク解約日時', '－'),
-              SizedBox(height: 144),
-              _buildInfoRow('アカウント状態', widget.user.isFrozen ? '停止中' : '有効'),
+              _buildInfoRow('アカウント作成日', _formatDateTime(_user.accountCreated)),
+              _buildInfoRow('最終ログイン日時', _formatDateTime(_user.lastLogin)),
+              _buildInfoRow('サブスク登録日時', _formatDateTime(_user.subscriptionRegistered)),
+              _buildInfoRow('サブスク解約日時', _formatDateTime(_user.subscriptionCancelled)),
+              SizedBox(height: 40),
+              _buildInfoRow('アカウント状態', _user.isFrozen ? '停止中' : '有効'),
             ],
           ),
         ),
@@ -328,7 +389,7 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
         // 左端：一覧へ戻る
         OutlinedButton(
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pop(context, {'action': 'updated'});
           },
           style: OutlinedButton.styleFrom(
             backgroundColor: Colors.grey,
@@ -345,9 +406,9 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               ElevatedButton(
-                onPressed: widget.user.isFrozen ? _unfreezeAccount : _freezeAccount,
+                onPressed: _isLoading ? null : (_user.isFrozen ? _unfreezeAccount : _freezeAccount),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.user.isFrozen ? Colors.green : Colors.orange,
+                  backgroundColor: _user.isFrozen ? Colors.green : Colors.orange,
                   padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(5),
@@ -355,13 +416,13 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
                   elevation: 0,
                 ),
                 child: Text(
-                  widget.user.isFrozen ? 'アカウント復旧' : 'アカウント停止',
+                  _user.isFrozen ? 'アカウント復旧' : 'アカウント停止',
                   style: TextStyle(color: Colors.white),
                 ),
               ),
               SizedBox(width: 16),
               ElevatedButton(
-                onPressed: _showDeleteConfirmation,
+                onPressed: _isLoading ? null : _showDeleteConfirmation,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),

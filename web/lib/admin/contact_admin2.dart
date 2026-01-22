@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
+import 'services/admin_api_service.dart';
 
 class ContactDetailPage extends StatefulWidget {
   final Map<String, dynamic> contact;
@@ -18,6 +19,7 @@ class ContactDetailPage extends StatefulWidget {
 class _ContactDetailPageState extends State<ContactDetailPage> {
   late String selectedStatus;
   late TextEditingController adminMemoController;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -32,40 +34,93 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
     super.dispose();
   }
 
-  void _updateStatus(String newStatus) {
+  Future<void> _saveAndReturn() async {
     setState(() {
-      selectedStatus = newStatus;
-      widget.contact['status'] = newStatus;
-      widget.contact['adminMemo'] = adminMemoController.text;
+      _isLoading = true;
     });
+
+    try {
+      final contactId = widget.contact['numericId'] as int;
+      await AdminApiService.updateContactStatus(
+        contactId,
+        selectedStatus,
+        adminMemoController.text.isNotEmpty ? adminMemoController.text : null,
+      );
+
+      widget.contact['status'] = selectedStatus;
+      widget.contact['adminMemo'] = adminMemoController.text;
+      widget.onUpdate(widget.contact);
+
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('更新に失敗しました: $e')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
-  void _saveAndReturn() {
-    widget.contact['status'] = selectedStatus;
-    widget.contact['adminMemo'] = adminMemoController.text;
-    widget.onUpdate(widget.contact);
-    Navigator.pop(context);
-  }
+  Future<void> _completeAndReturn() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-  void _completeAndReturn() {
-    widget.contact['status'] = '完了';
-    widget.contact['adminMemo'] = adminMemoController.text;
-    widget.onUpdate(widget.contact);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('ステータスを「完了」に変更しました')),
-    );
-    Navigator.pop(context);
+    try {
+      final contactId = widget.contact['numericId'] as int;
+      await AdminApiService.updateContactStatus(
+        contactId,
+        '完了',
+        adminMemoController.text.isNotEmpty ? adminMemoController.text : null,
+      );
+
+      widget.contact['status'] = '完了';
+      widget.contact['adminMemo'] = adminMemoController.text;
+      widget.onUpdate(widget.contact);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ステータスを「完了」に変更しました')),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('更新に失敗しました: $e')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: BottomAdminLayout(
-        mainContent: _buildMainContent(),
-        selectedMenu: 'お問い合わせ管理',
-        selectedTab: 'お問い合わせ',
-        showTabs: false,
+      body: Stack(
+        children: [
+          BottomAdminLayout(
+            mainContent: _buildMainContent(),
+            selectedMenu: 'お問い合わせ管理',
+            selectedTab: 'お問い合わせ',
+            showTabs: false,
+          ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -202,17 +257,17 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: _saveAndReturn,
+                  onPressed: _isLoading ? null : _saveAndReturn,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                   ),
-                  child: const Text('一覧へ戻る'),
+                  child: const Text('保存して戻る'),
                 ),
                 const Spacer(),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: _isLoading ? null : () {
                     // 返信処理（メール送信など）
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('返信機能は未実装です')),
@@ -227,7 +282,7 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _completeAndReturn,
+                  onPressed: _isLoading ? null : _completeAndReturn,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,

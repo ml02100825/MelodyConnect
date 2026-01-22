@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'user_model.dart';
 import 'user_detail_admin.dart';
 import 'bottom_admin.dart';
+import 'services/admin_api_service.dart';
 
 class UserListAdmin extends StatefulWidget {
   @override
@@ -10,16 +11,25 @@ class UserListAdmin extends StatefulWidget {
 
 class _UserListAdminState extends State<UserListAdmin> {
   List<User> users = [];
-  List<User> filteredUsers = [];
   List<bool> selectedUsers = [];
   bool hasSelection = false;
+
+  // ページング
+  int _currentPage = 0;
+  int _totalPages = 1;
+  int _totalElements = 0;
+  final int _pageSize = 20;
+
+  // ローディング・エラー状態
+  bool _isLoading = false;
+  String? _error;
 
   // 検索条件
   final TextEditingController idController = TextEditingController();
   final TextEditingController uuidController = TextEditingController();
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
-  
+
   // 日付フィールド
   DateTime? createdStart;
   DateTime? createdEnd;
@@ -29,7 +39,7 @@ class _UserListAdminState extends State<UserListAdmin> {
   DateTime? subscRegistEnd;
   DateTime? subscCancelStart;
   DateTime? subscCancelEnd;
-  
+
   // ドロップダウン選択
   String freezeStatus = '全て';
   String subscStatus = '全て';
@@ -37,140 +47,68 @@ class _UserListAdminState extends State<UserListAdmin> {
   @override
   void initState() {
     super.initState();
-    _loadSampleData();
+    _loadFromApi();
   }
 
-  void _loadSampleData() {
-    users = [
-      User(
-        id: '00001',
-        uuid: 'sample_01',
-        username: 'サンプル01',
-        email: 'sample01@example.com',
-        accountCreated: DateTime(2024, 1, 1),
-        lastLogin: DateTime(2024, 12, 1),
-        subscriptionRegistered: DateTime(2024, 1, 2),
-        isFrozen: false,
-        subscription: '加入中',
-      ),
-      User(
-        id: '00002',
-        uuid: 'sample_02',
-        username: 'サンプル02',
-        email: 'sample02@example.com',
-        accountCreated: DateTime(2024, 2, 1),
-        lastLogin: DateTime(2024, 11, 15),
-        subscriptionRegistered: DateTime(2024, 2, 2),
-        subscriptionCancelled: DateTime(2024, 6, 1),
-        isFrozen: false,
-        subscription: '×',
-      ),
-      User(
-        id: '00003',
-        uuid: 'sample_03',
-        username: 'サンプル03',
-        email: 'sample03@example.com',
-        accountCreated: DateTime(2024, 3, 1),
-        lastLogin: DateTime(2024, 10, 20),
-        subscriptionRegistered: DateTime(2024, 3, 2),
-        isFrozen: true,
-        subscription: '加入中',
-      ),
-      User(
-        id: '00004',
-        uuid: 'sample_04',
-        username: 'サンプル04',
-        email: 'sample04@example.com',
-        accountCreated: DateTime(2024, 4, 1),
-        lastLogin: DateTime(2024, 9, 5),
-        subscriptionRegistered: DateTime(2024, 4, 2),
-        subscriptionCancelled: DateTime(2024, 8, 1),
-        isFrozen: false,
-        subscription: '×',
-      ),
-    ];
-    filteredUsers = List.from(users);
-    selectedUsers = List.generate(filteredUsers.length, (index) => false);
+  Future<void> _loadFromApi() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // 検索パラメータを構築
+      int? searchId;
+      if (idController.text.trim().isNotEmpty) {
+        searchId = int.tryParse(idController.text.trim());
+      }
+
+      bool? banFlag;
+      if (freezeStatus == '停止中') {
+        banFlag = true;
+      } else if (freezeStatus == '有効') {
+        banFlag = false;
+      }
+
+      bool? subscribeFlag;
+      if (subscStatus == '加入中') {
+        subscribeFlag = true;
+      } else if (subscStatus == '解約') {
+        subscribeFlag = false;
+      }
+
+      final response = await AdminApiService.getUsers(
+        page: _currentPage,
+        size: _pageSize,
+        id: searchId,
+        userUuid: uuidController.text.trim().isNotEmpty ? uuidController.text.trim() : null,
+        username: usernameController.text.trim().isNotEmpty ? usernameController.text.trim() : null,
+        email: emailController.text.trim().isNotEmpty ? emailController.text.trim() : null,
+        banFlag: banFlag,
+        subscribeFlag: subscribeFlag,
+      );
+
+      final content = response['content'] as List<dynamic>? ?? [];
+      final loadedUsers = content.map((json) => User.fromJson(json)).toList();
+
+      setState(() {
+        users = loadedUsers;
+        _totalPages = response['totalPages'] ?? 1;
+        _totalElements = response['totalElements'] ?? 0;
+        selectedUsers = List.generate(users.length, (index) => false);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'データの取得に失敗しました: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   void _applySearch() {
-    final idQuery = idController.text.trim();
-    final uuidQuery = uuidController.text.trim();
-    final usernameQuery = usernameController.text.trim().toLowerCase();
-    final emailQuery = emailController.text.trim().toLowerCase();
-
-    setState(() {
-      filteredUsers = users.where((user) {
-        final matchesId = idQuery.isEmpty || user.id.contains(idQuery);
-        final matchesUuid = uuidQuery.isEmpty || user.uuid.contains(uuidQuery);
-        final matchesUsername = usernameQuery.isEmpty || 
-                               user.username.toLowerCase().contains(usernameQuery);
-        final matchesEmail = emailQuery.isEmpty || 
-                           user.email.toLowerCase().contains(emailQuery);
-        
-        bool matchesFreezeStatus = true;
-        if (freezeStatus != '全て') {
-          if (freezeStatus == '停止中' && !user.isFrozen) {
-            matchesFreezeStatus = false;
-          } else if (freezeStatus == '有効' && user.isFrozen) {
-            matchesFreezeStatus = false;
-          }
-        }
-        
-        bool matchesSubscStatus = true;
-        if (subscStatus != '全て') {
-          if (subscStatus == '加入中' && user.subscription != '加入中') {
-            matchesSubscStatus = false;
-          } else if (subscStatus == '解約' && user.subscription != '×') {
-            matchesSubscStatus = false;
-          }
-        }
-
-        bool matchesCreatedDate = true;
-        if (createdStart != null) {
-          matchesCreatedDate = user.accountCreated.isAfter(createdStart!);
-        }
-        if (createdEnd != null) {
-          matchesCreatedDate = matchesCreatedDate && 
-                              user.accountCreated.isBefore(createdEnd!.add(const Duration(days: 1)));
-        }
-
-        bool matchesLastLoginDate = true;
-        if (lastLoginStart != null) {
-          matchesLastLoginDate = user.lastLogin.isAfter(lastLoginStart!);
-        }
-        if (lastLoginEnd != null) {
-          matchesLastLoginDate = matchesLastLoginDate && 
-                                user.lastLogin.isBefore(lastLoginEnd!.add(const Duration(days: 1)));
-        }
-
-        bool matchesSubscRegistDate = true;
-        if (subscRegistStart != null && user.subscriptionRegistered != null) {
-          matchesSubscRegistDate = user.subscriptionRegistered!.isAfter(subscRegistStart!);
-        }
-        if (subscRegistEnd != null && user.subscriptionRegistered != null) {
-          matchesSubscRegistDate = matchesSubscRegistDate && 
-                                  user.subscriptionRegistered!.isBefore(subscRegistEnd!.add(const Duration(days: 1)));
-        }
-
-        bool matchesSubscCancelDate = true;
-        if (subscCancelStart != null && user.subscriptionCancelled != null) {
-          matchesSubscCancelDate = user.subscriptionCancelled!.isAfter(subscCancelStart!);
-        }
-        if (subscCancelEnd != null && user.subscriptionCancelled != null) {
-          matchesSubscCancelDate = matchesSubscCancelDate && 
-                                  user.subscriptionCancelled!.isBefore(subscCancelEnd!.add(const Duration(days: 1)));
-        }
-
-        return matchesId && matchesUuid && matchesUsername && matchesEmail &&
-               matchesFreezeStatus && matchesSubscStatus &&
-               matchesCreatedDate && matchesLastLoginDate &&
-               matchesSubscRegistDate && matchesSubscCancelDate;
-      }).toList();
-
-      selectedUsers = List.generate(filteredUsers.length, (index) => false);
-      _updateSelectionState();
-    });
+    _currentPage = 0;
+    _loadFromApi();
   }
 
   void _clearSearch() {
@@ -179,7 +117,7 @@ class _UserListAdminState extends State<UserListAdmin> {
       uuidController.clear();
       usernameController.clear();
       emailController.clear();
-      
+
       createdStart = null;
       createdEnd = null;
       lastLoginStart = null;
@@ -188,22 +126,29 @@ class _UserListAdminState extends State<UserListAdmin> {
       subscRegistEnd = null;
       subscCancelStart = null;
       subscCancelEnd = null;
-      
+
       freezeStatus = '全て';
       subscStatus = '全て';
-
-      filteredUsers = List.from(users);
-      selectedUsers = List.generate(filteredUsers.length, (index) => false);
-      _updateSelectionState();
     });
+    _currentPage = 0;
+    _loadFromApi();
+  }
+
+  void _goToPage(int page) {
+    if (page >= 0 && page < _totalPages) {
+      setState(() {
+        _currentPage = page;
+      });
+      _loadFromApi();
+    }
   }
 
   void _toggleAllSelection(bool? value) {
     setState(() {
       if (value == true) {
-        selectedUsers = List.generate(filteredUsers.length, (index) => true);
+        selectedUsers = List.generate(users.length, (index) => true);
       } else {
-        selectedUsers = List.generate(filteredUsers.length, (index) => false);
+        selectedUsers = List.generate(users.length, (index) => false);
       }
       _updateSelectionState();
     });
@@ -222,42 +167,72 @@ class _UserListAdminState extends State<UserListAdmin> {
     });
   }
 
-  void _freezeSelectedUsers() {
-    setState(() {
-      for (int i = 0; i < selectedUsers.length; i++) {
-        if (selectedUsers[i]) {
-          filteredUsers[i].freeze();
-          // 元のリストも更新
-          final originalIndex = users.indexWhere((u) => u.id == filteredUsers[i].id);
-          if (originalIndex != -1) {
-            users[originalIndex].freeze();
-          }
-        }
+  Future<void> _freezeSelectedUsers() async {
+    final selectedIds = <int>[];
+    for (int i = 0; i < selectedUsers.length; i++) {
+      if (selectedUsers[i]) {
+        selectedIds.add(users[i].numericId);
       }
-      _updateSelectionState();
+    }
+
+    if (selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('選択したユーザーを停止しました')),
-    );
+
+    try {
+      await AdminApiService.freezeUsers(selectedIds);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('選択したユーザーを停止しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('停止処理に失敗しました: $e')),
+        );
+      }
+    }
   }
 
-  void _unfreezeSelectedUsers() {
-    setState(() {
-      for (int i = 0; i < selectedUsers.length; i++) {
-        if (selectedUsers[i]) {
-          filteredUsers[i].unfreeze();
-          // 元のリストも更新
-          final originalIndex = users.indexWhere((u) => u.id == filteredUsers[i].id);
-          if (originalIndex != -1) {
-            users[originalIndex].unfreeze();
-          }
-        }
+  Future<void> _unfreezeSelectedUsers() async {
+    final selectedIds = <int>[];
+    for (int i = 0; i < selectedUsers.length; i++) {
+      if (selectedUsers[i]) {
+        selectedIds.add(users[i].numericId);
       }
-      _updateSelectionState();
+    }
+
+    if (selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('選択したユーザーを復旧しました')),
-    );
+
+    try {
+      await AdminApiService.unfreezeUsers(selectedIds);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('選択したユーザーを復旧しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('復旧処理に失敗しました: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildFreezeIndicator(bool isFrozen) {
@@ -296,7 +271,7 @@ class _UserListAdminState extends State<UserListAdmin> {
         // 検索条件エリア
         _buildSearchArea(),
         SizedBox(height: 16),
-        
+
         // ユーザー一覧テーブル
         Expanded(
           child: _buildUserTable(),
@@ -565,7 +540,6 @@ class _UserListAdminState extends State<UserListAdmin> {
                 );
                 if (date != null) {
                   onStartChanged(date);
-                  _applySearch();
                 }
               },
               child: Container(
@@ -609,7 +583,6 @@ class _UserListAdminState extends State<UserListAdmin> {
                 );
                 if (date != null) {
                   onEndChanged(date);
-                  _applySearch();
                 }
               },
               child: Container(
@@ -671,166 +644,204 @@ class _UserListAdminState extends State<UserListAdmin> {
             ),
           );
         }).toList(),
-        onChanged: (value) {
-          onChanged(value);
-          _applySearch();
-        },
+        onChanged: onChanged,
       ),
     );
   }
 
-Widget _buildUserTable() {
-  return Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(4),
-      border: Border.all(color: Colors.grey[300]!),
-    ),
-    child: Column(
-      children: [
-        // テーブルヘッダー
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            border: Border(
-              bottom: BorderSide(color: Colors.grey[300]!),
+  Widget _buildUserTable() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        children: [
+          // テーブルヘッダー
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[300]!),
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              // チェックボックス列
-              Container(
-                width: 50,
-                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                child: Center(
-                  child: Checkbox(
-                    value: selectedUsers.length == filteredUsers.length && 
-                          selectedUsers.isNotEmpty && 
-                          selectedUsers.every((element) => element),
-                    onChanged: (value) => _toggleAllSelection(value),
+            child: Row(
+              children: [
+                // チェックボックス列
+                Container(
+                  width: 50,
+                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                  child: Center(
+                    child: Checkbox(
+                      value: selectedUsers.length == users.length &&
+                            selectedUsers.isNotEmpty &&
+                            selectedUsers.every((element) => element),
+                      onChanged: (value) => _toggleAllSelection(value),
+                    ),
                   ),
                 ),
-              ),
-              
-              // ID列
-              _buildTableHeader('ID', 2),
-              
-              // UUID列
-              _buildTableHeader('UUID', 3),
-              
-              // ユーザー名列
-              _buildTableHeader('ユーザー名', 3),
-              
-              // メールアドレス列
-              _buildTableHeader('メールアドレス', 4),
-              
-              // 最終ログイン日列
-              _buildTableHeader('最終ログイン日', 3),
-              
-              // サブスク列
-              _buildTableHeader('サブスク', 2),
-              
-              // 停止中列 - flex値修正
-              _buildTableHeader('停止中', 2), // こちらはヘッダー用
-            ],
-          ),
-        ),
-        
-        // テーブルデータ
-        Expanded(
-          child: filteredUsers.isEmpty
-              ? _buildNoUsersFound()
-              : ListView.builder(
-                  itemCount: filteredUsers.length,
-                  itemBuilder: (context, index) {
-                    final user = filteredUsers[index];
-                    return Container(
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey[200]!),
-                        ),
-                      ),
-                      child: InkWell(
-                        onTap: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => UserDetailAdmin(user: user),
-                            ),
-                          );
 
-                          if (result != null && result['action'] == 'delete') {
-                            setState(() {
-                              users.remove(result['user']);
-                              filteredUsers.remove(result['user']);
-                            });
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('ユーザーを削除しました')),
-                            );
-                          } else {
-                            setState(() {});
-                          }
-                        },
-                        child: Row(
-                          children: [
-                            // チェックボックス
-                            Container(
-                              width: 50,
-                              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                              child: Center(
-                                child: Checkbox(
-                                  value: selectedUsers[index],
-                                  onChanged: (value) => _toggleUserSelection(index, value),
+                // ID列
+                _buildTableHeader('ID', 2),
+
+                // UUID列
+                _buildTableHeader('UUID', 3),
+
+                // ユーザー名列
+                _buildTableHeader('ユーザー名', 3),
+
+                // メールアドレス列
+                _buildTableHeader('メールアドレス', 4),
+
+                // 最終ログイン日列
+                _buildTableHeader('最終ログイン日', 3),
+
+                // サブスク列
+                _buildTableHeader('サブスク', 2),
+
+                // 停止中列
+                _buildTableHeader('停止中', 2),
+              ],
+            ),
+          ),
+
+          // テーブルデータ
+          Expanded(
+            child: _isLoading
+                ? Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _buildErrorView()
+                    : users.isEmpty
+                        ? _buildNoUsersFound()
+                        : ListView.builder(
+                            itemCount: users.length,
+                            itemBuilder: (context, index) {
+                              final user = users[index];
+                              return Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(color: Colors.grey[200]!),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            
-                            // ID
-                            _buildTableCell(user.id, 2, TextAlign.center),
-                            
-                            // UUID
-                            _buildTableCell(user.uuid, 3, TextAlign.left),
-                            
-                            // ユーザー名
-                            _buildTableCell(user.username, 3, TextAlign.left),
-                            
-                            // メールアドレス
-                            _buildTableCell(user.email, 4, TextAlign.left),
-                            
-                            // 最終ログイン日
-                            _buildTableCell(
-                              '${user.lastLogin.year}/${user.lastLogin.month.toString().padLeft(2, '0')}/${user.lastLogin.day.toString().padLeft(2, '0')}',
-                              3,
-                              TextAlign.center
-                            ),
-                            
-                            // サブスク
-                            _buildTableCell(user.subscription, 2, TextAlign.center),
-                            
-                            // 停止中 - 修正部分
-                            Expanded(
-                              flex: 2, // flex値を指定
-                              child: Container(
-                                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                                child: Center(
-                                  child: _buildFreezeIndicator(user.isFrozen),
+                                child: InkWell(
+                                  onTap: () async {
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => UserDetailAdmin(user: user),
+                                      ),
+                                    );
+
+                                    if (result != null && result['action'] == 'delete') {
+                                      _loadFromApi();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('ユーザーを削除しました')),
+                                      );
+                                    } else if (result != null && result['action'] == 'updated') {
+                                      _loadFromApi();
+                                    }
+                                  },
+                                  child: Row(
+                                    children: [
+                                      // チェックボックス
+                                      Container(
+                                        width: 50,
+                                        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                        child: Center(
+                                          child: Checkbox(
+                                            value: selectedUsers[index],
+                                            onChanged: (value) => _toggleUserSelection(index, value),
+                                          ),
+                                        ),
+                                      ),
+
+                                      // ID
+                                      _buildTableCell(user.id, 2, TextAlign.center),
+
+                                      // UUID
+                                      _buildTableCell(user.uuid, 3, TextAlign.left),
+
+                                      // ユーザー名
+                                      _buildTableCell(user.username, 3, TextAlign.left),
+
+                                      // メールアドレス
+                                      _buildTableCell(user.email, 4, TextAlign.left),
+
+                                      // 最終ログイン日
+                                      _buildTableCell(
+                                        '${user.lastLogin.year}/${user.lastLogin.month.toString().padLeft(2, '0')}/${user.lastLogin.day.toString().padLeft(2, '0')}',
+                                        3,
+                                        TextAlign.center
+                                      ),
+
+                                      // サブスク
+                                      _buildTableCell(user.subscription, 2, TextAlign.center),
+
+                                      // 停止中
+                                      Expanded(
+                                        flex: 2,
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                          child: Center(
+                                            child: _buildFreezeIndicator(user.isFrozen),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                              );
+                            },
+                          ),
+          ),
+
+          // ページネーション
+          _buildPagination(),
+
+          // 選択中の操作ボタン
+          if (hasSelection) _buildSelectionActionButtons(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+            SizedBox(height: 12),
+            Text(
+              'エラーが発生しました',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.red[600],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              _error ?? '',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadFromApi,
+              child: Text('再試行'),
+            ),
+          ],
         ),
-        
-        // 選択中の操作ボタン
-        if (hasSelection) _buildSelectionActionButtons(),
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
 
   Widget _buildNoUsersFound() {
     return Center(
@@ -860,6 +871,58 @@ Widget _buildUserTable() {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(
+          top: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '全 $_totalElements 件',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.first_page),
+                onPressed: _currentPage > 0 ? () => _goToPage(0) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: Icon(Icons.chevron_left),
+                onPressed: _currentPage > 0 ? () => _goToPage(_currentPage - 1) : null,
+                iconSize: 20,
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '${_currentPage + 1} / $_totalPages',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.chevron_right),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_currentPage + 1) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: Icon(Icons.last_page),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_totalPages - 1) : null,
+                iconSize: 20,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -914,9 +977,6 @@ Widget _buildUserTable() {
     );
   }
 
-
-
-
   Widget _buildTableHeader(String text, int flex) {
     return Expanded(
       flex: flex,
@@ -942,7 +1002,7 @@ Widget _buildUserTable() {
       flex: flex,
       child: Container(
         padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        
+
         child: Text(
           text,
           style: TextStyle(

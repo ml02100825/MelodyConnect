@@ -71,6 +71,9 @@ public class Badge {
     public boolean isActiveFlag() { return isActive; }
     public void setActiveFlag(boolean isActive) { this.isActive = isActive; }
 
+    public Boolean getIsDeleted() { return isDeleted; }
+    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
+
     public String getMode() { return mode; }
     public void setMode(String mode) { this.mode = mode; }
 }

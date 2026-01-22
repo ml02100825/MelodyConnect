@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'contact_admin2.dart';
+import 'services/admin_api_service.dart';
 
 class ContactAdmin extends StatefulWidget {
   const ContactAdmin({Key? key}) : super(key: key);
@@ -13,69 +14,96 @@ class _ContactAdminState extends State<ContactAdmin> {
   String selectedMenu = 'お問い合わせ管理';
   String selectedTab = '未読';
 
-  // サンプルデータ
-  final List<Map<String, dynamic>> _contactList = [
-    {
-      'id': '12',
-      'userName': '山田太郎',
-      'email': 'yamada@example.com',
-      'subject': 'パスワード再設定について',
-      'status': '未対応',
-      'receivedDate': DateTime(2025, 1, 1, 13, 20),
-      'content': 'ログインができず困っています……',
-      'adminMemo': '',
-    },
-    {
-      'id': '11',
-      'userName': '田中花子',
-      'email': 'tanaka@example.com',
-      'subject': '決済に関して',
-      'status': '対応中',
-      'receivedDate': DateTime(2024, 12, 29, 10, 15),
-      'content': 'クレジットカードの決済がうまくいきません。',
-      'adminMemo': '決済システムを確認中',
-    },
-    {
-      'id': '10',
-      'userName': '佐藤健',
-      'email': 'sato@example.com',
-      'subject': '退会について',
-      'status': '完了',
-      'receivedDate': DateTime(2024, 12, 28, 16, 30),
-      'content': '退会手続きの方法を教えてください。',
-      'adminMemo': '退会手順を案内済み',
-    },
-    {
-      'id': '09',
-      'userName': '鈴木一郎',
-      'email': 'suzuki@example.com',
-      'subject': 'アカウント削除について',
-      'status': '未対応',
-      'receivedDate': DateTime(2024, 12, 27, 9, 45),
-      'content': 'アカウントを削除したいです。',
-      'adminMemo': '',
-    },
-    {
-      'id': '08',
-      'userName': '高橋美咲',
-      'email': 'takahashi@example.com',
-      'subject': 'サービス利用方法',
-      'status': '完了',
-      'receivedDate': DateTime(2024, 12, 26, 14, 20),
-      'content': '新機能の使い方を教えてください。',
-      'adminMemo': 'マニュアル送付済み',
-    },
-  ];
+  // ページング
+  int _currentPage = 0;
+  int _totalPages = 1;
+  int _totalElements = 0;
+  final int _pageSize = 20;
 
-  List<Map<String, dynamic>> get filteredContactList {
-    if (selectedTab == '未読') {
-      return _contactList.where((contact) => contact['status'] == '未対応').toList();
-    } else if (selectedTab == '進行中') {
-      return _contactList.where((contact) => contact['status'] == '対応中').toList();
-    } else if (selectedTab == '完了') {
-      return _contactList.where((contact) => contact['status'] == '完了').toList();
+  // ローディング・エラー状態
+  bool _isLoading = false;
+  String? _error;
+
+  List<Map<String, dynamic>> _contactList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFromApi();
+  }
+
+  String _getStatusForTab() {
+    switch (selectedTab) {
+      case '未読':
+        return '未対応';
+      case '進行中':
+        return '対応中';
+      case '完了':
+        return '完了';
+      default:
+        return '';
     }
-    return _contactList;
+  }
+
+  Future<void> _loadFromApi() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final response = await AdminApiService.getContacts(
+        page: _currentPage,
+        size: _pageSize,
+        status: _getStatusForTab(),
+      );
+
+      final content = response['content'] as List<dynamic>? ?? [];
+      final loadedContacts = content.map((json) {
+        return {
+          'id': json['id']?.toString() ?? '0',
+          'numericId': json['id'] ?? 0,
+          'userName': json['userName'] ?? '',
+          'email': json['email'] ?? '',
+          'subject': json['subject'] ?? '',
+          'status': json['status'] ?? '未対応',
+          'receivedDate': json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+          'content': json['content'] ?? '',
+          'adminMemo': json['adminMemo'] ?? '',
+        };
+      }).toList();
+
+      setState(() {
+        _contactList = loadedContacts;
+        _totalPages = response['totalPages'] ?? 1;
+        _totalElements = response['totalElements'] ?? 0;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'データの取得に失敗しました: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _onTabChanged(String tab) {
+    setState(() {
+      selectedTab = tab;
+      _currentPage = 0;
+    });
+    _loadFromApi();
+  }
+
+  void _goToPage(int page) {
+    if (page >= 0 && page < _totalPages) {
+      setState(() {
+        _currentPage = page;
+      });
+      _loadFromApi();
+    }
   }
 
   @override
@@ -96,6 +124,7 @@ class _ContactAdminState extends State<ContactAdmin> {
         _buildTabBar(),
         const SizedBox(height: 24),
         Expanded(child: _buildDataTable()),
+        _buildPagination(),
       ],
     );
   }
@@ -112,11 +141,7 @@ class _ContactAdminState extends State<ContactAdmin> {
         children: tabs.map((tab) {
           final isSelected = selectedTab == tab;
           return GestureDetector(
-            onTap: () {
-              setState(() {
-                selectedTab = tab;
-              });
-            },
+            onTap: () => _onTabChanged(tab),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
@@ -143,8 +168,6 @@ class _ContactAdminState extends State<ContactAdmin> {
   }
 
   Widget _buildDataTable() {
-    final displayList = filteredContactList;
-
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey[300]!),
@@ -210,109 +233,182 @@ class _ContactAdminState extends State<ContactAdmin> {
           ),
           // テーブルボディ
           Expanded(
-            child: displayList.isEmpty
-                ? Center(
-                    child: Text(
-                      '該当するお問い合わせがありません',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: displayList.length,
-                    itemBuilder: (context, index) {
-                      final item = displayList[index];
-                      final receivedDate = item['receivedDate'] as DateTime;
-                      final dateStr =
-                          '${receivedDate.year}/${receivedDate.month.toString().padLeft(2, '0')}/${receivedDate.day.toString().padLeft(2, '0')}';
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _buildErrorView()
+                    : _contactList.isEmpty
+                        ? Center(
+                            child: Text(
+                              '該当するお問い合わせがありません',
+                              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: _contactList.length,
+                            itemBuilder: (context, index) {
+                              final item = _contactList[index];
+                              final receivedDate = item['receivedDate'] as DateTime;
+                              final dateStr =
+                                  '${receivedDate.year}/${receivedDate.month.toString().padLeft(2, '0')}/${receivedDate.day.toString().padLeft(2, '0')}';
 
-                      Color statusColor = Colors.black;
-                      if (item['status'] == '未対応') {
-                        statusColor = Colors.red;
-                      } else if (item['status'] == '対応中') {
-                        statusColor = Colors.orange;
-                      } else if (item['status'] == '完了') {
-                        statusColor = Colors.green;
-                      }
+                              Color statusColor = Colors.black;
+                              if (item['status'] == '未対応') {
+                                statusColor = Colors.red;
+                              } else if (item['status'] == '対応中') {
+                                statusColor = Colors.orange;
+                              } else if (item['status'] == '完了') {
+                                statusColor = Colors.green;
+                              }
 
-                      final originalIndex = _contactList.indexOf(item);
-
-                      return Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.grey[300]!),
-                          ),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 1,
-                              child: Text(
-                                item['id'] as String,
-                                style: const TextStyle(fontSize: 13),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                item['userName'] as String,
-                                style: const TextStyle(fontSize: 13),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                item['subject'] as String,
-                                style: const TextStyle(fontSize: 13),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                item['status'] as String,
-                                style: TextStyle(
-                                    fontSize: 13, color: statusColor, fontWeight: FontWeight.bold),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                dateStr,
-                                style: const TextStyle(fontSize: 13),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 1,
-                              child: IconButton(
-                                icon: const Icon(Icons.arrow_forward_ios, size: 16),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ContactDetailPage(
-                                        contact: item,
-                                        onUpdate: (updatedContact) {
-                                          setState(() {
-                                            _contactList[originalIndex] = updatedContact;
-                                          });
+                              return Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(color: Colors.grey[300]!),
+                                  ),
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        item['id'] as String,
+                                        style: const TextStyle(fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        item['userName'] as String,
+                                        style: const TextStyle(fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        item['subject'] as String,
+                                        style: const TextStyle(fontSize: 13),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        item['status'] as String,
+                                        style: TextStyle(
+                                            fontSize: 13, color: statusColor, fontWeight: FontWeight.bold),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        dateStr,
+                                        style: const TextStyle(fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: IconButton(
+                                        icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                                        onPressed: () async {
+                                          final result = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => ContactDetailPage(
+                                                contact: item,
+                                                onUpdate: (updatedContact) {
+                                                  // API経由で更新されるので、リロードする
+                                                },
+                                              ),
+                                            ),
+                                          );
+                                          if (result == true) {
+                                            _loadFromApi();
+                                          }
                                         },
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+          const SizedBox(height: 12),
+          Text(_error ?? '', style: TextStyle(color: Colors.grey[600])),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _loadFromApi,
+            child: const Text('再試行'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(
+          top: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '全 $_totalElements 件',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.first_page),
+                onPressed: _currentPage > 0 ? () => _goToPage(0) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: _currentPage > 0 ? () => _goToPage(_currentPage - 1) : null,
+                iconSize: 20,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '${_currentPage + 1} / $_totalPages',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_currentPage + 1) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.last_page),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_totalPages - 1) : null,
+                iconSize: 20,
+              ),
+            ],
           ),
         ],
       ),

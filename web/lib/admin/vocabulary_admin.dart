@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'vocabulary_admin2.dart';
 import 'touroku_admin.dart';
+import 'services/admin_api_service.dart';
 
 class VocabularyAdmin extends StatefulWidget {
   const VocabularyAdmin({Key? key}) : super(key: key);
@@ -13,7 +14,17 @@ class VocabularyAdmin extends StatefulWidget {
 class _VocabularyAdminState extends State<VocabularyAdmin> {
   String selectedTab = '単語';
   String selectedMenu = 'コンテンツ管理';
-  final List<bool> selectedRows = List.generate(15, (index) => false);
+  List<bool> selectedRows = [];
+
+  // ページング
+  int _currentPage = 0;
+  int _totalPages = 1;
+  int _totalElements = 0;
+  final int _pageSize = 20;
+
+  // ローディング・エラー状態
+  bool _isLoading = false;
+  String? _error;
 
   // 検索用のコントローラー
   final TextEditingController idController = TextEditingController();
@@ -26,120 +37,160 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
 
   bool get hasSelection => selectedRows.any((selected) => selected);
 
-  // サンプルデータ
-  List<Map<String, dynamic>> vocabularies = [
-    {
-      'id': '0001',
-      'word': 'hello',
-      'meaning': 'こんにちは',
-      'pronunciation': 'həˈloʊ',
-      'partOfSpeech': '間投詞',
-      'status': '有効',
-      'isActive': true,
-      'addedDate': DateTime(2024, 11, 1),
-    },
-    {
-      'id': '0002',
-      'word': 'world',
-      'meaning': '世界',
-      'pronunciation': 'wɜːrld',
-      'partOfSpeech': '名詞',
-      'status': '有効',
-      'isActive': true,
-      'addedDate': DateTime(2024, 11, 15),
-    },
-    {
-      'id': '0003',
-      'word': 'music',
-      'meaning': '音楽',
-      'pronunciation': 'ˈmjuːzɪk',
-      'partOfSpeech': '名詞',
-      'status': '有効',
-      'isActive': true,
-      'addedDate': DateTime(2024, 11, 20),
-    },
-    {
-      'id': '0004',
-      'word': 'learn',
-      'meaning': '学ぶ',
-      'pronunciation': 'lɜːrn',
-      'partOfSpeech': '動詞',
-      'status': '無効',
-      'isActive': false,
-      'addedDate': DateTime(2024, 11, 25),
-    },
-  ];
-
-  List<Map<String, dynamic>> filteredVocabularies = [];
+  List<Map<String, dynamic>> vocabularies = [];
 
   @override
   void initState() {
     super.initState();
-    filteredVocabularies = List.from(vocabularies);
+    _loadFromApi();
+  }
+
+  Future<void> _loadFromApi() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      bool? isActive;
+      if (statusFilter == '有効') {
+        isActive = true;
+      } else if (statusFilter == '無効') {
+        isActive = false;
+      }
+
+      final response = await AdminApiService.getVocabularies(
+        page: _currentPage,
+        size: _pageSize,
+        word: wordController.text.trim().isNotEmpty ? wordController.text.trim() : null,
+        isActive: isActive,
+      );
+
+      final content = response['content'] as List<dynamic>? ?? [];
+      final loadedVocabularies = content.map((json) {
+        return {
+          'id': json['id']?.toString().padLeft(4, '0') ?? '0000',
+          'numericId': json['id'] ?? 0,
+          'word': json['word'] ?? '',
+          'meaning': json['meaning'] ?? '',
+          'pronunciation': json['pronunciation'] ?? '',
+          'partOfSpeech': json['partOfSpeech'] ?? '',
+          'status': json['isActive'] == true ? '有効' : '無効',
+          'isActive': json['isActive'] ?? false,
+          'addedDate': json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+          'exampleSentence': json['exampleSentence'] ?? '',
+          'exampleTranslation': json['exampleTranslation'] ?? '',
+        };
+      }).toList();
+
+      setState(() {
+        vocabularies = loadedVocabularies;
+        _totalPages = response['totalPages'] ?? 1;
+        _totalElements = response['totalElements'] ?? 0;
+        selectedRows = List.generate(vocabularies.length, (index) => false);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'データの取得に失敗しました: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   void _applyFilter() {
-    final idQuery = idController.text.trim();
-    final wordQuery = wordController.text.trim().toLowerCase();
-    final partQuery = partOfSpeechController.text.trim();
-
-    setState(() {
-      filteredVocabularies = vocabularies.where((v) {
-        final matchesId = idQuery.isEmpty || v['id'].contains(idQuery);
-        final matchesWord = wordQuery.isEmpty || v['word'].toLowerCase().contains(wordQuery);
-        final matchesPart = partQuery.isEmpty || v['partOfSpeech'].contains(partQuery);
-        final matchesStatus = statusFilter == 'すべて' || v['status'] == statusFilter;
-        
-        bool matchesDate = true;
-        if (startDate != null && endDate != null) {
-          final addedDate = v['addedDate'] as DateTime;
-          matchesDate = addedDate.isAfter(startDate!.subtract(const Duration(days: 1))) &&
-                       addedDate.isBefore(endDate!.add(const Duration(days: 1)));
-        }
-        
-        return matchesId && matchesWord && matchesPart && matchesStatus && matchesDate;
-      }).toList();
-    });
+    _currentPage = 0;
+    _loadFromApi();
   }
 
-  void _deactivateSelected() {
+  void _clearFilter() {
     setState(() {
-      for (int i = 0; i < selectedRows.length; i++) {
-        if (selectedRows[i] && i < filteredVocabularies.length) {
-          final vocabId = filteredVocabularies[i]['id'];
-          final originalIndex = vocabularies.indexWhere((v) => v['id'] == vocabId);
-          if (originalIndex != -1) {
-            vocabularies[originalIndex]['status'] = '無効';
-            vocabularies[originalIndex]['isActive'] = false;
-          }
-          filteredVocabularies[i]['status'] = '無効';
-          filteredVocabularies[i]['isActive'] = false;
-        }
-      }
-      for (int i = 0; i < selectedRows.length; i++) {
-        selectedRows[i] = false;
-      }
+      idController.clear();
+      wordController.clear();
+      partOfSpeechController.clear();
+      statusFilter = 'すべて';
+      startDate = null;
+      endDate = null;
     });
+    _currentPage = 0;
+    _loadFromApi();
   }
 
-  void _activateSelected() {
+  void _goToPage(int page) {
+    if (page >= 0 && page < _totalPages) {
+      setState(() {
+        _currentPage = page;
+      });
+      _loadFromApi();
+    }
+  }
+
+  Future<void> _deactivateSelected() async {
+    final selectedIds = <int>[];
+    for (int i = 0; i < selectedRows.length; i++) {
+      if (selectedRows[i]) {
+        selectedIds.add(vocabularies[i]['numericId']);
+      }
+    }
+
+    if (selectedIds.isEmpty) return;
+
     setState(() {
-      for (int i = 0; i < selectedRows.length; i++) {
-        if (selectedRows[i] && i < filteredVocabularies.length) {
-          final vocabId = filteredVocabularies[i]['id'];
-          final originalIndex = vocabularies.indexWhere((v) => v['id'] == vocabId);
-          if (originalIndex != -1) {
-            vocabularies[originalIndex]['status'] = '有効';
-            vocabularies[originalIndex]['isActive'] = true;
-          }
-          filteredVocabularies[i]['status'] = '有効';
-          filteredVocabularies[i]['isActive'] = true;
-        }
-      }
-      for (int i = 0; i < selectedRows.length; i++) {
-        selectedRows[i] = false;
-      }
+      _isLoading = true;
     });
+
+    try {
+      await AdminApiService.disableVocabularies(selectedIds);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選択した単語を無効化しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('無効化に失敗しました: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _activateSelected() async {
+    final selectedIds = <int>[];
+    for (int i = 0; i < selectedRows.length; i++) {
+      if (selectedRows[i]) {
+        selectedIds.add(vocabularies[i]['numericId']);
+      }
+    }
+
+    if (selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AdminApiService.enableVocabularies(selectedIds);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選択した単語を有効化しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('有効化に失敗しました: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -161,6 +212,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
         _buildSearchArea(),
         const SizedBox(height: 24),
         Expanded(child: _buildTable()),
+        _buildPagination(),
         const SizedBox(height: 16),
         _buildActionButtons(),
       ],
@@ -195,17 +247,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    idController.clear();
-                    wordController.clear();
-                    partOfSpeechController.clear();
-                    statusFilter = 'すべて';
-                    startDate = null;
-                    endDate = null;
-                    filteredVocabularies = List.from(vocabularies);
-                  });
-                },
+                onPressed: _clearFilter,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.grey[300],
                   foregroundColor: Colors.grey[700],
@@ -318,7 +360,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                 style: const TextStyle(fontSize: 13),
                 readOnly: true,
                 controller: TextEditingController(
-                  text: startDate != null 
+                  text: startDate != null
                       ? '${startDate!.year}/${startDate!.month}/${startDate!.day}'
                       : '',
                 ),
@@ -359,7 +401,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                 style: const TextStyle(fontSize: 13),
                 readOnly: true,
                 controller: TextEditingController(
-                  text: endDate != null 
+                  text: endDate != null
                       ? '${endDate!.year}/${endDate!.month}/${endDate!.day}'
                       : '',
                 ),
@@ -400,11 +442,10 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                   width: 50,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   child: Checkbox(
-                    value: selectedRows.take(filteredVocabularies.length).every((selected) => selected) && 
-                           filteredVocabularies.isNotEmpty,
+                    value: selectedRows.isNotEmpty && selectedRows.every((selected) => selected),
                     onChanged: (value) {
                       setState(() {
-                        for (int i = 0; i < filteredVocabularies.length; i++) {
+                        for (int i = 0; i < selectedRows.length; i++) {
                           selectedRows[i] = value ?? false;
                         }
                       });
@@ -421,104 +462,196 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
           ),
           // データ行
           Expanded(
-            child: ListView.builder(
-              itemCount: filteredVocabularies.length,
-              itemBuilder: (context, index) {
-                final vocab = filteredVocabularies[index];
-                return Container(
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: Colors.grey[300]!),
-                    ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 50,
-                        padding: const EdgeInsets.all(12),
-                        child: Checkbox(
-                          value: selectedRows[index],
-                          onChanged: (value) {
-                            setState(() {
-                              selectedRows[index] = value ?? false;
-                            });
-                          },
-                        ),
-                      ),
-                      _buildTableCell(
-                        Text(vocab['id'], style: const TextStyle(fontSize: 13)),
-                        80,
-                      ),
-                      _buildTableCell(
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => VocabularyDetailPage(
-                                  vocab: {
-                                    'id': vocab['id'],
-                                    'word': vocab['word'],
-                                    'meaning': vocab['meaning'],
-                                    'pronunciation': vocab['pronunciation'],
-                                    'partOfSpeech': vocab['partOfSpeech'],
-                                    'exampleSentence': '例文がここに入ります。',
-                                    'exampleTranslation': '例文の訳がここに入ります。',
-                                    'audioUrl': 'https://example.com/audio.mp3',
-                                    'createdAt': vocab['addedDate'].toString(),
-                                    'updatedAt': DateTime.now().toString(),
-                                    'status': vocab['status'],
-                                  },
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _buildErrorView()
+                    : vocabularies.isEmpty
+                        ? _buildNoDataView()
+                        : ListView.builder(
+                            itemCount: vocabularies.length,
+                            itemBuilder: (context, index) {
+                              final vocab = vocabularies[index];
+                              return Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(color: Colors.grey[300]!),
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                vocab['word'],
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.blue,
-                                  decoration: TextDecoration.underline,
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 50,
+                                      padding: const EdgeInsets.all(12),
+                                      child: Checkbox(
+                                        value: selectedRows[index],
+                                        onChanged: (value) {
+                                          setState(() {
+                                            selectedRows[index] = value ?? false;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    _buildTableCell(
+                                      Text(vocab['id'], style: const TextStyle(fontSize: 13)),
+                                      80,
+                                    ),
+                                    _buildTableCell(
+                                      GestureDetector(
+                                        onTap: () async {
+                                          final result = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => VocabularyDetailPage(
+                                                vocab: {
+                                                  'id': vocab['id'],
+                                                  'numericId': vocab['numericId'],
+                                                  'word': vocab['word'],
+                                                  'meaning': vocab['meaning'],
+                                                  'pronunciation': vocab['pronunciation'],
+                                                  'partOfSpeech': vocab['partOfSpeech'],
+                                                  'exampleSentence': vocab['exampleSentence'],
+                                                  'exampleTranslation': vocab['exampleTranslation'],
+                                                  'createdAt': vocab['addedDate'].toString(),
+                                                  'updatedAt': DateTime.now().toString(),
+                                                  'status': vocab['status'],
+                                                },
+                                              ),
+                                            ),
+                                          );
+                                          if (result == true) {
+                                            _loadFromApi();
+                                          }
+                                        },
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              vocab['word'],
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.blue,
+                                                decoration: TextDecoration.underline,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(vocab['meaning'],
+                                              style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                                          ],
+                                        ),
+                                      ),
+                                      200,
+                                    ),
+                                    _buildTableCell(
+                                      Text(vocab['pronunciation'], style: const TextStyle(fontSize: 13)),
+                                      150,
+                                    ),
+                                    _buildTableCell(
+                                      Text(vocab['partOfSpeech'], style: const TextStyle(fontSize: 13)),
+                                      100,
+                                    ),
+                                    _buildTableCell(
+                                      Center(
+                                        child: Text(
+                                          vocab['status'],
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: vocab['isActive'] ? Colors.black : Colors.grey[400],
+                                          ),
+                                        ),
+                                      ),
+                                      100,
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(vocab['meaning'], 
-                                style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                            ],
+                              );
+                            },
                           ),
-                        ),
-                        200,
-                      ),
-                      _buildTableCell(
-                        Text(vocab['pronunciation'], style: const TextStyle(fontSize: 13)),
-                        150,
-                      ),
-                      _buildTableCell(
-                        Text(vocab['partOfSpeech'], style: const TextStyle(fontSize: 13)),
-                        100,
-                      ),
-                      _buildTableCell(
-                        Center(
-                          child: Text(
-                            vocab['status'],
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: vocab['isActive'] ? Colors.black : Colors.grey[400],
-                            ),
-                          ),
-                        ),
-                        100,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+          const SizedBox(height: 12),
+          Text(_error ?? '', style: TextStyle(color: Colors.grey[600])),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _loadFromApi,
+            child: const Text('再試行'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoDataView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 12),
+          Text('該当する単語が見つかりません', style: TextStyle(color: Colors.grey[600])),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(
+          top: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '全 $_totalElements 件',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.first_page),
+                onPressed: _currentPage > 0 ? () => _goToPage(0) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: _currentPage > 0 ? () => _goToPage(_currentPage - 1) : null,
+                iconSize: 20,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '${_currentPage + 1} / $_totalPages',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_currentPage + 1) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.last_page),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_totalPages - 1) : null,
+                iconSize: 20,
+              ),
+            ],
           ),
         ],
       ),
@@ -584,16 +717,22 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
             showTourokuDialog(
               context,
               'vocabulary',
-              (data) {
-                setState(() {
-                  final newId = (vocabularies.length + 1).toString().padLeft(4, '0');
-                  data['id'] = newId;
-                  data['isActive'] = true;
-                  data['createdAt'] = DateTime.now().toString();
-                  data['updatedAt'] = DateTime.now().toString();
-                  vocabularies.add(data);
-                  filteredVocabularies = List.from(vocabularies);
-                });
+              (data) async {
+                try {
+                  await AdminApiService.createVocabulary(data);
+                  _loadFromApi();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('単語を追加しました')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('単語の追加に失敗しました: $e')),
+                    );
+                  }
+                }
               },
             );
           },
@@ -610,5 +749,13 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
         ),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    idController.dispose();
+    wordController.dispose();
+    partOfSpeechController.dispose();
+    super.dispose();
   }
 }
