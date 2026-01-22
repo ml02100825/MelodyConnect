@@ -42,6 +42,7 @@ public class AdminQuestionService {
     @Autowired
     private ArtistRepository artistRepository;
 
+    @Transactional(readOnly = true)
     public AdminQuestionResponse.ListResponse getQuestions(
             int page, int size, Long songId, Long artistId, String questionFormat, String language, Boolean isActive) {
 
@@ -79,7 +80,7 @@ public class AdminQuestionService {
         return new AdminQuestionResponse.ListResponse(
                 questions, page, size, questionPage.getTotalElements(), questionPage.getTotalPages());
     }
-
+    @Transactional(readOnly = true)
     public AdminQuestionResponse getQuestion(Integer questionId) {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("問題が見つかりません: " + questionId));
