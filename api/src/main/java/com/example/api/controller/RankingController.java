@@ -53,4 +53,11 @@ public class RankingController {
             rankingService.getWeeklyRanking(startDateTime, limit, userId, friendsOnly)
         );
     }
+
+    // ランキング画面アクセス時のバッジ判定API
+    @GetMapping("/access")
+    public ResponseEntity<String> processRankingAccess(@RequestParam Long userId) {
+        rankingService.processRankingAccess(userId);
+        return ResponseEntity.ok("Ranking processed");
+    }
 }
