@@ -37,7 +37,7 @@ public class AdminVocabularyService {
     public AdminVocabularyResponse.ListResponse getVocabularies(
             int page, int size, String word, String language, Boolean isActive) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "vocab_id"));
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "vocabId"));
 
         Specification<Vocabulary> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -85,7 +85,7 @@ public class AdminVocabularyService {
         Vocabulary vocab = new Vocabulary();
         updateFromRequest(vocab, request);
         vocab = vocabularyRepository.save(vocab);
-        logger.info("単語作成: {}", vocab.getVocab_id());
+        logger.info("単語作成: {}", vocab.getVocabId());
         return toResponse(vocab);
     }
 
@@ -164,7 +164,7 @@ public class AdminVocabularyService {
 
     private AdminVocabularyResponse toResponse(Vocabulary vocab) {
         AdminVocabularyResponse response = new AdminVocabularyResponse();
-        response.setVocabId(vocab.getVocab_id());
+        response.setVocabId(vocab.getVocabId());
         response.setWord(vocab.getWord());
         response.setBaseForm(vocab.getBase_form());
         response.setMeaningJa(vocab.getMeaning_ja());
