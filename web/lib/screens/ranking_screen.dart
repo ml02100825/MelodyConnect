@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../bottom_nav.dart';
+import '../services/token_storage_service.dart';
 
 class RankingScreen extends StatefulWidget {
   const RankingScreen({Key? key}) : super(key: key);
@@ -12,12 +13,13 @@ class RankingScreen extends StatefulWidget {
   State<RankingScreen> createState() => _RankingScreenState();
 }
 
-class _RankingScreenState extends State<RankingScreen> with SingleTickerProviderStateMixin {
+class _RankingScreenState extends State<RankingScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   // ★修正: 固定リストを廃止し、サーバーから取得するように変更
   String _selectedSeason = '';
-  List<String> _seasons = []; 
+  List<String> _seasons = [];
 
   // シーズンの開催ステータス
   final Map<String, bool> _seasonStatus = {};
@@ -34,7 +36,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
 
   // サーバーのURL（環境に合わせて変更してください）
   final String _baseUrl = 'http://localhost:8080';
-  final int _currentUserId = 1;
+  final TokenStorageService _tokenStorage = TokenStorageService();
+  int? _currentUserId;
 
   String? _authToken;
   bool _isLoading = true;
@@ -55,6 +58,17 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
 
   Future<void> _initializeData() async {
     await _loadToken();
+    await _loadUserId();
+
+    if (_currentUserId == null) {
+      debugPrint('User ID is not available. Skip ranking fetch.');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      return;
+    }
 
     // 1. まずシーズン一覧を取得 (DBに存在するシーズンを確認)
     await _fetchSeasons();
@@ -72,21 +86,34 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
     }
 
     _startRealtimeUpdate();
+
+    // ★追加: ランキング画面を開いたのでバッジ判定をリクエスト
+    _requestBadgeCheck();
+  }
+  Future<void> _loadUserId() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      setState(() {
+        _currentUserId = userId;
+      });
+    } catch (e) {
+      debugPrint('Error loading userId: $e');
+    }
   }
 
   Future<void> _loadToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
-      
+
       setState(() {
         _authToken = token;
       });
-      
+
       if (token == null) {
-        final alternativeToken = prefs.getString('token') ?? 
-                                 prefs.getString('access_token') ??
-                                 prefs.getString('jwt_token');
+        final alternativeToken = prefs.getString('token') ??
+            prefs.getString('access_token') ??
+            prefs.getString('jwt_token');
         if (alternativeToken != null) {
           setState(() {
             _authToken = alternativeToken;
@@ -103,11 +130,11 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    
+
     if (_authToken != null && _authToken!.isNotEmpty) {
       headers['Authorization'] = 'Bearer $_authToken';
     }
-    
+
     return headers;
   }
 
@@ -121,7 +148,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
 
       if (res.statusCode == 200) {
         // 文字化け対策のため utf8.decode を使用
-        final List<dynamic> seasonList = json.decode(utf8.decode(res.bodyBytes));
+        final List<dynamic> seasonList =
+            json.decode(utf8.decode(res.bodyBytes));
         final List<String> fetchedSeasons = seasonList.cast<String>();
 
         debugPrint('✅ [Seasons] 取得成功: $fetchedSeasons');
@@ -129,19 +157,19 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
         if (fetchedSeasons.isNotEmpty && mounted) {
           setState(() {
             _seasons = fetchedSeasons;
-            
+
             // 現在選択中のシーズンが新しいリストに無ければ、最新（最後）を選択
             if (!_seasons.contains(_selectedSeason)) {
               _selectedSeason = _seasons.last;
             }
-            
+
             // 最新のシーズンだけを「開催中」にする（簡易ロジック）
             _seasonStatus.clear();
             for (var s in _seasons) {
-               _seasonStatus[s] = (s == _seasons.last);
+              _seasonStatus[s] = (s == _seasons.last);
             }
           });
-          
+
           // シーズンが確定したら、そのランキングデータを取得
           await _fetchSeasonRanking(_selectedSeason);
         }
@@ -164,29 +192,33 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
 
   Future<void> _fetchSeasonRanking(String season) async {
     if (season.isEmpty) return; // シーズン未定なら何もしない
-
+    if (_currentUserId == null) return;
     try {
       final queryParams = {
         'season': season,
         'limit': '50',
-        'userId': _currentUserId.toString(),
+        'userId': _currentUserId!.toString(),
         'friendsOnly': 'false',
       };
-      
+
       final uri = Uri.parse('$_baseUrl/api/v1/rankings/season')
           .replace(queryParameters: queryParams);
-      
+
       debugPrint('📡 [Season] Fetching: $uri');
-      
-      final res = await http.get(
-        uri,
-        headers: _getHeaders(),
-      ).timeout(const Duration(seconds: 10));
-      
+
+      final res = await http
+          .get(
+            uri,
+            headers: _getHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
+
       if (res.statusCode == 200) {
-        final Map<String, dynamic> body = json.decode(utf8.decode(res.bodyBytes)); // 文字化け対策
+        final Map<String, dynamic> body =
+            json.decode(utf8.decode(res.bodyBytes)); // 文字化け対策
         final List<dynamic> entries = body['entries'] ?? [];
-        final bool isActive = body['isActive'] ?? _seasonStatus[season] ?? false;
+        final bool isActive =
+            body['isActive'] ?? _seasonStatus[season] ?? false;
         final lastUpdatedRaw = body['lastUpdated'];
         DateTime? parsedUpdated;
         if (lastUpdatedRaw != null && lastUpdatedRaw is String) {
@@ -224,27 +256,34 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
   }
 
   Future<void> _fetchWeeklyRanking({DateTime? weekStart}) async {
+    
     try {
+      if (_currentUserId == null) return;
       final params = <String, String>{
         'limit': '50',
-        'userId': '$_currentUserId',
+        'userId': _currentUserId!.toString(),
         'friendsOnly': 'false'
       };
       // ※バックエンドの仕様変更により weekStart は無視されますが、送信しても問題ありません
       if (weekStart != null) {
-        params['weekStart'] = '${weekStart.year.toString().padLeft(4, '0')}-${weekStart.month.toString().padLeft(2, '0')}-${weekStart.day.toString().padLeft(2, '0')}';
+        params['weekStart'] =
+            '${weekStart.year.toString().padLeft(4, '0')}-${weekStart.month.toString().padLeft(2, '0')}-${weekStart.day.toString().padLeft(2, '0')}';
       }
-      final uri = Uri.parse('$_baseUrl/api/v1/rankings/weekly').replace(queryParameters: params);
-      
+      final uri = Uri.parse('$_baseUrl/api/v1/rankings/weekly')
+          .replace(queryParameters: params);
+
       debugPrint('📡 [Weekly] Fetching: $uri');
-      
-      final res = await http.get(
-        uri,
-        headers: _getHeaders(),
-      ).timeout(const Duration(seconds: 10));
-      
+
+      final res = await http
+          .get(
+            uri,
+            headers: _getHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
+
       if (res.statusCode == 200) {
-        final Map<String, dynamic> body = json.decode(utf8.decode(res.bodyBytes));
+        final Map<String, dynamic> body =
+            json.decode(utf8.decode(res.bodyBytes));
         final List<dynamic> entries = body['entries'] ?? [];
         final List<Map<String, dynamic>> list = [];
         for (var e in entries) {
@@ -268,10 +307,24 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
     }
   }
 
+  // ★追加: バッジ判定リクエスト
+  Future<void> _requestBadgeCheck() async {
+    try {
+      final uri = Uri.parse('$_baseUrl/api/v1/rankings/access?userId=$_currentUserId');
+      await http.get(
+        uri,
+        headers: _getHeaders(),
+      );
+    } catch (e) {
+      debugPrint('❌ バッジ判定リクエストエラー: $e');
+    }
+  }
+
   void _startRealtimeUpdate() {
     _updateTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
       // 選択中のシーズンがあり、かつそれがアクティブ（開催中）なら更新
-      if (_selectedSeason.isNotEmpty && (_seasonStatus[_selectedSeason] ?? false)) {
+      if (_selectedSeason.isNotEmpty &&
+          (_seasonStatus[_selectedSeason] ?? false)) {
         await _fetchSeasonRanking(_selectedSeason);
         if (mounted) {
           setState(() {
@@ -353,12 +406,15 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
   }
 
   Widget _buildRateRanking() {
-    final List<Map<String, dynamic>> rankings = List.from(_rankings[_selectedSeason] ?? []);
+    final List<Map<String, dynamic>> rankings =
+        List.from(_rankings[_selectedSeason] ?? []);
     rankings.sort((a, b) => (b['rate'] as int).compareTo(a['rate'] as int));
 
     List<Map<String, dynamic>> displayRankings = rankings;
     if (_showFriendsOnly) {
-      displayRankings = rankings.where((r) => (r['isFriend'] == true) || (r['isMe'] == true)).toList();
+      displayRankings = rankings
+          .where((r) => (r['isFriend'] == true) || (r['isMe'] == true))
+          .toList();
     }
 
     final myRankIndex = displayRankings.indexWhere((r) => r['isMe'] == true);
@@ -375,17 +431,23 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: isSeasonActive ? Colors.green[100] : Colors.grey[300],
+                      color:
+                          isSeasonActive ? Colors.green[100] : Colors.grey[300],
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                          isSeasonActive ? Icons.fiber_manual_record : Icons.stop_circle,
+                          isSeasonActive
+                              ? Icons.fiber_manual_record
+                              : Icons.stop_circle,
                           size: 12,
-                          color: isSeasonActive ? Colors.green[700] : Colors.grey[600],
+                          color: isSeasonActive
+                              ? Colors.green[700]
+                              : Colors.grey[600],
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -393,7 +455,9 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isSeasonActive ? Colors.green[700] : Colors.grey[600],
+                            color: isSeasonActive
+                                ? Colors.green[700]
+                                : Colors.grey[600],
                           ),
                         ),
                       ],
@@ -407,7 +471,9 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : DropdownButton<String>(
-                          value: _selectedSeason.isNotEmpty ? _selectedSeason : null,
+                          value: _selectedSeason.isNotEmpty
+                              ? _selectedSeason
+                              : null,
                           items: _seasons.map((season) {
                             return DropdownMenuItem<String>(
                               value: season,
@@ -446,7 +512,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                   if (isSeasonActive && _lastUpdateTime != null)
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                        Icon(Icons.access_time,
+                            size: 14, color: Colors.grey[600]),
                         const SizedBox(width: 4),
                         Text(
                           _formatUpdateTime(_lastUpdateTime!),
@@ -468,7 +535,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.people_outline, size: 80, color: Colors.grey[400]),
+                      Icon(Icons.people_outline,
+                          size: 80, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
                         'データがありません',
@@ -478,7 +546,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                   ),
                 )
               : ListView.builder(
-                  itemCount: displayRankings.length > 30 ? 30 : displayRankings.length,
+                  itemCount:
+                      displayRankings.length > 30 ? 30 : displayRankings.length,
                   itemBuilder: (context, index) {
                     final item = displayRankings[index];
                     final isMe = item['isMe'] == true;
@@ -520,24 +589,28 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                               ),
                             if (isMe) ...[
                               const SizedBox(width: 4),
-                              Icon(Icons.person, size: 16, color: Colors.amber[700]),
+                              Icon(Icons.person,
+                                  size: 16, color: Colors.amber[700]),
                             ],
                             if (isFriend && !isMe) ...[
                               const SizedBox(width: 4),
-                              Icon(Icons.people, size: 16, color: Colors.green[600]),
+                              Icon(Icons.people,
+                                  size: 16, color: Colors.green[600]),
                             ],
                           ],
                         ),
                         title: Text(
                           item['name'] ?? '',
                           style: TextStyle(
-                            fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
+                            fontWeight:
+                                isMe ? FontWeight.bold : FontWeight.normal,
                           ),
                         ),
                         trailing: Text(
                           '${item['rate'] ?? 0}',
                           style: TextStyle(
-                            fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
+                            fontWeight:
+                                isMe ? FontWeight.bold : FontWeight.normal,
                             color: isMe ? Colors.amber[700] : Colors.black,
                           ),
                         ),
@@ -559,7 +632,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                     alignment: Alignment.center,
                     child: Text(
                       '#$myRank',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
                   Icon(Icons.person, size: 16, color: Colors.amber[700]),
@@ -588,7 +662,9 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
 
     List<Map<String, dynamic>> displayRankings = rankings;
     if (_showFriendsOnlyWeekly) {
-      displayRankings = rankings.where((r) => (r['isFriend'] == true) || (r['isMe'] == true)).toList();
+      displayRankings = rankings
+          .where((r) => (r['isFriend'] == true) || (r['isMe'] == true))
+          .toList();
     }
 
     final myRankIndex = displayRankings.indexWhere((r) => r['isMe'] == true);
@@ -650,7 +726,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.people_outline, size: 80, color: Colors.grey[400]),
+                      Icon(Icons.people_outline,
+                          size: 80, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
                         'データがありません',
@@ -660,7 +737,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                   ),
                 )
               : ListView.builder(
-                  itemCount: displayRankings.length > 30 ? 30 : displayRankings.length,
+                  itemCount:
+                      displayRankings.length > 30 ? 30 : displayRankings.length,
                   itemBuilder: (context, index) {
                     final item = displayRankings[index];
                     final isMe = item['isMe'] == true;
@@ -702,11 +780,13 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                               ),
                             if (isMe) ...[
                               const SizedBox(width: 4),
-                              Icon(Icons.person, size: 16, color: Colors.amber[700]),
+                              Icon(Icons.person,
+                                  size: 16, color: Colors.amber[700]),
                             ],
                             if (isFriend && !isMe) ...[
                               const SizedBox(width: 4),
-                              Icon(Icons.people, size: 16, color: Colors.green[600]),
+                              Icon(Icons.people,
+                                  size: 16, color: Colors.green[600]),
                             ],
                           ],
                         ),
@@ -715,16 +795,19 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                             Text(
                               item['name'] ?? '',
                               style: TextStyle(
-                                fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
+                                fontWeight:
+                                    isMe ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
                             if (isMe) ...[
                               const SizedBox(width: 8),
-                              Icon(Icons.person, size: 16, color: Colors.blue[700]),
+                              Icon(Icons.person,
+                                  size: 16, color: Colors.blue[700]),
                             ],
                             if (isFriend && !isMe) ...[
                               const SizedBox(width: 8),
-                              Icon(Icons.people, size: 16, color: Colors.green[600]),
+                              Icon(Icons.people,
+                                  size: 16, color: Colors.green[600]),
                             ],
                           ],
                         ),
@@ -734,7 +817,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                             Text(
                               '${item['count'] ?? 0}回',
                               style: TextStyle(
-                                fontWeight: isMe ? FontWeight.bold : FontWeight.w600,
+                                fontWeight:
+                                    isMe ? FontWeight.bold : FontWeight.w600,
                                 fontSize: 16,
                                 color: isMe ? Colors.blue[700] : Colors.black87,
                               ),
@@ -767,7 +851,8 @@ class _RankingScreenState extends State<RankingScreen> with SingleTickerProvider
                     alignment: Alignment.center,
                     child: Text(
                       '#$myRank',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
                   Icon(Icons.person, size: 16, color: Colors.blue[700]),
