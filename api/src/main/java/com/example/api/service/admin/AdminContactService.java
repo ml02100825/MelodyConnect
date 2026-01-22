@@ -29,7 +29,7 @@ public class AdminContactService {
     private ContactRepository contactRepository;
 
     public AdminContactResponse.ListResponse getContacts(int page, int size, String status) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "contact_id"));
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "contactId"));
 
         Specification<Contact> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -73,7 +73,7 @@ public class AdminContactService {
 
     private AdminContactResponse toResponse(Contact contact) {
         AdminContactResponse response = new AdminContactResponse();
-        response.setContactId(contact.getContact_id());
+        response.setContactId(contact.getContactId());
         response.setUserId(contact.getUser().getId());
         response.setUserEmail(contact.getUser().getMailaddress());
         response.setTitle(contact.getTitle());

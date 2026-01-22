@@ -33,7 +33,7 @@ public interface UserVocabularyRepository extends JpaRepository<UserVocabulary, 
     /**
      * ユーザーIDとVocabulary IDで検索
      */
-    @Query("SELECT uv FROM UserVocabulary uv WHERE uv.user.id = :userId AND uv.vocabulary.vocab_id = :vocabId")
+    @Query("SELECT uv FROM UserVocabulary uv WHERE uv.user.id = :userId AND uv.vocabulary.vocabId = :vocabId")
     Optional<UserVocabulary> findByUserIdAndVocabId(@Param("userId") Long userId, @Param("vocabId") Integer vocabId);
 
     /**
@@ -44,7 +44,7 @@ public interface UserVocabularyRepository extends JpaRepository<UserVocabulary, 
     /**
      * ユーザーIDとVocabulary IDの組み合わせが存在するかチェック
      */
-    @Query("SELECT CASE WHEN COUNT(uv) > 0 THEN true ELSE false END FROM UserVocabulary uv WHERE uv.user.id = :userId AND uv.vocabulary.vocab_id = :vocabId")
+    @Query("SELECT CASE WHEN COUNT(uv) > 0 THEN true ELSE false END FROM UserVocabulary uv WHERE uv.user.id = :userId AND uv.vocabulary.vocabId = :vocabId")
     boolean existsByUserIdAndVocabId(@Param("userId") Long userId, @Param("vocabId") Integer vocabId);
 
     /**
