@@ -67,7 +67,11 @@ public class RankingController {
 
     // ランキング画面アクセス時のバッジ判定API
     @GetMapping("/access")
-    public ResponseEntity<String> processRankingAccess(@RequestParam Long userId) {
+    public ResponseEntity<String> processRankingAccess(@RequestParam Long userId, Authentication authentication) {
+         Long authUserId = Long.parseLong(authentication.getName());
+        if (!authUserId.equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         rankingService.processRankingAccess(userId);
         return ResponseEntity.ok("Ranking processed");
     }
