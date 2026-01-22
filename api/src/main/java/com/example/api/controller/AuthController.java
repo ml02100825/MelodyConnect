@@ -119,6 +119,29 @@ public class AuthController {
     }
 
     /**
+     * 退会（アカウント削除）エンドポイント
+     * TODO: @param userId ユーザーID
+     * @return 成功メッセージ
+     */
+    @DeleteMapping("/withdraw/{userId}")
+    public ResponseEntity<?> withdraw(@PathVariable Long userId) {
+        try {
+            User user = userRepository.findById(userId) // id取得
+                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+            authService.withdraw(user); //////////////////
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "退会処理が完了しました");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("退会処理中にエラーが発生しました"));
+        }
+    }
+
+    /**
      * セッション検証エンドポイント
      * リフレッシュトークンを使ってセッションの有効性を確認する
      * 有効な場合は新しいアクセストークンを発行する

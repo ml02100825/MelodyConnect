@@ -166,6 +166,16 @@ public class AuthService {
             throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
         }
 
+        // 退会済みユーザーのチェック
+        if (user.isDeleteFlag()) {
+            throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
+        }
+
+        // BANユーザーのチェック
+        if (user.isBanFlag()) {
+            throw new IllegalArgumentException("このアカウントは利用停止されています");
+        }
+
         // 現在のシーズンを取得
         Integer currentSeason = seasonCalculator.getCurrentSeason();
 
@@ -277,6 +287,23 @@ public class AuthService {
             throw new IllegalArgumentException("ユーザーが見つかりません");
         }
         sessionRepository.revokeAllUserSessions(user);
+    }
+
+    /**
+     * 退会（セッションを無効化→退会）
+     * @param user ユーザー
+     */
+    @Transactional
+    public void withdraw(User user) {
+        // 論理削除フラグを立てる
+        user.setDeleteFlag(true);
+        // 退会日時を記録(offlineAtを退会日時として使用)
+        user.setOfflineAt(LocalDateTime.now());
+        // リフレッシュトークンの削除
+        // refreshTokenRepository.deleteByUser(user);
+        sessionRepository.revokeAllUserSessions(user);
+        // ユーザー情報を保存
+        userRepository.save(user);
     }
 
     /**

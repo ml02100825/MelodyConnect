@@ -83,37 +83,44 @@ class _OtherScreenState extends State<OtherScreen> {
     );
   }
 
-  // 退会処理（アカウント削除またはログアウト）
-  Future<void> _performWithdraw() async {
-    try {
-      final userId = await _tokenStorage.getUserId();
-      final accessToken = await _tokenStorage.getAccessToken();
-
-      if (userId != null && accessToken != null) {
-        // バックエンドに専用の削除 API があればそちらを実装してください。
-        // 現状は logout を呼んでセッションを切断します。
-        await _authApiService.logout(userId, accessToken);
-      }
-
-      await _tokenStorage.clearAuthData();
-
-      if (!mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('退会に失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+// 退会処理(アカウント削除)
+Future<void> _performWithdraw() async {
+  try {
+    final userId = await _tokenStorage.getUserId();
+    final accessToken = await _tokenStorage.getAccessToken();
+    
+    if (userId != null && accessToken != null) {
+      // 退会API を呼び出し
+      await _authApiService.withdraw(userId, accessToken);
     }
+    // ローカルの認証データをクリア
+    await _tokenStorage.clearAuthData();
+    if (!mounted) return;
+    // ログイン画面に遷移
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+    // 成功メッセージを表示
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('退会が完了しました'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('退会に失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
