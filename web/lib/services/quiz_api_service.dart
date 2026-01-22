@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/quiz_models.dart';
+import '../../models/quiz_models.dart';
 
 const baseUrl = String.fromEnvironment(
   "API_BASE_URL",

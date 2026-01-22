@@ -2,7 +2,6 @@ package com.example.api.service;
 
 import com.example.api.dto.ContactRequest;
 import com.example.api.entity.Contact;
-import com.example.api.entity.User;
 import com.example.api.repository.ContactRepository;
 import com.example.api.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,24 +13,27 @@ public class ContactService {
 
     @Autowired
     private ContactRepository contactRepository;
-
+    
     @Autowired
     private UserRepository userRepository;
 
     @Transactional
-    public void createContact(ContactRequest request) {
+    public void createContact(Long userId, ContactRequest request) {
         // ユーザーの存在確認
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+        if (!userRepository.existsById(userId)) {
+            throw new IllegalArgumentException("User not found");
+        }
 
-        // Contactエンティティの作成
         Contact contact = new Contact();
-        contact.setUser(user);
+        contact.setUserId(userId);
         contact.setTitle(request.getTitle());
-        contact.setContact_detail(request.getContent());
-        contact.setImage_url(request.getImageUrl());
+        contact.setContactDetail(request.getContactDetail());
+        
+        // 画像URLをセット（nullの場合はそのままnullが入る）
+        // 複数画像に対応する場合、ここでカンマ区切りにするなどの処理が可能ですが、
+        // 今回はシンプルにリクエストの値をそのまま保存します。
+        contact.setImageUrl(request.getImageUrl()); 
 
-        // 保存
         contactRepository.save(contact);
     }
 }

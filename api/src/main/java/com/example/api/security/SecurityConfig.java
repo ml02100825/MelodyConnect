@@ -2,6 +2,7 @@ package com.example.api.security;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -85,6 +86,10 @@ public class SecurityConfig {
                         .requestMatchers("/samples/**").permitAll()
                         .requestMatchers("/api/dev/**").permitAll() // 開発用エンドポイント
                         .requestMatchers("/api/vocabulary/**").permitAll() // ★追加: 単語帳API
+                        // プロフィール更新 (PUT) を認証済みユーザーに許可
+                        .requestMatchers(HttpMethod.PUT, "/api/profile/**").authenticated()
+                        // お問い合わせ (POST) を認証済みユーザーに許可
+                        .requestMatchers(HttpMethod.POST, "/api/contacts").authenticated()
                         // その他のエンドポイントは認証が必要
                         .anyRequest().authenticated()
                 )

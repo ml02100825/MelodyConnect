@@ -359,7 +359,7 @@ class _BattleModeSelectionScreenState extends State<BattleModeSelectionScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: Colors.red,
+                      color: Color.fromARGB(255, 168, 74, 67),
                     ),
                   ),
                 ),

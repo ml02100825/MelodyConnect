@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../bottom_nav.dart';
+import '../services/contact_api_service.dart';
+import '../services/token_storage_service.dart';
 
 class ContactScreen extends StatefulWidget {
   const ContactScreen({Key? key}) : super(key: key);
@@ -18,6 +20,7 @@ class _ContactScreenState extends State<ContactScreen> {
   List<XFile?> _attachedImages = [];
 
   bool _showConfirmation = false;
+  bool _isLoading = false;
 
   Future<void> _attachImage() async {
     try {
@@ -46,17 +49,55 @@ class _ContactScreenState extends State<ContactScreen> {
     });
   }
 
-  void _send() {
-    // 簡易バリデーション
+  Future<void> _send() async {
     if (_titleController.text.trim().isEmpty || _bodyController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('件名と本文を入力してください')));
       return;
     }
 
-    // スタブ: ここで API 送信を行う
     setState(() {
-      _showConfirmation = true;
+      _isLoading = true;
     });
+
+    try {
+      // 修正: TokenStorageServiceをインスタンス化して呼び出す
+      final accessToken = await TokenStorageService().getAccessToken();
+      if (accessToken == null) {
+        throw Exception('ログインが必要です');
+      }
+
+      // 画像アップロード処理 (今回はスキップ)
+      String? uploadedImageUrl;
+      if (_attachedImages.isNotEmpty) {
+        // uploadedImageUrl = await ImageUploadService().upload(_attachedImages.first);
+      }
+
+      final contactService = ContactApiService();
+      await contactService.createContact(
+        title: _titleController.text,
+        content: _bodyController.text,
+        imageUrl: uploadedImageUrl,
+        accessToken: accessToken,
+      );
+
+      setState(() {
+        _showConfirmation = true;
+        _titleController.clear();
+        _bodyController.clear();
+        _attachedImages.clear();
+      });
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('送信に失敗しました: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _closeConfirmation() {
@@ -87,7 +128,6 @@ class _ContactScreenState extends State<ContactScreen> {
                   const Divider(height: 1, thickness: 1),
                   const SizedBox(height: 12),
 
-                  // 件名
                   TextField(
                     controller: _titleController,
                     decoration: InputDecoration(
@@ -97,7 +137,6 @@ class _ContactScreenState extends State<ContactScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // 本文
                   Expanded(
                     child: TextField(
                       controller: _bodyController,
@@ -113,7 +152,6 @@ class _ContactScreenState extends State<ContactScreen> {
 
                   const SizedBox(height: 8),
 
-                  // 画像添付エリア
                   Row(
                     children: [
                       Expanded(
@@ -122,7 +160,6 @@ class _ContactScreenState extends State<ContactScreen> {
                           style: TextStyle(color: Colors.grey[700]),
                         ),
                       ),
-                      // ギャラリーから選択
                       IconButton(
                         onPressed: _attachImage,
                         icon: const Icon(Icons.photo_library_outlined),
@@ -131,7 +168,6 @@ class _ContactScreenState extends State<ContactScreen> {
                     ],
                   ),
 
-                  // 添付画像のプレビュー
                   if (_attachedImages.isNotEmpty)
                     SizedBox(
                       height: 100,
@@ -168,7 +204,6 @@ class _ContactScreenState extends State<ContactScreen> {
                                   },
                                 ),
                               ),
-                              // 削除ボタン
                               Positioned(
                                 top: 4,
                                 right: 12,
@@ -195,11 +230,10 @@ class _ContactScreenState extends State<ContactScreen> {
 
                   const SizedBox(height: 12),
 
-                  // 送信ボタン
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _send,
+                      onPressed: _isLoading ? null : _send,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -208,7 +242,9 @@ class _ContactScreenState extends State<ContactScreen> {
                         ),
                         elevation: 4,
                       ),
-                      child: const Text('送信', style: TextStyle(fontSize: 16, color: Colors.white)),
+                      child: _isLoading 
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('送信', style: TextStyle(fontSize: 16, color: Colors.white)),
                     ),
                   ),
 
@@ -218,7 +254,6 @@ class _ContactScreenState extends State<ContactScreen> {
             ),
           ),
 
-          // 送信完了モーダル（中央）
           if (_showConfirmation)
             Center(
               child: Container(

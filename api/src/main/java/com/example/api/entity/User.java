@@ -47,14 +47,12 @@ public class User {
 
     @Min(0)
     @Max(100)
-    @Column(name = "volume", nullable = false)
-    private int volume = 50;
 
     @Column(name = "language", nullable = false)
     private int language = 0;
 
-    @Column(name = "privacy", nullable = false)
-    private int privacy = 0;
+    @Column(name = "privacy")
+    private Integer privacy = 0;
 
     @Column(name = "subscribe_flag", nullable = false)
     private boolean subscribeFlag = false;
@@ -122,9 +120,6 @@ public class User {
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
-
-    public int getVolume() { return volume; }
-    public void setVolume(int volume) { this.volume = volume; }
 
     public int getLanguage() { return language; }
     public void setLanguage(int language) { this.language = language; }

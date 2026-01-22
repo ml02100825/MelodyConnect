@@ -1,22 +1,29 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// プロフィールAPIサービス
-/// バックエンドのプロフィールエンドポイントとの通信を行います
 class ProfileApiService {
-  // 開発環境のAPIベースURL（本番環境では適切なURLに変更してください）
+  // 環境に合わせて変更してください
   static const String baseUrl = 'http://localhost:8080/api/profile';
 
-  /// プロフィール更新（ステップ2: ユーザー名、ユーザーID、アイコン設定）
-  ///
-  /// [userId] - ユーザーID
-  /// [username] - ユーザー名
-  /// [userUuid] - ユーザーID（フレンド申請用）
-  /// [imageUrl] - アイコン画像のURL（オプション）
-  /// [accessToken] - アクセストークン
-  ///
-  /// 返り値: 更新されたユーザー情報
-  /// エラーの場合は例外をスロー
+  Future<Map<String, dynamic>> getProfile({
+    required int userId,
+    required String accessToken,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    } else {
+      throw Exception('プロフィール取得失敗: ${response.statusCode}');
+    }
+  }
+
   Future<Map<String, dynamic>> updateProfile({
     required int userId,
     required String username,
@@ -24,65 +31,42 @@ class ProfileApiService {
     String? imageUrl,
     required String accessToken,
   }) async {
-    try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/$userId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({
-          'username': username,
-          'userUuid': userUuid,
-          if (imageUrl != null && imageUrl.isNotEmpty) 'imageUrl': imageUrl,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error'] ?? 'プロフィール更新に失敗しました');
-      }
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
-      }
-      throw Exception('ネットワークエラーが発生しました');
-    }
+    return _putRequest(
+      '$baseUrl/$userId',
+      accessToken,
+      {
+        'username': username,
+        'userUuid': userUuid,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+      },
+    );
   }
 
-  /// プロフィール取得
-  ///
-  /// [userId] - ユーザーID
-  /// [accessToken] - アクセストークン
-  ///
-  /// 返り値: ユーザー情報
-  /// エラーの場合は例外をスロー
-  Future<Map<String, dynamic>> getProfile({
-    required int userId,
-    required String accessToken,
-  }) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/$userId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-      );
+  // 音量更新メソッドは削除しました
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error'] ?? 'プロフィール取得に失敗しました');
-      }
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
-      }
-      throw Exception('ネットワークエラーが発生しました');
+  Future<void> updatePrivacy(int userId, int privacy, String accessToken) async {
+    await _putRequest(
+      '$baseUrl/$userId/privacy',
+      accessToken,
+      {'privacy': privacy},
+    );
+  }
+
+  Future<Map<String, dynamic>> _putRequest(
+      String url, String token, Map<String, dynamic> body) async {
+    final response = await http.put(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    } else {
+      throw Exception('更新失敗: ${response.body}');
     }
   }
 }

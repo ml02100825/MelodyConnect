@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../services/profile_api_service.dart';
+import '../services/token_storage_service.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   final int userId;
-  
+
   const PrivacySettingsScreen({Key? key, required this.userId}) : super(key: key);
 
   @override
@@ -12,8 +12,12 @@ class PrivacySettingsScreen extends StatefulWidget {
 }
 
 class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
-  bool _isPublic = true; // デフォルト公開
+  final _profileApiService = ProfileApiService();
+  final _tokenStorage = TokenStorageService();
+
   bool _isLoading = true;
+  int _privacy = 0; // 0: 公開, 1: フレンドのみ, 2: 非公開
+  String? _accessToken;
 
   @override
   void initState() {
@@ -21,51 +25,75 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _loadPrivacySettings();
   }
 
+  // 現在の設定を読み込む
   Future<void> _loadPrivacySettings() async {
+    setState(() => _isLoading = true);
     try {
-      final response = await http.get(
-        Uri.parse('http://localhost:8080/api/v1/privacy/${widget.userId}'),
+      final token = await _tokenStorage.getAccessToken();
+      if (token == null) {
+        throw Exception('ログインしていません');
+      }
+      _accessToken = token;
+
+      // プロフィール取得APIを流用して現在の設定を取得
+      // GET /api/profile/{userId}
+      final data = await _profileApiService.getProfile(
+        userId: widget.userId,
+        accessToken: token,
       );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      if (mounted) {
         setState(() {
-          _isPublic = data['is_account_public'] ?? true;
+          // バックエンドのレスポンスに合わせてキー名を調整してください
+          // ProfileControllerのレスポンス: "privacy"
+          if (data['privacy'] != null) {
+            _privacy = data['privacy'] as int;
+          }
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('設定読み込みエラー: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('設定の読み込みに失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
-  Future<void> _updatePrivacy(bool isPublic) async {
-    final privacyValue = isPublic ? 0 : 1;
-    
+  // 設定を保存する
+  Future<void> _savePrivacySettings(int newValue) async {
+    // 楽観的UI更新（先に画面を変えてしまう）
+    final oldValue = _privacy;
+    setState(() => _privacy = newValue);
+
     try {
-      final response = await http.put(
-        Uri.parse('http://localhost:8080/api/v1/privacy/${widget.userId}?privacy=$privacyValue'),
+      if (_accessToken == null) throw Exception('認証エラー');
+
+      // PUT /api/profile/{userId}/privacy
+      await _profileApiService.updatePrivacy(
+        widget.userId,
+        newValue,
+        _accessToken!,
       );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() => _isPublic = isPublic);
-        
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(data['message']),
-            backgroundColor: Colors.green,
+          const SnackBar(
+            content: Text('プライバシー設定を保存しました'),
+            duration: Duration(seconds: 1),
           ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('更新に失敗しました: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // 失敗したら元に戻す
+      if (mounted) {
+        setState(() => _privacy = oldValue);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存に失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -80,87 +108,87 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('プライバシー設定'),
+        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'アカウント公開設定',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '「公開」にすると、他のユーザーにオンライン状態とバッジが表示されます。\n'
-                      '「非公開」にすると、オンラインでもオフライン状態として表示され、バッジも非表示になります。',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    SwitchListTile(
-                      title: const Text('アカウントを公開する'),
-                      subtitle: _isPublic 
-                          ? const Text('オンライン表示: ON, バッジ表示: ON')
-                          : const Text('オンライン表示: OFF, バッジ表示: OFF'),
-                      value: _isPublic,
-                      onChanged: (value) => _updatePrivacy(value),
-                    ),
-                  ],
-                ),
-              ),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16.0),
+            child: Text(
+              'プロフィールの公開範囲を設定します。\n設定した範囲外のユーザーからは、あなたのプロフィール詳細や再生履歴が見えなくなります。',
+              style: TextStyle(color: Colors.grey),
             ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '現在の設定状態',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildStatusItem('オンライン表示', _isPublic),
-                    _buildStatusItem('バッジ表示', _isPublic),
-                    _buildStatusItem('プロフィール公開', _isPublic),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          
+          // --- 設定項目 ---
+          
+          _buildPrivacyOption(
+            value: 0,
+            title: '全体に公開',
+            subtitle: 'すべてのユーザーがあなたのプロフィールを閲覧できます',
+            icon: Icons.public,
+          ),
+          
+          _buildPrivacyOption(
+            value: 1,
+            title: 'フレンドのみ公開',
+            subtitle: '相互フォローしているフレンドのみ閲覧できます',
+            icon: Icons.people,
+          ),
+          
+          _buildPrivacyOption(
+            value: 2,
+            title: '非公開',
+            subtitle: '自分以外は誰も閲覧できません',
+            icon: Icons.lock,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatusItem(String label, bool isEnabled) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(child: Text(label)),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: isEnabled ? Colors.green[100] : Colors.grey[200],
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              isEnabled ? 'ON' : 'OFF',
+  Widget _buildPrivacyOption({
+    required int value,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final isSelected = _privacy == value;
+    
+    return Card(
+      elevation: isSelected ? 2 : 0,
+      color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.05) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: isSelected 
+            ? BorderSide(color: Theme.of(context).primaryColor, width: 2)
+            : BorderSide.none,
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: RadioListTile<int>(
+        value: value,
+        groupValue: _privacy,
+        onChanged: (val) => _savePrivacySettings(val!),
+        title: Row(
+          children: [
+            Icon(icon, color: isSelected ? Theme.of(context).primaryColor : Colors.grey),
+            const SizedBox(width: 12),
+            Text(
+              title,
               style: TextStyle(
-                color: isEnabled ? Colors.green[800] : Colors.grey[600],
-                fontWeight: FontWeight.bold,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Theme.of(context).primaryColor : null,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(subtitle),
+        ),
+        activeColor: Theme.of(context).primaryColor,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
     );
   }

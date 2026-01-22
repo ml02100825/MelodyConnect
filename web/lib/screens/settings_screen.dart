@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
 import '../widgets/profile_edit_dialog.dart';
-import './volume_settings_screen.dart';
+
 
 /// ========================================
 /// 設定画面
@@ -143,29 +143,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: null, // 将来的にメール変更機能を追加
                   ),
                   const SizedBox(height: 24),
-
-                  // ========================================
-                  // アプリ設定セクション（将来の拡張用）
-                  // ========================================
-                  _buildSectionHeader('アプリ設定'),
-                  const SizedBox(height: 8),
-                  _buildSettingsItem(
-                    icon: Icons.volume_up,
-                    title: '音量設定',
-                    subtitle: '効果音・BGMの音量を調整',
-                    onTap: () {
-                      print("🎵 音量設定がタップされました！");
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const VolumeSettingsScreen()),
-                      );
-                    },
-                  ),
-                  _buildSettingsItem(
-                    icon: Icons.language,
-                    title: '言語設定',
-                    subtitle: 'アプリの表示言語を変更',
-                    onTap: null, // 将来的に言語設定機能を追加
-                  ),
                 ],
               ),
             ),

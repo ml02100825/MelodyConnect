@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import '../bottom_nav.dart';
-import '../models/vocabulary_model.dart';
+import '../../models/vocabulary_model.dart';
 import '../services/vocabulary_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'word_list_screen.dart';

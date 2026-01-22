@@ -1,67 +1,53 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(
-    name = "contact",
-    indexes = {
-        @Index(name = "idx_contact_user_id", columnList = "user_id")
-    }
-)
+@Table(name = "contact")
 public class Contact {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "contact_id")
-    private Long contact_id;
+    private Long contactId;
 
-    @Column(name = "contact_detail", length = 500)
-    private String contact_detail;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
-    @Column(name = "image_url", length = 200)
-    private String image_url;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
-
-    @Column(name = "title", nullable = false, length = 50)
+    @Column(name = "title", nullable = false)
     private String title;
 
-    // ====== getters / setters ======
-    public Long getContact_id() {
-        return contact_id;
-    }
-    public void setContact_id(Long contact_id) {
-        this.contact_id = contact_id;
+    @Column(name = "contact_detail", nullable = false, columnDefinition = "TEXT")
+    private String contactDetail;
+
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    public void onCreate() {
+        this.createdAt = LocalDateTime.now();
     }
 
-    public String getContact_detail() {
-        return contact_detail;
-    }
-    public void setContact_detail(String contact_detail) {
-        this.contact_detail = contact_detail;
-    }
+    // Getters and Setters
+    public Long getContactId() { return contactId; }
+    public void setContactId(Long contactId) { this.contactId = contactId; }
 
-    public String getImage_url() {
-        return image_url;
-    }
-    public void setImage_url(String image_url) {
-        this.image_url = image_url;
-    }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
 
-    public User getUser() {
-        return user;
-    }
-    public void setUser(User user) {
-        this.user = user;
-    }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
-    public String getTitle() {
-        return title;
-    }
-    public void setTitle(String title) {
-        this.title = title;
-    }
+    public String getContactDetail() { return contactDetail; }
+    public void setContactDetail(String contactDetail) { this.contactDetail = contactDetail; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

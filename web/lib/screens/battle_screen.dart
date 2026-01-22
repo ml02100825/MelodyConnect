@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../services/token_storage_service.dart';
-import '../models/battle_models.dart';
+import '../../models/battle_models.dart';
 
 /// APIのベースURL
 const String _apiBaseUrl = String.fromEnvironment(
