@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'artist_detail_admin.dart';
 import 'touroku_admin.dart';
+import 'services/admin_api_service.dart';
 
 class Artist {
   final String id;
@@ -14,6 +15,7 @@ class Artist {
   final String? genreId;
   final String? artistApiId;
   final String? imageUrl;
+  final int numericId;
 
   Artist({
     required this.id,
@@ -26,7 +28,28 @@ class Artist {
     this.genreId,
     this.artistApiId,
     this.imageUrl,
+    required this.numericId,
   });
+
+  factory Artist.fromJson(Map<String, dynamic> json) {
+    return Artist(
+      id: json['id']?.toString() ?? '',
+      name: json['artistname'] ?? '',
+      genre: json['genreName'] ?? '',
+      status: (json['isActive'] == true) ? '有効' : '無効',
+      isActive: json['isActive'] == true,
+      addedDate: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
+          : DateTime.now(),
+      updatedDate: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'])
+          : null,
+      genreId: json['genreId']?.toString(),
+      artistApiId: json['artistApiId'],
+      imageUrl: json['imageUrl'],
+      numericId: json['id'] as int? ?? 0,
+    );
+  }
 
   Artist copyWith({
     String? id,
@@ -39,6 +62,7 @@ class Artist {
     String? genreId,
     String? artistApiId,
     String? imageUrl,
+    int? numericId,
   }) {
     return Artist(
       id: id ?? this.id,
@@ -51,6 +75,7 @@ class Artist {
       genreId: genreId ?? this.genreId,
       artistApiId: artistApiId ?? this.artistApiId,
       imageUrl: imageUrl ?? this.imageUrl,
+      numericId: numericId ?? this.numericId,
     );
   }
 }
@@ -65,9 +90,8 @@ class ArtistAdmin extends StatefulWidget {
 class _ArtistAdminState extends State<ArtistAdmin> {
   String selectedTab = 'アーティスト';
   String selectedMenu = 'コンテンツ管理';
-  
+
   List<Artist> artists = [];
-  List<Artist> filteredArtists = [];
   List<bool> selectedRows = [];
   bool hasSelection = false;
 
@@ -78,6 +102,14 @@ class _ArtistAdminState extends State<ArtistAdmin> {
   String? statusFilter;
   DateTime? addedStart;
   DateTime? addedEnd;
+
+  // API連携用
+  int _currentPage = 0;
+  int _totalPages = 1;
+  int _totalElements = 0;
+  final int _pageSize = 20;
+  bool _isLoading = false;
+  String? _error;
 
   // ジャンルオプション
   final List<String> genreOptions = [
@@ -90,97 +122,51 @@ class _ArtistAdminState extends State<ArtistAdmin> {
   @override
   void initState() {
     super.initState();
-    _loadSampleData();
+    _loadFromApi();
   }
 
-  void _loadSampleData() {
-    artists = [
-      Artist(
-        id: '00001',
-        name: 'アーティスト01',
-        genre: 'ジャンル01',
-        status: '有効',
-        isActive: true,
-        addedDate: DateTime(2024, 1, 1),
-        updatedDate: DateTime(2024, 1, 1),
-        genreId: '00001',
-        artistApiId: 'API001',
-        imageUrl: 'https://example.com/artist1.png',
-      ),
-      Artist(
-        id: '00002',
-        name: 'アーティスト02',
-        genre: 'ジャンル02',
-        status: '有効',
-        isActive: true,
-        addedDate: DateTime(2024, 1, 15),
-        updatedDate: DateTime(2024, 1, 15),
-        genreId: '00002',
-        artistApiId: 'API002',
-        imageUrl: 'https://example.com/artist2.png',
-      ),
-      Artist(
-        id: '00003',
-        name: 'アーティスト03',
-        genre: 'ジャンル03',
-        status: '有効',
-        isActive: true,
-        addedDate: DateTime(2024, 2, 1),
-        updatedDate: DateTime(2024, 2, 1),
-        genreId: '00003',
-        artistApiId: 'API003',
-        imageUrl: 'https://example.com/artist3.png',
-      ),
-      Artist(
-        id: '00004',
-        name: 'アーティスト04',
-        genre: 'ジャンル04',
-        status: '無効',
-        isActive: false,
-        addedDate: DateTime(2024, 2, 15),
-        updatedDate: DateTime(2024, 2, 15),
-        genreId: '00004',
-        artistApiId: 'API004',
-        imageUrl: 'https://example.com/artist4.png',
-      ),
-    ];
-    filteredArtists = List.from(artists);
-    selectedRows = List.generate(filteredArtists.length, (index) => false);
+  Future<void> _loadFromApi() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      bool? isActive;
+      if (statusFilter == '有効') {
+        isActive = true;
+      } else if (statusFilter == '無効') {
+        isActive = false;
+      }
+
+      final response = await AdminApiService.getArtists(
+        page: _currentPage,
+        size: _pageSize,
+        artistName: artistSearch.isNotEmpty ? artistSearch : null,
+        isActive: isActive,
+      );
+
+      final content = response['content'] as List<dynamic>? ?? [];
+      final loadedArtists = content.map((json) => Artist.fromJson(json)).toList();
+
+      setState(() {
+        artists = loadedArtists;
+        _totalPages = response['totalPages'] ?? 1;
+        _totalElements = response['totalElements'] ?? 0;
+        selectedRows = List.generate(artists.length, (index) => false);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'データの取得に失敗しました: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   void _searchArtists() {
-    setState(() {
-      filteredArtists = artists.where((artist) {
-        bool matches = true;
-
-        if (idSearch.isNotEmpty && !artist.id.contains(idSearch)) {
-          matches = false;
-        }
-        if (artistSearch.isNotEmpty && !artist.name.contains(artistSearch)) {
-          matches = false;
-        }
-        if (genreFilter != null && artist.genre != genreFilter) {
-          matches = false;
-        }
-        if (statusFilter != null && artist.status != statusFilter) {
-          matches = false;
-        }
-
-        // 追加日フィルター
-        if (addedStart != null && addedEnd != null) {
-          final isWithinRange = artist.addedDate.isAfter(addedStart!.subtract(const Duration(days: 1))) &&
-                               artist.addedDate.isBefore(addedEnd!.add(const Duration(days: 1)));
-          if (!isWithinRange) {
-            matches = false;
-          }
-        }
-
-        return matches;
-      }).toList();
-
-      selectedRows = List.generate(filteredArtists.length, (index) => false);
-      _updateSelectionState();
-    });
+    _currentPage = 0;
+    _loadFromApi();
   }
 
   void _clearSearch() {
@@ -191,19 +177,26 @@ class _ArtistAdminState extends State<ArtistAdmin> {
       statusFilter = null;
       addedStart = null;
       addedEnd = null;
-
-      filteredArtists = List.from(artists);
-      selectedRows = List.generate(filteredArtists.length, (index) => false);
-      _updateSelectionState();
     });
+    _currentPage = 0;
+    _loadFromApi();
+  }
+
+  void _goToPage(int page) {
+    if (page >= 0 && page < _totalPages) {
+      setState(() {
+        _currentPage = page;
+      });
+      _loadFromApi();
+    }
   }
 
   void _toggleAllSelection(bool? value) {
     setState(() {
       if (value == true) {
-        selectedRows = List.generate(filteredArtists.length, (index) => true);
+        selectedRows = List.generate(artists.length, (index) => true);
       } else {
-        selectedRows = List.generate(filteredArtists.length, (index) => false);
+        selectedRows = List.generate(artists.length, (index) => false);
       }
       _updateSelectionState();
     });
@@ -222,58 +215,72 @@ class _ArtistAdminState extends State<ArtistAdmin> {
     });
   }
 
-  void _deactivateSelected() {
-    setState(() {
-      for (int i = 0; i < selectedRows.length; i++) {
-        if (selectedRows[i]) {
-          final artistId = filteredArtists[i].id;
-          final originalIndex = artists.indexWhere((a) => a.id == artistId);
-          if (originalIndex != -1) {
-            artists[originalIndex] = artists[originalIndex].copyWith(
-              status: '無効',
-              isActive: false,
-              updatedDate: DateTime.now(),
-            );
-          }
-          filteredArtists[i] = filteredArtists[i].copyWith(
-            status: '無効',
-            isActive: false,
-            updatedDate: DateTime.now(),
-          );
-        }
+  Future<void> _deactivateSelected() async {
+    final selectedIds = <int>[];
+    for (int i = 0; i < selectedRows.length; i++) {
+      if (selectedRows[i] && i < artists.length) {
+        selectedIds.add(artists[i].numericId);
       }
-      _updateSelectionState();
+    }
+
+    if (selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('選択したアーティストを無効化しました')),
-    );
+
+    try {
+      await AdminApiService.disableArtists(selectedIds);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選択したアーティストを無効化しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('無効化に失敗しました: $e')),
+        );
+      }
+    }
   }
 
-  void _activateSelected() {
-    setState(() {
-      for (int i = 0; i < selectedRows.length; i++) {
-        if (selectedRows[i]) {
-          final artistId = filteredArtists[i].id;
-          final originalIndex = artists.indexWhere((a) => a.id == artistId);
-          if (originalIndex != -1) {
-            artists[originalIndex] = artists[originalIndex].copyWith(
-              status: '有効',
-              isActive: true,
-              updatedDate: DateTime.now(),
-            );
-          }
-          filteredArtists[i] = filteredArtists[i].copyWith(
-            status: '有効',
-            isActive: true,
-            updatedDate: DateTime.now(),
-          );
-        }
+  Future<void> _activateSelected() async {
+    final selectedIds = <int>[];
+    for (int i = 0; i < selectedRows.length; i++) {
+      if (selectedRows[i] && i < artists.length) {
+        selectedIds.add(artists[i].numericId);
       }
-      _updateSelectionState();
+    }
+
+    if (selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('選択したアーティストを有効化しました')),
-    );
+
+    try {
+      await AdminApiService.enableArtists(selectedIds);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選択したアーティストを有効化しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('有効化に失敗しました: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _navigateToDetailPage(Artist artist, {bool isNew = false}) async {
@@ -284,94 +291,15 @@ class _ArtistAdminState extends State<ArtistAdmin> {
           artist: artist,
           isNew: isNew,
           onStatusChanged: (updatedArtist, action) {
-            // 状態変更を即時反映
-            _handleArtistUpdate(updatedArtist, action);
+            _loadFromApi();
           },
         ),
       ),
     );
 
     if (result != null) {
-      _handleArtistUpdate(result['artist'] as Artist, result['action']);
+      _loadFromApi();
     }
-  }
-
-  void _handleArtistUpdate(Artist updatedArtist, String action) {
-    setState(() {
-      switch (action) {
-        case 'save':
-          if (artists.any((a) => a.id == updatedArtist.id)) {
-            // 既存のアーティストを更新
-            final index = artists.indexWhere((a) => a.id == updatedArtist.id);
-            if (index != -1) {
-              artists[index] = updatedArtist;
-            }
-          } else {
-            // 新規アーティストを追加
-            artists.add(updatedArtist);
-          }
-          break;
-        case 'delete':
-          // アーティストを削除
-          artists.removeWhere((a) => a.id == updatedArtist.id);
-          break;
-        case 'status_changed':
-          // 状態変更のみ
-          final index = artists.indexWhere((a) => a.id == updatedArtist.id);
-          if (index != -1) {
-            artists[index] = updatedArtist;
-          }
-          break;
-      }
-
-      // フィルター適用
-      filteredArtists = artists.where((artist) {
-        bool matches = true;
-
-        if (idSearch.isNotEmpty && !artist.id.contains(idSearch)) {
-          matches = false;
-        }
-        if (artistSearch.isNotEmpty && !artist.name.contains(artistSearch)) {
-          matches = false;
-        }
-        if (genreFilter != null && artist.genre != genreFilter) {
-          matches = false;
-        }
-        if (statusFilter != null && artist.status != statusFilter) {
-          matches = false;
-        }
-
-        if (addedStart != null && addedEnd != null) {
-          final isWithinRange = artist.addedDate.isAfter(addedStart!.subtract(const Duration(days: 1))) &&
-                               artist.addedDate.isBefore(addedEnd!.add(const Duration(days: 1)));
-          if (!isWithinRange) {
-            matches = false;
-          }
-        }
-
-        return matches;
-      }).toList();
-
-      selectedRows = List.generate(filteredArtists.length, (index) => false);
-      _updateSelectionState();
-
-      // スナックバー表示
-      String message = '';
-      switch (action) {
-        case 'save':
-          message = 'アーティストを保存しました';
-          break;
-        case 'delete':
-          message = 'アーティストを削除しました';
-          break;
-        case 'status_changed':
-          message = '状態を変更しました';
-          break;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    });
   }
 
   void _showTourokuDialog() {
@@ -379,30 +307,13 @@ class _ArtistAdminState extends State<ArtistAdmin> {
       context,
       'artist',
       (data) {
-        final newArtist = Artist(
-          id: 'NEW${(artists.length + 1).toString().padLeft(5, '0')}',
-          name: data['name'],
-          genre: data['genre'],
-          status: '有効',
-          isActive: true,
-          addedDate: DateTime.now(),
-          genreId: data['genreId'].isNotEmpty ? data['genreId'] : null,
-          artistApiId: data['artistApiId'].isNotEmpty ? data['artistApiId'] : null,
-          imageUrl: data['imageUrl'].isNotEmpty ? data['imageUrl'] : null,
-        );
-
-        artists.add(newArtist);
-        filteredArtists = List.from(artists);
-        selectedRows = List.generate(filteredArtists.length, (index) => false);
-        _updateSelectionState();
-
+        _loadFromApi();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('アーティストを登録しました')),
         );
       },
     );
   }
-
 
   Widget _buildStatusIndicator(String status) {
     final isActive = status == '有効';
@@ -441,11 +352,14 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         // 検索条件エリア
         _buildVerticalSearchArea(),
         const SizedBox(height: 16),
-        
+
         // アーティスト一覧テーブル
         Expanded(
           child: _buildArtistTable(),
         ),
+
+        // ページネーション
+        _buildPagination(),
       ],
     );
   }
@@ -477,7 +391,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                   ),
                 ),
                 const SizedBox(width: 32),
-                
+
                 // 2列目
                 Expanded(
                   child: Column(
@@ -495,7 +409,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // 3列目
                 Expanded(
                   child: Column(
@@ -508,7 +422,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Container(
+                            SizedBox(
                               width: 100,
                               child: OutlinedButton(
                                 onPressed: _clearSearch,
@@ -520,7 +434,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Container(
+                            SizedBox(
                               width: 100,
                               child: ElevatedButton(
                                 onPressed: _searchArtists,
@@ -630,7 +544,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                           children: [
                             Text(
                               startDate != null
-                                  ? '${startDate!.year}/${startDate!.month.toString().padLeft(2, '0')}/${startDate!.day.toString().padLeft(2, '0')}'
+                                  ? '${startDate.year}/${startDate.month.toString().padLeft(2, '0')}/${startDate.day.toString().padLeft(2, '0')}'
                                   : '',
                               style: TextStyle(
                                 color: startDate != null
@@ -674,7 +588,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                           children: [
                             Text(
                               endDate != null
-                                  ? '${endDate!.year}/${endDate!.month.toString().padLeft(2, '0')}/${endDate!.day.toString().padLeft(2, '0')}'
+                                  ? '${endDate.year}/${endDate.month.toString().padLeft(2, '0')}/${endDate.day.toString().padLeft(2, '0')}'
                                   : '',
                               style: TextStyle(
                                 color: endDate != null
@@ -744,7 +658,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
       child: Column(
         children: [
           // テーブルヘッダー
-          if (filteredArtists.isNotEmpty)
+          if (artists.isNotEmpty || _isLoading)
             Container(
               decoration: BoxDecoration(
                 color: Colors.grey[100],
@@ -764,52 +678,93 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                 ],
               ),
             ),
-          
+
           // テーブルデータまたは該当なしメッセージ
           Expanded(
-            child: filteredArtists.isEmpty
-                ? _buildNoArtistsFound()
-                : ListView.builder(
-                    itemCount: filteredArtists.length,
-                    itemBuilder: (context, index) {
-                      final artist = filteredArtists[index];
-                      return Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            left: const BorderSide(color: Colors.grey),
-                            right: const BorderSide(color: Colors.grey),
-                            bottom: BorderSide(color: Colors.grey[300]!),
-                          ),
-                        ),
-                        child: InkWell(
-                          onTap: () => _navigateToDetailPage(artist),
-                          child: Row(
-                            children: [
-                              _buildTableCell(
-                                '',
-                                1,
-                                TextAlign.center,
-                                child: Checkbox(
-                                  value: selectedRows[index],
-                                  onChanged: (value) => _toggleArtistSelection(index, value),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _buildErrorView()
+                    : artists.isEmpty
+                        ? _buildNoArtistsFound()
+                        : ListView.builder(
+                            itemCount: artists.length,
+                            itemBuilder: (context, index) {
+                              final artist = artists[index];
+                              return Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    left: const BorderSide(color: Colors.grey),
+                                    right: const BorderSide(color: Colors.grey),
+                                    bottom: BorderSide(color: Colors.grey[300]!),
+                                  ),
                                 ),
-                              ),
-                              _buildTableCell(artist.id, 1, TextAlign.center),
-                              _buildTableCell(artist.name, 2, TextAlign.left),
-                              _buildTableCell(artist.genre, 2, TextAlign.left),
-                              _buildTableCell('', 1, TextAlign.center, 
-                                child: _buildStatusIndicator(artist.status)),
-                            ],
+                                child: InkWell(
+                                  onTap: () => _navigateToDetailPage(artist),
+                                  child: Row(
+                                    children: [
+                                      _buildTableCell(
+                                        '',
+                                        1,
+                                        TextAlign.center,
+                                        child: Checkbox(
+                                          value: selectedRows[index],
+                                          onChanged: (value) => _toggleArtistSelection(index, value),
+                                        ),
+                                      ),
+                                      _buildTableCell(artist.id, 1, TextAlign.center),
+                                      _buildTableCell(artist.name, 2, TextAlign.left),
+                                      _buildTableCell(artist.genre, 2, TextAlign.left),
+                                      _buildTableCell('', 1, TextAlign.center,
+                                          child: _buildStatusIndicator(artist.status)),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                      );
-                    },
-                  ),
           ),
-          
+
           // 全てのボタンを同じ行に表示
           _buildButtonsArea(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+            const SizedBox(height: 12),
+            Text(
+              'エラーが発生しました',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.red[600],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error ?? '',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadFromApi,
+              child: const Text('再試行'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -829,6 +784,58 @@ class _ArtistAdminState extends State<ArtistAdmin> {
           Text(
             '検索条件を変更して再度お試しください',
             style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(
+          top: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '全 $_totalElements 件',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.first_page),
+                onPressed: _currentPage > 0 ? () => _goToPage(0) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: _currentPage > 0 ? () => _goToPage(_currentPage - 1) : null,
+                iconSize: 20,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '${_currentPage + 1} / $_totalPages',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_currentPage + 1) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.last_page),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_totalPages - 1) : null,
+                iconSize: 20,
+              ),
+            ],
           ),
         ],
       ),
@@ -866,10 +873,11 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                 child: const Text('選択中のアーティストを無効化', style: TextStyle(color: Colors.white)),
               ),
             ),
-          
+
           // 選択中のアーティストを有効化ボタン
           if (hasSelection)
             Container(
+              margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
@@ -928,8 +936,9 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         ),
         child: text.isEmpty
             ? Checkbox(
-                value: selectedRows.every((element) => element) &&
-                    selectedRows.isNotEmpty,
+                value: selectedRows.isNotEmpty &&
+                    selectedRows.every((element) => element) &&
+                    artists.isNotEmpty,
                 onChanged: _toggleAllSelection,
               )
             : Text(

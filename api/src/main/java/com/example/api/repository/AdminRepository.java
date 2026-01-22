@@ -22,4 +22,12 @@ public interface AdminRepository extends JpaRepository<Admin, Long> {
      */
     @Query("SELECT a FROM Admin a WHERE a.admin_id = :adminId")
     Optional<Admin> findByAdmin_id(Long adminId);
+
+    /**
+     * メールアドレスで検索
+     * @param email メールアドレス
+     * @return 管理者エンティティ
+     */
+    @Query("SELECT a FROM Admin a WHERE a.email = :email")
+    Optional<Admin> findByEmail(@Param("email") String email);
 }

@@ -500,6 +500,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
           genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
           artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
           imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
+          numericId: widget.artist.numericId,
         );
         widget.onStatusChanged!(updatedArtist, 'status_changed');
       }
@@ -522,6 +523,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
       artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
       imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
+      numericId: widget.artist.numericId,
     );
 
     // 元の値を更新
@@ -688,6 +690,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
       artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
       imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
+      numericId: widget.artist.numericId,
     );
     
     Navigator.pop(context, {

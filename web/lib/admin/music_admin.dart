@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'music_admin2.dart';
 import 'touroku_admin.dart';
+import 'services/admin_api_service.dart';
 
 class MusicAdmin extends StatefulWidget {
   const MusicAdmin({super.key});
@@ -21,125 +22,83 @@ class _MusicAdminState extends State<MusicAdmin> {
   final TextEditingController _languageController = TextEditingController();
   DateTime? startDate;
   DateTime? endDate;
-  
+
   String? _selectedGenre;
   String? _selectedStatus;
 
-  // サンプルデータ
-  final List<Map<String, dynamic>> _musicList = [
-    {'id': '0001', 'songName': '楽曲01', 'artist': 'アーティスト01', 'status': '有効'},
-    {'id': '0002', 'songName': '楽曲02', 'artist': 'アーティスト02', 'status': '有効'},
-    {'id': '0003', 'songName': '楽曲03', 'artist': 'アーティスト03', 'status': '有効'},
-    {'id': '0004', 'songName': '楽曲04', 'artist': 'アーティスト04', 'status': '無効'},
-  ];
-
-  List<Map<String, dynamic>> _displayedMusicList = [];
-
-  final Set<String> _selectedIds = {};
+  // API連携用
+  List<Map<String, dynamic>> _musicList = [];
+  final Set<int> _selectedIds = {};
+  int _currentPage = 0;
+  int _totalPages = 1;
+  int _totalElements = 0;
+  final int _pageSize = 20;
+  bool _isLoading = false;
+  String? _error;
 
   bool get hasSelection => _selectedIds.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
-    _displayedMusicList = List.from(_musicList);
+    _loadFromApi();
   }
 
-  void _deactivateSelected() {
+  Future<void> _loadFromApi() async {
     setState(() {
-      for (var id in _selectedIds) {
-        final index = _musicList.indexWhere((item) => item['id'] == id);
-        if (index != -1) {
-          _musicList[index]['status'] = '無効';
-        }
-      }
-      _selectedIds.clear();
-      _performSearch(); // 検索を実行して表示を更新
+      _isLoading = true;
+      _error = null;
     });
-  }
 
-  void _activateSelected() {
-    setState(() {
-      for (var id in _selectedIds) {
-        final index = _musicList.indexWhere((item) => item['id'] == id);
-        if (index != -1) {
-          _musicList[index]['status'] = '有効';
-        }
+    try {
+      bool? isActive;
+      if (_selectedStatus == '有効') {
+        isActive = true;
+      } else if (_selectedStatus == '無効') {
+        isActive = false;
       }
-      _selectedIds.clear();
-      _performSearch(); // 検索を実行して表示を更新
-    });
-  }
 
-  // 検索処理
-  void _performSearch() {
-    setState(() {
-      // 検索条件に基づいてフィルタリング
-      _displayedMusicList = _musicList.where((item) {
-        bool matches = true;
+      final response = await AdminApiService.getSongs(
+        page: _currentPage,
+        size: _pageSize,
+        songname: _songNameController.text.trim().isNotEmpty ? _songNameController.text.trim() : null,
+        language: _languageController.text.trim().isNotEmpty ? _languageController.text.trim() : null,
+        isActive: isActive,
+      );
 
-        // IDでの検索
-        if (_idController.text.isNotEmpty) {
-          matches = matches && item['id'].toString().contains(_idController.text);
-        }
-
-        // 楽曲名での検索
-        if (_songNameController.text.isNotEmpty) {
-          matches = matches && 
-              (item['songName']?.toString().toLowerCase().contains(_songNameController.text.toLowerCase()) ?? false);
-        }
-
-        // アーティストでの検索
-        if (_artistController.text.isNotEmpty) {
-          matches = matches && 
-              (item['artist']?.toString().toLowerCase().contains(_artistController.text.toLowerCase()) ?? false);
-        }
-
-        // ジャンルでの検索（_selectedGenreがnullまたは空でない場合）
-        if (_selectedGenre != null && _selectedGenre!.isNotEmpty) {
-          // itemにgenreフィールドがあるか確認（サンプルデータにはないので一旦スキップ）
-          // 実際のデータ構造に合わせて修正してください
-          // matches = matches && (item['genre'] == _selectedGenre);
-        }
-
-        // 状態での検索
-        if (_selectedStatus != null && _selectedStatus!.isNotEmpty) {
-          matches = matches && (item['status'] == _selectedStatus);
-        }
-
-        // 言語での検索（_languageControllerがnullまたは空でない場合）
-        if (_languageController.text.isNotEmpty) {
-          // itemにlanguageフィールドがあるか確認（サンプルデータにはないので一旦スキップ）
-          // 実際のデータ構造に合わせて修正してください
-          // matches = matches && (item['language']?.toString().toLowerCase().contains(_languageController.text.toLowerCase()) ?? false);
-        }
-
-        // 追加日の範囲検索
-        if (startDate != null) {
-          final addedDate = item['addedDate']; // サンプルデータにはaddedDateがないので注意
-          // 実際のデータ構造に合わせて修正してください
-          // if (addedDate is DateTime) {
-          //   matches = matches && addedDate.isAfter(startDate!) || addedDate.isAtSameMomentAs(startDate!);
-          // }
-        }
-
-        if (endDate != null) {
-          final addedDate = item['addedDate']; // サンプルデータにはaddedDateがないので注意
-          // 実際のデータ構造に合わせて修正してください
-          // if (addedDate is DateTime) {
-          //   matches = matches && addedDate.isBefore(endDate!) || addedDate.isAtSameMomentAs(endDate!);
-          // }
-        }
-
-        return matches;
+      final content = response['content'] as List<dynamic>? ?? [];
+      final loadedSongs = content.map((json) {
+        return {
+          'id': json['id']?.toString() ?? '',
+          'songName': json['songname'] ?? '',
+          'artist': json['artistName'] ?? '',
+          'status': (json['isActive'] == true) ? '有効' : '無効',
+          'numericId': json['id'] as int? ?? 0,
+          'language': json['language'] ?? '',
+          'genre': json['genreName'] ?? '',
+        };
       }).toList();
 
-      // 選択状態をクリア
-      _selectedIds.clear();
-    });
+      setState(() {
+        _musicList = loadedSongs;
+        _totalPages = response['totalPages'] ?? 1;
+        _totalElements = response['totalElements'] ?? 0;
+        _selectedIds.clear();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'データの取得に失敗しました: $e';
+        _isLoading = false;
+      });
+    }
   }
 
-  // クリア処理
+  void _performSearch() {
+    _currentPage = 0;
+    _loadFromApi();
+  }
+
   void _clearSearch() {
     setState(() {
       _idController.clear();
@@ -150,9 +109,73 @@ class _MusicAdminState extends State<MusicAdmin> {
       endDate = null;
       _selectedGenre = null;
       _selectedStatus = null;
-      _displayedMusicList = List.from(_musicList);
       _selectedIds.clear();
     });
+    _currentPage = 0;
+    _loadFromApi();
+  }
+
+  void _goToPage(int page) {
+    if (page >= 0 && page < _totalPages) {
+      setState(() {
+        _currentPage = page;
+      });
+      _loadFromApi();
+    }
+  }
+
+  Future<void> _deactivateSelected() async {
+    if (_selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AdminApiService.disableSongs(_selectedIds.toList());
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選択した楽曲を無効化しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('無効化に失敗しました: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _activateSelected() async {
+    if (_selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AdminApiService.enableSongs(_selectedIds.toList());
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選択した楽曲を有効化しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('有効化に失敗しました: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -174,6 +197,7 @@ class _MusicAdminState extends State<MusicAdmin> {
         _buildSearchArea(),
         const SizedBox(height: 24),
         Expanded(child: _buildDataTable()),
+        _buildPagination(),
         const SizedBox(height: 16),
         _buildActionButton(),
       ],
@@ -358,7 +382,7 @@ class _MusicAdminState extends State<MusicAdmin> {
                 style: const TextStyle(fontSize: 13),
                 readOnly: true,
                 controller: TextEditingController(
-                  text: startDate != null 
+                  text: startDate != null
                       ? '${startDate!.year}/${startDate!.month}/${startDate!.day}'
                       : '',
                 ),
@@ -399,7 +423,7 @@ class _MusicAdminState extends State<MusicAdmin> {
                 style: const TextStyle(fontSize: 13),
                 readOnly: true,
                 controller: TextEditingController(
-                  text: endDate != null 
+                  text: endDate != null
                       ? '${endDate!.year}/${endDate!.month}/${endDate!.day}'
                       : '',
                 ),
@@ -440,11 +464,11 @@ class _MusicAdminState extends State<MusicAdmin> {
                 SizedBox(
                   width: 40,
                   child: Checkbox(
-                    value: _selectedIds.length == _displayedMusicList.length && _displayedMusicList.isNotEmpty,
+                    value: _selectedIds.length == _musicList.length && _musicList.isNotEmpty,
                     onChanged: (value) {
                       setState(() {
                         if (value == true) {
-                          _selectedIds.addAll(_displayedMusicList.map((e) => e['id'] as String));
+                          _selectedIds.addAll(_musicList.map((e) => e['numericId'] as int));
                         } else {
                           _selectedIds.clear();
                         }
@@ -490,90 +514,221 @@ class _MusicAdminState extends State<MusicAdmin> {
           ),
           // テーブルボディ
           Expanded(
-            child: ListView.builder(
-              itemCount: _displayedMusicList.length,
-              itemBuilder: (context, index) {
-                final item = _displayedMusicList[index];
-                final isSelected = _selectedIds.contains(item['id']);
-                return Container(
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: Colors.grey[300]!),
-                    ),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 40,
-                        child: Checkbox(
-                          value: isSelected,
-                          onChanged: (value) {
-                            setState(() {
-                              if (value == true) {
-                                _selectedIds.add(item['id'] as String);
-                              } else {
-                                _selectedIds.remove(item['id']);
-                              }
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          item['id'] as String,
-                          style: const TextStyle(fontSize: 13),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => MusicDetailPage(
-                                  music: item,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _buildErrorView()
+                    : _musicList.isEmpty
+                        ? _buildNoDataFound()
+                        : ListView.builder(
+                            itemCount: _musicList.length,
+                            itemBuilder: (context, index) {
+                              final item = _musicList[index];
+                              final numericId = item['numericId'] as int;
+                              final isSelected = _selectedIds.contains(numericId);
+                              return Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(color: Colors.grey[300]!),
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                          child: Text(
-                            item['songName'] as String,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
-                            ),
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 40,
+                                      child: Checkbox(
+                                        value: isSelected,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            if (value == true) {
+                                              _selectedIds.add(numericId);
+                                            } else {
+                                              _selectedIds.remove(numericId);
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        item['id'] as String,
+                                        style: const TextStyle(fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: GestureDetector(
+                                        onTap: () async {
+                                          final result = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => MusicDetailPage(
+                                                music: item,
+                                              ),
+                                            ),
+                                          );
+                                          if (result != null) {
+                                            _loadFromApi();
+                                          }
+                                        },
+                                        child: Text(
+                                          item['songName'] as String,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.blue,
+                                            decoration: TextDecoration.underline,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        item['artist'] as String,
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        item['status'] as String,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: item['status'] == '有効' ? Colors.black : Colors.grey[400],
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          item['artist'] as String,
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          item['status'] as String,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: item['status'] == '有効' ? Colors.black : Colors.grey[400],
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+            const SizedBox(height: 12),
+            Text(
+              'エラーが発生しました',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.red[600],
+                fontWeight: FontWeight.bold,
+              ),
             ),
+            const SizedBox(height: 8),
+            Text(
+              _error ?? '',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadFromApi,
+              child: const Text('再試行'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoDataFound() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text(
+              '該当する楽曲が見つかりません',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '検索条件を変更して再度お試しください',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(
+          top: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '全 $_totalElements 件',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.first_page),
+                onPressed: _currentPage > 0 ? () => _goToPage(0) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: _currentPage > 0 ? () => _goToPage(_currentPage - 1) : null,
+                iconSize: 20,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '${_currentPage + 1} / $_totalPages',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_currentPage + 1) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.last_page),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_totalPages - 1) : null,
+                iconSize: 20,
+              ),
+            ],
           ),
         ],
       ),
@@ -620,13 +775,7 @@ class _MusicAdminState extends State<MusicAdmin> {
               context,
               'music',
               (data) {
-                setState(() {
-                  final newId = (_musicList.length + 1).toString().padLeft(4, '0');
-                  data['id'] = newId;
-                  data['status'] = '有効'; // デフォルト値を設定
-                  _musicList.add(data);
-                  _performSearch(); // 追加後に検索を実行して表示を更新
-                });
+                _loadFromApi();
               },
             );
           },

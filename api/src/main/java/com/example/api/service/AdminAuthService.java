@@ -29,34 +29,35 @@ public class AdminAuthService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
-     * 管理者ログイン
+     * 管理者ログイン（メールアドレスで認証）
      * @param request ログインリクエスト
      * @return ログインレスポンス
      */
     public AdminLoginResponse login(AdminLoginRequest request) {
-        logger.debug("管理者ログイン試行: adminId={}", request.getAdminId());
+        logger.debug("管理者ログイン試行: email={}", request.getEmail());
 
-        // 管理者を検索
-        Admin admin = adminRepository.findByAdmin_id(request.getAdminId())
+        // メールアドレスで管理者を検索
+        Admin admin = adminRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> {
-                    logger.warn("管理者が見つかりません: adminId={}", request.getAdminId());
-                    return new IllegalArgumentException("管理者IDまたはパスワードが正しくありません");
+                    logger.warn("管理者が見つかりません: email={}", request.getEmail());
+                    return new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
                 });
 
         // パスワード検証
         if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
-            logger.warn("パスワードが一致しません: adminId={}", request.getAdminId());
-            throw new IllegalArgumentException("管理者IDまたはパスワードが正しくありません");
+            logger.warn("パスワードが一致しません: email={}", request.getEmail());
+            throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
         }
 
         // トークン生成
         String accessToken = jwtUtil.generateAdminAccessToken(admin.getAdmin_id());
         String refreshToken = jwtUtil.generateAdminRefreshToken(admin.getAdmin_id());
 
-        logger.info("管理者ログイン成功: adminId={}", admin.getAdmin_id());
+        logger.info("管理者ログイン成功: adminId={}, email={}", admin.getAdmin_id(), admin.getEmail());
 
         return new AdminLoginResponse(
                 admin.getAdmin_id(),
+                admin.getEmail(),
                 accessToken,
                 refreshToken,
                 jwtUtil.getAccessTokenExpiration()
@@ -109,6 +110,7 @@ public class AdminAuthService {
 
         return new AdminLoginResponse(
                 admin.getAdmin_id(),
+                admin.getEmail(),
                 newAccessToken,
                 newRefreshToken,
                 jwtUtil.getAccessTokenExpiration()

@@ -402,7 +402,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
   void _toggleStatus() {
     setState(() {
       selectedStatus = selectedStatus == '有効' ? '無効' : '有効';
-      
+
       // 状態変更を通知
       if (widget.onStatusChanged != null) {
         final updatedGenre = Genre(
@@ -412,6 +412,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
           isActive: selectedStatus == '有効',
           addedDate: widget.genre.addedDate,
           updatedDate: DateTime.now(),
+          numericId: widget.genre.numericId,
         );
         widget.onStatusChanged!(updatedGenre, 'status_changed');
       }
@@ -430,6 +431,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
       isActive: selectedStatus == '有効',
       addedDate: widget.genre.addedDate,
       updatedDate: DateTime.now(),
+      numericId: widget.genre.numericId,
     );
 
     // 元の値を更新
@@ -575,6 +577,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
       status: selectedStatus,
       isActive: selectedStatus == '有効',
       addedDate: widget.genre.addedDate,
+      numericId: widget.genre.numericId,
     );
     
     Navigator.pop(context, {

@@ -10,7 +10,7 @@ class AdminLoginScreen extends StatefulWidget {
 }
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
-  final TextEditingController _adminIdController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -20,7 +20,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
   @override
   void dispose() {
-    _adminIdController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -36,17 +36,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     });
 
     try {
-      final adminId = int.tryParse(_adminIdController.text.trim());
-      if (adminId == null) {
-        setState(() {
-          _errorMessage = '管理者IDは数値で入力してください';
-          _isLoading = false;
-        });
-        return;
-      }
-
       final result = await AdminAuthService.login(
-        adminId,
+        _emailController.text.trim(),
         _passwordController.text,
       );
 
@@ -148,9 +139,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     const SizedBox(height: 20),
                   ],
 
-                  // 管理者ID入力
+                  // メールアドレス入力
                   const Text(
-                    '管理者ID',
+                    'メールアドレス',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -159,12 +150,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   TextFormField(
-                    controller: _adminIdController,
-                    keyboardType: TextInputType.number,
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      hintText: '管理者IDを入力',
+                      hintText: 'メールアドレスを入力',
                       hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                      prefixIcon: Icon(Icons.person_outline, color: Colors.grey[500]),
+                      prefixIcon: Icon(Icons.email_outlined, color: Colors.grey[500]),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -183,10 +174,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return '管理者IDを入力してください';
+                        return 'メールアドレスを入力してください';
                       }
-                      if (int.tryParse(value.trim()) == null) {
-                        return '管理者IDは数値で入力してください';
+                      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                      if (!emailRegex.hasMatch(value.trim())) {
+                        return '有効なメールアドレスを入力してください';
                       }
                       return null;
                     },

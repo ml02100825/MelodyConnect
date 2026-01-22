@@ -467,7 +467,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
   void _toggleStatus() {
     setState(() {
       selectedStatus = selectedStatus == '有効' ? '無効' : '有効';
-      
+
       // 状態変更を通知
       if (widget.onStatusChanged != null) {
         final updatedBadge = Badge(
@@ -479,6 +479,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
           isActive: selectedStatus == '有効',
           addedDate: widget.badge.addedDate,
           updatedDate: DateTime.now(),
+          numericId: widget.badge.numericId,
         );
         widget.onStatusChanged!(updatedBadge, 'status_changed');
       }
@@ -499,6 +500,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       isActive: selectedStatus == '有効',
       addedDate: widget.badge.addedDate,
       updatedDate: DateTime.now(),
+      numericId: widget.badge.numericId,
     );
 
     // 元の値を更新
@@ -660,6 +662,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       status: selectedStatus,
       isActive: selectedStatus == '有効',
       addedDate: widget.badge.addedDate,
+      numericId: widget.badge.numericId,
     );
     
     Navigator.pop(context, {

@@ -1,33 +1,35 @@
 package com.example.api.dto.admin;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * 管理者ログインリクエストDTO
  */
 public class AdminLoginRequest {
 
-    @NotNull(message = "管理者IDは必須です")
-    private Long adminId;
+    @NotBlank(message = "メールアドレスは必須です")
+    @Email(message = "有効なメールアドレスを入力してください")
+    private String email;
 
-    @NotNull(message = "パスワードは必須です")
+    @NotBlank(message = "パスワードは必須です")
     private String password;
 
     // Constructors
     public AdminLoginRequest() {}
 
-    public AdminLoginRequest(Long adminId, String password) {
-        this.adminId = adminId;
+    public AdminLoginRequest(String email, String password) {
+        this.email = email;
         this.password = password;
     }
 
     // Getters and Setters
-    public Long getAdminId() {
-        return adminId;
+    public String getEmail() {
+        return email;
     }
 
-    public void setAdminId(Long adminId) {
-        this.adminId = adminId;
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getPassword() {

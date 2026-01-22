@@ -251,6 +251,16 @@ class AdminApiService {
     await delete('/api/admin/questions/$questionId');
   }
 
+  static Future<Map<String, dynamic>> enableQuestions(List<int> ids) async {
+    final response = await post('/api/admin/questions/enable', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> disableQuestions(List<int> ids) async {
+    final response = await post('/api/admin/questions/disable', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
   // ========== 楽曲管理API ==========
 
   static Future<Map<String, dynamic>> getSongs({
@@ -271,6 +281,35 @@ class AdminApiService {
     if (isActive != null) queryParams['isActive'] = isActive.toString();
 
     final response = await get('/api/admin/songs', queryParams: queryParams);
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getSong(int songId) async {
+    final response = await get('/api/admin/songs/$songId');
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> createSong(Map<String, dynamic> data) async {
+    final response = await post('/api/admin/songs', body: data);
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> updateSong(int songId, Map<String, dynamic> data) async {
+    final response = await put('/api/admin/songs/$songId', body: data);
+    return jsonDecode(response.body);
+  }
+
+  static Future<void> deleteSong(int songId) async {
+    await delete('/api/admin/songs/$songId');
+  }
+
+  static Future<Map<String, dynamic>> enableSongs(List<int> ids) async {
+    final response = await post('/api/admin/songs/enable', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> disableSongs(List<int> ids) async {
+    final response = await post('/api/admin/songs/disable', body: {'ids': ids});
     return jsonDecode(response.body);
   }
 
@@ -312,6 +351,16 @@ class AdminApiService {
     await delete('/api/admin/artists/$artistId');
   }
 
+  static Future<Map<String, dynamic>> enableArtists(List<int> ids) async {
+    final response = await post('/api/admin/artists/enable', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> disableArtists(List<int> ids) async {
+    final response = await post('/api/admin/artists/disable', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
   // ========== ジャンル管理API ==========
 
   static Future<Map<String, dynamic>> getGenres({
@@ -350,6 +399,16 @@ class AdminApiService {
     await delete('/api/admin/genres/$genreId');
   }
 
+  static Future<Map<String, dynamic>> enableGenres(List<int> ids) async {
+    final response = await post('/api/admin/genres/enable', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> disableGenres(List<int> ids) async {
+    final response = await post('/api/admin/genres/disable', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
   // ========== バッジ管理API ==========
 
   static Future<Map<String, dynamic>> getBadges({
@@ -386,6 +445,16 @@ class AdminApiService {
 
   static Future<void> deleteBadge(int badgeId) async {
     await delete('/api/admin/badges/$badgeId');
+  }
+
+  static Future<Map<String, dynamic>> enableBadges(List<int> ids) async {
+    final response = await post('/api/admin/badges/enable', body: {'ids': ids});
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> disableBadges(List<int> ids) async {
+    final response = await post('/api/admin/badges/disable', body: {'ids': ids});
+    return jsonDecode(response.body);
   }
 
   // ========== お問い合わせ管理API ==========

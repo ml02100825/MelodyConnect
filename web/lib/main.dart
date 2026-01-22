@@ -27,16 +27,38 @@ import 'admin/genre_admin.dart';
 import 'admin/badge_admin.dart';
 import 'admin/contact_admin.dart';
 
-void main() => runApp(const MyApp());
+/// 初期ルートを取得（管理者ルート対応）
+String _getInitialRoute() {
+  try {
+    final uri = Uri.base;
+    final path = uri.path;
+    // 管理者ルートの場合はそのパスを返す
+    if (path.startsWith('/admin')) {
+      return path;
+    }
+  } catch (e) {
+    // Web以外の環境では例外が発生する可能性がある
+  }
+  return '/';
+}
+
+void main() {
+  final initialRoute = _getInitialRoute();
+  runApp(MyApp(initialRoute: initialRoute));
+}
 
 /// ナビゲーターキー（オーバーレイからのナビゲーション用）
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialRoute;
+
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
+    final isAdminRoute = initialRoute.startsWith('/admin');
+
     return MaterialApp(
       title: 'MelodyConnect',
       navigatorKey: navigatorKey,
@@ -45,13 +67,19 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       builder: (context, child) {
+        // 管理者ルートの場合はオーバーレイを表示しない
+        if (isAdminRoute) {
+          return child ?? const SizedBox.shrink();
+        }
         // アプリ全体で招待通知を表示
         return RoomInvitationOverlay(
           navigatorKey: navigatorKey,
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const SplashScreen(),  // セッション検証を行うスプラッシュ画面
+      // 管理者ルートの場合は直接ルーティング、それ以外はスプラッシュ画面
+      initialRoute: isAdminRoute ? initialRoute : null,
+      home: isAdminRoute ? null : const SplashScreen(),  // セッション検証を行うスプラッシュ画面
       routes: {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),

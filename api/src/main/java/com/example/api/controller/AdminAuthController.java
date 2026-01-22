@@ -36,7 +36,7 @@ public class AdminAuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody AdminLoginRequest request) {
         try {
-            logger.info("管理者ログインリクエスト受信: adminId={}", request.getAdminId());
+            logger.info("管理者ログインリクエスト受信: email={}", request.getEmail());
             AdminLoginResponse response = adminAuthService.login(request);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {

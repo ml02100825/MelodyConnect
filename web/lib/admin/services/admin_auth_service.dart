@@ -9,13 +9,13 @@ class AdminAuthService {
     defaultValue: 'http://localhost:8080',
   );
 
-  /// 管理者ログイン
-  static Future<Map<String, dynamic>> login(int adminId, String password) async {
+  /// 管理者ログイン（メールアドレスで認証）
+  static Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/api/admin/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'adminId': adminId,
+        'email': email,
         'password': password,
       }),
     );
@@ -26,6 +26,7 @@ class AdminAuthService {
         accessToken: data['accessToken'],
         refreshToken: data['refreshToken'],
         adminId: data['adminId'],
+        email: data['email'],
       );
       return {'success': true, 'data': data};
     } else {
@@ -52,6 +53,7 @@ class AdminAuthService {
           accessToken: data['accessToken'],
           refreshToken: data['refreshToken'],
           adminId: data['adminId'],
+          email: data['email'],
         );
         return true;
       }

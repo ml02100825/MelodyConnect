@@ -6,6 +6,7 @@ package com.example.api.dto.admin;
 public class AdminLoginResponse {
 
     private Long adminId;
+    private String email;
     private String accessToken;
     private String refreshToken;
     private Long expiresIn;
@@ -13,8 +14,9 @@ public class AdminLoginResponse {
     // Constructors
     public AdminLoginResponse() {}
 
-    public AdminLoginResponse(Long adminId, String accessToken, String refreshToken, Long expiresIn) {
+    public AdminLoginResponse(Long adminId, String email, String accessToken, String refreshToken, Long expiresIn) {
         this.adminId = adminId;
+        this.email = email;
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.expiresIn = expiresIn;
@@ -27,6 +29,14 @@ public class AdminLoginResponse {
 
     public void setAdminId(Long adminId) {
         this.adminId = adminId;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getAccessToken() {

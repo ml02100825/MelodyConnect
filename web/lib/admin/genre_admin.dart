@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'genre_detail_admin.dart';
 import 'touroku_admin.dart';
+import 'services/admin_api_service.dart';
 
 class Genre {
   final String id;
@@ -10,6 +11,7 @@ class Genre {
   final bool isActive;
   final DateTime addedDate;
   final DateTime? updatedDate;
+  final int numericId;
 
   Genre({
     required this.id,
@@ -18,7 +20,24 @@ class Genre {
     required this.isActive,
     required this.addedDate,
     this.updatedDate,
+    required this.numericId,
   });
+
+  factory Genre.fromJson(Map<String, dynamic> json) {
+    return Genre(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] ?? '',
+      status: (json['isActive'] == true) ? '有効' : '無効',
+      isActive: json['isActive'] == true,
+      addedDate: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
+          : DateTime.now(),
+      updatedDate: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'])
+          : null,
+      numericId: json['id'] as int? ?? 0,
+    );
+  }
 
   Genre copyWith({
     String? id,
@@ -27,6 +46,7 @@ class Genre {
     bool? isActive,
     DateTime? addedDate,
     DateTime? updatedDate,
+    int? numericId,
   }) {
     return Genre(
       id: id ?? this.id,
@@ -35,6 +55,7 @@ class Genre {
       isActive: isActive ?? this.isActive,
       addedDate: addedDate ?? this.addedDate,
       updatedDate: updatedDate ?? this.updatedDate,
+      numericId: numericId ?? this.numericId,
     );
   }
 }
@@ -49,9 +70,8 @@ class GenreAdmin extends StatefulWidget {
 class _GenreAdminState extends State<GenreAdmin> {
   String selectedTab = 'ジャンル';
   String selectedMenu = 'コンテンツ管理';
-  
+
   List<Genre> genres = [];
-  List<Genre> filteredGenres = [];
   List<bool> selectedRows = [];
   bool hasSelection = false;
 
@@ -61,78 +81,54 @@ class _GenreAdminState extends State<GenreAdmin> {
   DateTime? addedStart;
   DateTime? addedEnd;
 
+  // API連携用
+  int _currentPage = 0;
+  int _totalPages = 1;
+  int _totalElements = 0;
+  final int _pageSize = 20;
+  bool _isLoading = false;
+  String? _error;
+
   @override
   void initState() {
     super.initState();
-    _loadSampleData();
+    _loadFromApi();
   }
 
-  void _loadSampleData() {
-    genres = [
-      Genre(
-        id: '00001',
-        name: 'ジャンル01',
-        status: '有効',
-        isActive: true,
-        addedDate: DateTime(2024, 1, 1),
-        updatedDate: DateTime(2024, 1, 1),
-      ),
-      Genre(
-        id: '00002',
-        name: 'ジャンル02',
-        status: '有効',
-        isActive: true,
-        addedDate: DateTime(2024, 1, 15),
-        updatedDate: DateTime(2024, 1, 15),
-      ),
-      Genre(
-        id: '00003',
-        name: 'ジャンル03',
-        status: '有効',
-        isActive: true,
-        addedDate: DateTime(2024, 2, 1),
-        updatedDate: DateTime(2024, 2, 1),
-      ),
-      Genre(
-        id: '00004',
-        name: 'ジャンル04',
-        status: '無効',
-        isActive: false,
-        addedDate: DateTime(2024, 2, 15),
-        updatedDate: DateTime(2024, 2, 15),
-      ),
-    ];
-    filteredGenres = List.from(genres);
-    selectedRows = List.generate(filteredGenres.length, (index) => false);
+  Future<void> _loadFromApi() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final response = await AdminApiService.getGenres(
+        page: _currentPage,
+        size: _pageSize,
+        name: genreSearch.isNotEmpty ? genreSearch : null,
+      );
+
+      final content = response['content'] as List<dynamic>? ?? [];
+      final loadedGenres = content.map((json) => Genre.fromJson(json)).toList();
+
+      setState(() {
+        genres = loadedGenres;
+        _totalPages = response['totalPages'] ?? 1;
+        _totalElements = response['totalElements'] ?? 0;
+        selectedRows = List.generate(genres.length, (index) => false);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'データの取得に失敗しました: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   void _searchGenres() {
-    setState(() {
-      filteredGenres = genres.where((genre) {
-        bool matches = true;
-
-        if (idSearch.isNotEmpty && !genre.id.contains(idSearch)) {
-          matches = false;
-        }
-        if (genreSearch.isNotEmpty && !genre.name.contains(genreSearch)) {
-          matches = false;
-        }
-
-        // 追加日フィルター
-        if (addedStart != null && addedEnd != null) {
-          final isWithinRange = genre.addedDate.isAfter(addedStart!.subtract(const Duration(days: 1))) &&
-                               genre.addedDate.isBefore(addedEnd!.add(const Duration(days: 1)));
-          if (!isWithinRange) {
-            matches = false;
-          }
-        }
-
-        return matches;
-      }).toList();
-
-      selectedRows = List.generate(filteredGenres.length, (index) => false);
-      _updateSelectionState();
-    });
+    _currentPage = 0;
+    _loadFromApi();
   }
 
   void _clearSearch() {
@@ -141,19 +137,26 @@ class _GenreAdminState extends State<GenreAdmin> {
       genreSearch = '';
       addedStart = null;
       addedEnd = null;
-
-      filteredGenres = List.from(genres);
-      selectedRows = List.generate(filteredGenres.length, (index) => false);
-      _updateSelectionState();
     });
+    _currentPage = 0;
+    _loadFromApi();
+  }
+
+  void _goToPage(int page) {
+    if (page >= 0 && page < _totalPages) {
+      setState(() {
+        _currentPage = page;
+      });
+      _loadFromApi();
+    }
   }
 
   void _toggleAllSelection(bool? value) {
     setState(() {
       if (value == true) {
-        selectedRows = List.generate(filteredGenres.length, (index) => true);
+        selectedRows = List.generate(genres.length, (index) => true);
       } else {
-        selectedRows = List.generate(filteredGenres.length, (index) => false);
+        selectedRows = List.generate(genres.length, (index) => false);
       }
       _updateSelectionState();
     });
@@ -172,58 +175,72 @@ class _GenreAdminState extends State<GenreAdmin> {
     });
   }
 
-  void _deactivateSelected() {
-    setState(() {
-      for (int i = 0; i < selectedRows.length; i++) {
-        if (selectedRows[i]) {
-          final genreId = filteredGenres[i].id;
-          final originalIndex = genres.indexWhere((g) => g.id == genreId);
-          if (originalIndex != -1) {
-            genres[originalIndex] = genres[originalIndex].copyWith(
-              status: '無効',
-              isActive: false,
-              updatedDate: DateTime.now(),
-            );
-          }
-          filteredGenres[i] = filteredGenres[i].copyWith(
-            status: '無効',
-            isActive: false,
-            updatedDate: DateTime.now(),
-          );
-        }
+  Future<void> _deactivateSelected() async {
+    final selectedIds = <int>[];
+    for (int i = 0; i < selectedRows.length; i++) {
+      if (selectedRows[i] && i < genres.length) {
+        selectedIds.add(genres[i].numericId);
       }
-      _updateSelectionState();
+    }
+
+    if (selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('選択したジャンルを無効化しました')),
-    );
+
+    try {
+      await AdminApiService.disableGenres(selectedIds);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選択したジャンルを無効化しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('無効化に失敗しました: $e')),
+        );
+      }
+    }
   }
 
-  void _activateSelected() {
-    setState(() {
-      for (int i = 0; i < selectedRows.length; i++) {
-        if (selectedRows[i]) {
-          final genreId = filteredGenres[i].id;
-          final originalIndex = genres.indexWhere((g) => g.id == genreId);
-          if (originalIndex != -1) {
-            genres[originalIndex] = genres[originalIndex].copyWith(
-              status: '有効',
-              isActive: true,
-              updatedDate: DateTime.now(),
-            );
-          }
-          filteredGenres[i] = filteredGenres[i].copyWith(
-            status: '有効',
-            isActive: true,
-            updatedDate: DateTime.now(),
-          );
-        }
+  Future<void> _activateSelected() async {
+    final selectedIds = <int>[];
+    for (int i = 0; i < selectedRows.length; i++) {
+      if (selectedRows[i] && i < genres.length) {
+        selectedIds.add(genres[i].numericId);
       }
-      _updateSelectionState();
+    }
+
+    if (selectedIds.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('選択したジャンルを有効化しました')),
-    );
+
+    try {
+      await AdminApiService.enableGenres(selectedIds);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選択したジャンルを有効化しました')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('有効化に失敗しました: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _navigateToDetailPage(Genre genre, {bool isNew = false}) async {
@@ -234,88 +251,15 @@ class _GenreAdminState extends State<GenreAdmin> {
           genre: genre,
           isNew: isNew,
           onStatusChanged: (updatedGenre, action) {
-            // 状態変更を即時反映
-            _handleGenreUpdate(updatedGenre, action);
+            _loadFromApi();
           },
         ),
       ),
     );
 
     if (result != null) {
-      _handleGenreUpdate(result['genre'] as Genre, result['action']);
+      _loadFromApi();
     }
-  }
-
-  void _handleGenreUpdate(Genre updatedGenre, String action) {
-    setState(() {
-      switch (action) {
-        case 'save':
-          if (genres.any((g) => g.id == updatedGenre.id)) {
-            // 既存のジャンルを更新
-            final index = genres.indexWhere((g) => g.id == updatedGenre.id);
-            if (index != -1) {
-              genres[index] = updatedGenre;
-            }
-          } else {
-            // 新規ジャンルを追加
-            genres.add(updatedGenre);
-          }
-          break;
-        case 'delete':
-          // ジャンルを削除
-          genres.removeWhere((g) => g.id == updatedGenre.id);
-          break;
-        case 'status_changed':
-          // 状態変更のみ
-          final index = genres.indexWhere((g) => g.id == updatedGenre.id);
-          if (index != -1) {
-            genres[index] = updatedGenre;
-          }
-          break;
-      }
-
-      // フィルター適用
-      filteredGenres = genres.where((genre) {
-        bool matches = true;
-
-        if (idSearch.isNotEmpty && !genre.id.contains(idSearch)) {
-          matches = false;
-        }
-        if (genreSearch.isNotEmpty && !genre.name.contains(genreSearch)) {
-          matches = false;
-        }
-
-        if (addedStart != null && addedEnd != null) {
-          final isWithinRange = genre.addedDate.isAfter(addedStart!.subtract(const Duration(days: 1))) &&
-                               genre.addedDate.isBefore(addedEnd!.add(const Duration(days: 1)));
-          if (!isWithinRange) {
-            matches = false;
-          }
-        }
-
-        return matches;
-      }).toList();
-
-      selectedRows = List.generate(filteredGenres.length, (index) => false);
-      _updateSelectionState();
-
-      // スナックバー表示
-      String message = '';
-      switch (action) {
-        case 'save':
-          message = 'ジャンルを保存しました';
-          break;
-        case 'delete':
-          message = 'ジャンルを削除しました';
-          break;
-        case 'status_changed':
-          message = '状態を変更しました';
-          break;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    });
   }
 
   void _showTourokuDialog() {
@@ -323,19 +267,7 @@ class _GenreAdminState extends State<GenreAdmin> {
       context,
       'genre',
       (data) {
-        final newGenre = Genre(
-          id: '${(genres.length + 1).toString().padLeft(5, '0')}',
-          name: data['name'],
-          status: '有効',
-          isActive: true,
-          addedDate: DateTime.now(),
-        );
-
-        genres.add(newGenre);
-        filteredGenres = List.from(genres);
-        selectedRows = List.generate(filteredGenres.length, (index) => false);
-        _updateSelectionState();
-
+        _loadFromApi();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ジャンルを登録しました')),
         );
@@ -380,11 +312,14 @@ class _GenreAdminState extends State<GenreAdmin> {
         // 検索条件エリア
         _buildSearchArea(),
         const SizedBox(height: 16),
-        
+
         // ジャンル一覧テーブル
         Expanded(
           child: _buildGenreTable(),
         ),
+
+        // ページネーション
+        _buildPagination(),
       ],
     );
   }
@@ -416,7 +351,7 @@ class _GenreAdminState extends State<GenreAdmin> {
                   ),
                 ),
                 const SizedBox(width: 32),
-                
+
                 // 2列目
                 Expanded(
                   child: Column(
@@ -433,7 +368,7 @@ class _GenreAdminState extends State<GenreAdmin> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // 3列目
                 Expanded(
                   child: Column(
@@ -443,7 +378,7 @@ class _GenreAdminState extends State<GenreAdmin> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Container(
+                            SizedBox(
                               width: 100,
                               child: OutlinedButton(
                                 onPressed: _clearSearch,
@@ -455,7 +390,7 @@ class _GenreAdminState extends State<GenreAdmin> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Container(
+                            SizedBox(
                               width: 100,
                               child: ElevatedButton(
                                 onPressed: _searchGenres,
@@ -565,7 +500,7 @@ class _GenreAdminState extends State<GenreAdmin> {
                           children: [
                             Text(
                               startDate != null
-                                  ? '${startDate!.year}/${startDate!.month.toString().padLeft(2, '0')}/${startDate!.day.toString().padLeft(2, '0')}'
+                                  ? '${startDate.year}/${startDate.month.toString().padLeft(2, '0')}/${startDate.day.toString().padLeft(2, '0')}'
                                   : '',
                               style: TextStyle(
                                 color: startDate != null
@@ -609,7 +544,7 @@ class _GenreAdminState extends State<GenreAdmin> {
                           children: [
                             Text(
                               endDate != null
-                                  ? '${endDate!.year}/${endDate!.month.toString().padLeft(2, '0')}/${endDate!.day.toString().padLeft(2, '0')}'
+                                  ? '${endDate.year}/${endDate.month.toString().padLeft(2, '0')}/${endDate.day.toString().padLeft(2, '0')}'
                                   : '',
                               style: TextStyle(
                                 color: endDate != null
@@ -640,7 +575,7 @@ class _GenreAdminState extends State<GenreAdmin> {
       ),
       child: Column(
         children: [
-          if (filteredGenres.isNotEmpty)
+          if (genres.isNotEmpty || _isLoading)
             Container(
               decoration: BoxDecoration(
                 color: Colors.grey[100],
@@ -659,47 +594,91 @@ class _GenreAdminState extends State<GenreAdmin> {
                 ],
               ),
             ),
-          
+
           Expanded(
-            child: filteredGenres.isEmpty
-                ? _buildNoGenresFound()
-                : ListView.builder(
-                    itemCount: filteredGenres.length,
-                    itemBuilder: (context, index) {
-                      final genre = filteredGenres[index];
-                      return Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            left: const BorderSide(color: Colors.grey),
-                            right: const BorderSide(color: Colors.grey),
-                            bottom: BorderSide(color: Colors.grey[300]!),
-                          ),
-                        ),
-                        child: InkWell(
-                          onTap: () => _navigateToDetailPage(genre),
-                          child: Row(
-                            children: [
-                              _buildTableCell(
-                                '',
-                                1,
-                                TextAlign.center,
-                                child: Checkbox(
-                                  value: selectedRows[index],
-                                  onChanged: (value) => _toggleGenreSelection(index, value),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _buildErrorView()
+                    : genres.isEmpty
+                        ? _buildNoGenresFound()
+                        : ListView.builder(
+                            itemCount: genres.length,
+                            itemBuilder: (context, index) {
+                              final genre = genres[index];
+                              return Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    left: const BorderSide(color: Colors.grey),
+                                    right: const BorderSide(color: Colors.grey),
+                                    bottom: BorderSide(color: Colors.grey[300]!),
+                                  ),
                                 ),
-                              ),
-                              _buildTableCell(genre.id, 2, TextAlign.center),
-                              _buildTableCell(genre.name, 3, TextAlign.left),
-                              _buildTableCell('', 2, TextAlign.center, 
-                                child: _buildStatusIndicator(genre.status)),
-                            ],
+                                child: InkWell(
+                                  onTap: () => _navigateToDetailPage(genre),
+                                  child: Row(
+                                    children: [
+                                      _buildTableCell(
+                                        '',
+                                        1,
+                                        TextAlign.center,
+                                        child: Checkbox(
+                                          value: selectedRows[index],
+                                          onChanged: (value) => _toggleGenreSelection(index, value),
+                                        ),
+                                      ),
+                                      _buildTableCell(genre.id, 2, TextAlign.center),
+                                      _buildTableCell(genre.name, 3, TextAlign.left),
+                                      _buildTableCell('', 2, TextAlign.center,
+                                        child: _buildStatusIndicator(genre.status)),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                      );
-                    },
-                  ),
           ),
+
+          // ボタンエリア
+          _buildButtonsArea(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+            const SizedBox(height: 12),
+            Text(
+              'エラーが発生しました',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.red[600],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error ?? '',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadFromApi,
+              child: const Text('再試行'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -719,6 +698,58 @@ class _GenreAdminState extends State<GenreAdmin> {
           Text(
             '検索条件を変更して再度お試しください',
             style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(
+          top: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '全 $_totalElements 件',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.first_page),
+                onPressed: _currentPage > 0 ? () => _goToPage(0) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: _currentPage > 0 ? () => _goToPage(_currentPage - 1) : null,
+                iconSize: 20,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '${_currentPage + 1} / $_totalPages',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_currentPage + 1) : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.last_page),
+                onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_totalPages - 1) : null,
+                iconSize: 20,
+              ),
+            ],
           ),
         ],
       ),
@@ -755,9 +786,10 @@ class _GenreAdminState extends State<GenreAdmin> {
                 child: const Text('選択中のジャンルを無効化', style: TextStyle(color: Colors.white)),
               ),
             ),
-          
+
           if (hasSelection)
             Container(
+              margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
@@ -817,7 +849,8 @@ class _GenreAdminState extends State<GenreAdmin> {
         child: text.isEmpty
             ? Checkbox(
                 value: selectedRows.every((element) => element) &&
-                    selectedRows.isNotEmpty,
+                    selectedRows.isNotEmpty &&
+                    genres.isNotEmpty,
                 onChanged: _toggleAllSelection,
               )
             : Text(
