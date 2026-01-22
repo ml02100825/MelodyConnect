@@ -66,7 +66,7 @@ class _MusicAdminState extends State<MusicAdmin> {
         isActive: isActive,
       );
 
-      final content = response['content'] as List<dynamic>? ?? [];
+      final content = response['songs'] as List<dynamic>? ?? [];
       final loadedSongs = content.map((json) {
         return {
           'id': json['id']?.toString() ?? '',

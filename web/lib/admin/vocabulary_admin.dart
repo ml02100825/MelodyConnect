@@ -66,7 +66,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
         isActive: isActive,
       );
 
-      final content = response['content'] as List<dynamic>? ?? [];
+      final content = response['vocabularies'] as List<dynamic>? ?? [];
       final loadedVocabularies = content.map((json) {
         return {
           'id': json['id']?.toString().padLeft(4, '0') ?? '0000',
