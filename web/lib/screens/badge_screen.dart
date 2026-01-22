@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../bottom_nav.dart'; // 必要に応じてパスを調整してください
+import '../services/token_storage_service.dart';
+
 
 // バッジデータのモデルクラス
 class BadgeModel {
@@ -108,18 +110,38 @@ class _BadgeScreenState extends State<BadgeScreen> {
 
   // サーバーURL（環境に合わせて変更してください）
   final String _baseUrl = 'http://localhost:8080';
-  final int _currentUserId = 1; // 本来はログイン情報から取得
+  final TokenStorageService _tokenStorage = TokenStorageService();
+  int? _currentUserId;
   String? _authToken;
 
   @override
   void initState() {
     super.initState();
     _fetchBadges();
+   
   }
+  Future<void> _loadUserId() async {
+  try {
+    final userId = await _tokenStorage.getUserId();
+    setState(() {
+      _currentUserId = userId;
+    });
+  } catch (e) {
+    debugPrint('Error loading userId: $e');
+  }
+}
+
 
   // APIからバッジ情報を取得
   Future<void> _fetchBadges() async {
     await _loadToken(); // トークンが必要な場合
+
+    await _loadUserId();
+    if (_currentUserId == null) {
+    debugPrint('User ID is not available. Skip badge fetch.');
+    setState(() { isLoading = false; });
+    return;
+  }
     try {
       // ★修正: 選択されたフィルター(mode)をクエリパラメータとして送信
       // バックエンドは mode=CONTINUE などを受け取ってDB検索を行う
