@@ -53,7 +53,7 @@ public class AdminQuestionService {
             predicates.add(cb.equal(root.get("isDeleted"), false));
 
             if (songId != null) {
-                predicates.add(cb.equal(root.get("song").get("song_id"), songId));
+                predicates.add(cb.equal(root.get("song").get("songId"), songId));
             }
             if (artistId != null) {
                 predicates.add(cb.equal(root.get("artist").get("artistId"), artistId));
@@ -170,7 +170,7 @@ public class AdminQuestionService {
     private AdminQuestionResponse toResponse(Question question) {
         AdminQuestionResponse response = new AdminQuestionResponse();
         response.setQuestionId(question.getQuestionId());
-        response.setSongId(question.getSong().getSong_id());
+        response.setSongId(question.getSong().getSongId());
         response.setSongName(question.getSong().getSongname());
         response.setArtistId(question.getArtist().getArtistId());
         response.setArtistName(question.getArtist().getArtistName());

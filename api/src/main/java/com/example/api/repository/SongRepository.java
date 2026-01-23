@@ -19,19 +19,19 @@ public interface SongRepository extends JpaRepository<Song, Long>, JpaSpecificat
     /**
      * Genius Song IDで検索
      */
-    @Query("SELECT s FROM Song s WHERE s.genius_song_id = ?1")
+    @Query("SELECT s FROM Song s WHERE s.geniusSongId = ?1")
     Optional<Song> findByGeniusSongId(Long geniusSongId);
 
     /**
      * Spotify Track IDで検索
      */
-    @Query("SELECT s FROM Song s WHERE s.spotify_track_id = ?1")
+    @Query("SELECT s FROM Song s WHERE s.spotifyTrackId = ?1")
     Optional<Song> findBySpotifyTrackId(String spotifyTrackId);
 
     /**
      * Spotify Track IDで存在チェック
      */
-    @Query("SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END FROM Song s WHERE s.spotify_track_id = :spotifyTrackId")
+    @Query("SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END FROM Song s WHERE s.spotifyTrackId = :spotifyTrackId")
     boolean existsBySpotifyTrackId(@Param("spotifyTrackId") String spotifyTrackId);
 
     /**
@@ -59,7 +59,7 @@ public interface SongRepository extends JpaRepository<Song, Long>, JpaSpecificat
      * @param artistId アーティストID
      * @return 楽曲数
      */
-    @Query("SELECT COUNT(s) FROM Song s WHERE s.aritst_id = :artistId")
+    @Query("SELECT COUNT(s) FROM Song s WHERE s.artistId = :artistId")
     long countByArtistId(@Param("artistId") Long artistId);
 
     /**

@@ -29,7 +29,7 @@ public class AdminSongService {
     private SongRepository songRepository;
 
     public AdminSongResponse.ListResponse getSongs(int page, int size, String songname, Long artistId, String language, Boolean isActive) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "song_id"));
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "songId"));
 
         Specification<Song> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -39,7 +39,7 @@ public class AdminSongService {
                 predicates.add(cb.like(root.get("songname"), "%" + songname + "%"));
             }
             if (artistId != null) {
-                predicates.add(cb.equal(root.get("aritst_id"), artistId));
+                predicates.add(cb.equal(root.get("artistId"), artistId));
             }
             if (language != null && !language.isEmpty()) {
                 predicates.add(cb.equal(root.get("language"), language));
@@ -71,7 +71,7 @@ public class AdminSongService {
         Song song = new Song();
         updateFromRequest(song, request);
         song = songRepository.save(song);
-        logger.info("楽曲作成: {}", song.getSong_id());
+        logger.info("楽曲作成: {}", song.getSongId());
         return toResponse(song);
     }
 
@@ -121,21 +121,21 @@ public class AdminSongService {
     }
 
     private void updateFromRequest(Song song, AdminSongRequest request) {
-        song.setAritst_id(request.getArtistId());
+        song.setArtistId(request.getArtistId());
         song.setSongname(request.getSongname());
-        song.setSpotify_track_id(request.getSpotifyTrackId());
-        song.setGenius_song_id(request.getGeniusSongId());
+        song.setSpotifyTrackId(request.getSpotifyTrackId());
+        song.setGeniusSongId(request.getGeniusSongId());
         song.setLanguage(request.getLanguage());
         song.setIsActive(request.getIsActive());
     }
 
     private AdminSongResponse toResponse(Song song) {
         AdminSongResponse response = new AdminSongResponse();
-        response.setSongId(song.getSong_id());
-        response.setArtistId(song.getAritst_id());
+        response.setSongId(song.getSongId());
+        response.setArtistId(song.getArtistId());
         response.setSongname(song.getSongname());
-        response.setSpotifyTrackId(song.getSpotify_track_id());
-        response.setGeniusSongId(song.getGenius_song_id());
+        response.setSpotifyTrackId(song.getSpotifyTrackId());
+        response.setGeniusSongId(song.getGeniusSongId());
         response.setLanguage(song.getLanguage());
         response.setIsActive(song.getIsActive());
         response.setCreatedAt(song.getCreated_at());
