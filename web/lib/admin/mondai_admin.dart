@@ -78,27 +78,25 @@ class _MondaiAdminState extends State<MondaiAdmin> {
 
       final content = response['questions'] as List<dynamic>? ?? [];
       final loadedQuestions = content.map((json) {
-        // APIレスポンスをUIフォーマットに変換
-        String category = '穴埋め';
-        final format = json['questionFormat'] as String?;
-        if (format == 'FILL_BLANK') category = '穴埋め';
-        if (format == 'LISTENING') category = 'リスニング';
-        if (format == 'CHOICE') category = '選択';
-        if (format == 'SORT') category = '並び替え';
-
         return {
-          'id': json['id']?.toString() ?? '',
-          'question': json['questionText'] ?? '',
-          'correctAnswer': json['answer'] ?? '',
-          'category': category,
-          'difficulty': json['difficulty'] ?? '初級',
-          'status': (json['isActive'] == true) ? '有効' : '無効',
-          'addedDate': json['createdAt'] != null
-              ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
-              : DateTime.now(),
+          'questionId': json['questionId'] ?? 0,
+          'songId': json['songId'] ?? 0,
           'songName': json['songName'] ?? '',
-          'artist': json['artistName'] ?? '',
-          'numericId': json['id'] as int? ?? 0,
+          'artistId': json['artistId'] ?? 0,
+          'artistName': json['artistName'] ?? '',
+          'text': json['text'] ?? '',
+          'answer': json['answer'] ?? '',
+          'completeSentence': json['completeSentence'] ?? '',
+          'questionFormat': json['questionFormat'] ?? '',
+          'difficultyLevel': json['difficultyLevel'] ?? '',
+          'language': json['language'] ?? '',
+          'translationJa': json['translationJa'] ?? '',
+          'audioUrl': json['audioUrl'] ?? '',
+          'isActive': json['isActive'] ?? false,
+          'addingAt': json['addingAt'] != null
+              ? DateTime.tryParse(json['addingAt']) ?? DateTime.now()
+              : DateTime.now(),
+          'status': (json['isActive'] == true) ? '有効' : '無効',
         };
       }).toList();
 
@@ -152,7 +150,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
     final selectedIds = <int>[];
     for (int i = 0; i < selectedRows.length; i++) {
       if (selectedRows[i] && i < questions.length) {
-        selectedIds.add(questions[i]['numericId'] as int);
+        selectedIds.add(questions[i]['questionId'] as int);
       }
     }
 
@@ -186,7 +184,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
     final selectedIds = <int>[];
     for (int i = 0; i < selectedRows.length; i++) {
       if (selectedRows[i] && i < questions.length) {
-        selectedIds.add(questions[i]['numericId'] as int);
+        selectedIds.add(questions[i]['questionId'] as int);
       }
     }
 
@@ -479,6 +477,21 @@ class _MondaiAdminState extends State<MondaiAdmin> {
     );
   }
 
+  String _formatQuestionFormat(String? format) {
+    switch (format) {
+      case 'FILL_BLANK':
+        return '穴埋め';
+      case 'LISTENING':
+        return 'リスニング';
+      case 'CHOICE':
+        return '選択';
+      case 'SORT':
+        return '並び替え';
+      default:
+        return '穴埋め';
+    }
+  }
+
   Widget _buildDataList() {
     return Container(
       decoration: BoxDecoration(
@@ -509,7 +522,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                 ),
                 _buildListHeader('ID\n問題形式', 80),
                 _buildListHeader('問題文\n知識', 250),
-                _buildListHeader('正答\n難易度', 150),
+                _buildListHeader('正答', 150),
                 _buildListHeader('楽曲名\nアーティスト名', 180),
                 _buildListHeader('状態', 80),
               ],
@@ -552,10 +565,15 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          Text(question['id'], style: const TextStyle(fontSize: 13)),
+                                          Text(
+                                            question['questionId'].toString(),
+                                            style: const TextStyle(fontSize: 13),
+                                          ),
                                           const SizedBox(height: 4),
-                                          Text(question['category'],
-                                            style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                                          Text(
+                                            _formatQuestionFormat(question['questionFormat'] as String?),
+                                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                          ),
                                         ],
                                       ),
                                       80,
@@ -567,7 +585,18 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) => MondaiDetailPage(
-                                                vocab: question,
+                                                vocab: {
+                                                  'id': question['questionId'].toString(),
+                                                  'question': question['text'],
+                                                  'correctAnswer': question['answer'],
+                                                  'category': _formatQuestionFormat(
+                                                      question['questionFormat'] as String?),
+                                                  'difficulty': question['difficultyLevel'],
+                                                  'status': question['status'],
+                                                  'addedDate': question['addingAt'],
+                                                  'songName': question['songName'],
+                                                  'artist': question['artistName'],
+                                                },
                                               ),
                                             ),
                                           );
@@ -580,7 +609,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              question['question'].split('\n')[0],
+                                              question['text'].split('\n')[0],
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 color: Colors.blue,
@@ -589,10 +618,10 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
-                                            if (question['question'].contains('\n')) ...[
+                                            if (question['text'].contains('\n')) ...[
                                               const SizedBox(height: 4),
                                               Text(
-                                                question['question'].split('\n')[1],
+                                                question['text'].split('\n')[1],
                                                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
@@ -609,15 +638,15 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           Text(
-                                            question['correctAnswer'].split('\n')[0],
+                                            question['answer'].split('\n')[0],
                                             style: const TextStyle(fontSize: 13),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
-                                          if (question['correctAnswer'].contains('\n')) ...[
+                                          if (question['answer'].contains('\n')) ...[
                                             const SizedBox(height: 4),
                                             Text(
-                                              question['correctAnswer'].split('\n')[1],
+                                              question['answer'].split('\n')[1],
                                               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -634,7 +663,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                         children: [
                                           Text(question['songName'], style: const TextStyle(fontSize: 13)),
                                           const SizedBox(height: 4),
-                                          Text(question['artist'],
+                                          Text(question['artistName'],
                                             style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                                         ],
                                       ),

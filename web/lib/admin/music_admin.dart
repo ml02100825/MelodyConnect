@@ -69,13 +69,15 @@ class _MusicAdminState extends State<MusicAdmin> {
       final content = response['songs'] as List<dynamic>? ?? [];
       final loadedSongs = content.map((json) {
         return {
-          'id': json['id']?.toString() ?? '',
-          'songName': json['songname'] ?? '',
-          'artist': json['artistName'] ?? '',
-          'status': (json['isActive'] == true) ? '有効' : '無効',
-          'numericId': json['id'] as int? ?? 0,
+          'songId': json['songId'] ?? 0,
+          'artistId': json['artistId'] ?? 0,
+          'songname': json['songname'] ?? '',
+          'spotifyTrackId': json['spotifyTrackId'] ?? '',
+          'geniusSongId': json['geniusSongId'] ?? '',
           'language': json['language'] ?? '',
-          'genre': json['genreName'] ?? '',
+          'isActive': json['isActive'] ?? false,
+          'createdAt': json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+          'status': (json['isActive'] == true) ? '有効' : '無効',
         };
       }).toList();
 
@@ -468,7 +470,7 @@ class _MusicAdminState extends State<MusicAdmin> {
                     onChanged: (value) {
                       setState(() {
                         if (value == true) {
-                          _selectedIds.addAll(_musicList.map((e) => e['numericId'] as int));
+                          _selectedIds.addAll(_musicList.map((e) => e['songId'] as int));
                         } else {
                           _selectedIds.clear();
                         }
@@ -489,14 +491,6 @@ class _MusicAdminState extends State<MusicAdmin> {
                   flex: 3,
                   child: Text(
                     '楽曲名',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const Expanded(
-                  flex: 3,
-                  child: Text(
-                    'アーティスト',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                     textAlign: TextAlign.center,
                   ),
@@ -524,7 +518,7 @@ class _MusicAdminState extends State<MusicAdmin> {
                             itemCount: _musicList.length,
                             itemBuilder: (context, index) {
                               final item = _musicList[index];
-                              final numericId = item['numericId'] as int;
+                              final numericId = item['songId'] as int;
                               final isSelected = _selectedIds.contains(numericId);
                               return Container(
                                 decoration: BoxDecoration(
@@ -554,7 +548,7 @@ class _MusicAdminState extends State<MusicAdmin> {
                                     Expanded(
                                       flex: 1,
                                       child: Text(
-                                        item['id'] as String,
+                                        item['songId'].toString(),
                                         style: const TextStyle(fontSize: 13),
                                         textAlign: TextAlign.center,
                                       ),
@@ -567,7 +561,14 @@ class _MusicAdminState extends State<MusicAdmin> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) => MusicDetailPage(
-                                                music: item,
+                                                music: {
+                                                  'id': item['songId'].toString(),
+                                                  'songName': item['songname'],
+                                                  'artistId': item['artistId'].toString(),
+                                                  'status': item['status'],
+                                                  'addedDate': item['createdAt']?.toString(),
+                                                  'geniusSongId': item['geniusSongId']?.toString(),
+                                                },
                                               ),
                                             ),
                                           );
@@ -576,20 +577,13 @@ class _MusicAdminState extends State<MusicAdmin> {
                                           }
                                         },
                                         child: Text(
-                                          item['songName'] as String,
+                                          item['songname'] as String,
                                           style: const TextStyle(
                                             fontSize: 13,
                                             color: Colors.blue,
                                             decoration: TextDecoration.underline,
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 3,
-                                      child: Text(
-                                        item['artist'] as String,
-                                        style: const TextStyle(fontSize: 13),
                                       ),
                                     ),
                                     Expanded(
