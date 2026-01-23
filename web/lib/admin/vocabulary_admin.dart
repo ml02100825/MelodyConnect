@@ -69,17 +69,21 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
       final content = response['vocabularies'] as List<dynamic>? ?? [];
       final loadedVocabularies = content.map((json) {
         return {
-          'id': json['id']?.toString().padLeft(4, '0') ?? '0000',
-          'numericId': json['id'] ?? 0,
+          'vocabId': json['vocabId'] ?? 0,
           'word': json['word'] ?? '',
-          'meaning': json['meaning'] ?? '',
+          'baseForm': json['baseForm'] ?? '',
+          'meaningJa': json['meaningJa'] ?? '',
+          'translationJa': json['translationJa'] ?? '',
           'pronunciation': json['pronunciation'] ?? '',
           'partOfSpeech': json['partOfSpeech'] ?? '',
-          'status': json['isActive'] == true ? '有効' : '無効',
-          'isActive': json['isActive'] ?? false,
-          'addedDate': json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
           'exampleSentence': json['exampleSentence'] ?? '',
-          'exampleTranslation': json['exampleTranslation'] ?? '',
+          'exampleTranslate': json['exampleTranslate'] ?? '',
+          'audioUrl': json['audioUrl'] ?? '',
+          'language': json['language'] ?? '',
+          'isActive': json['isActive'] ?? false,
+          'createdAt': json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+          'updatedAt': json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : DateTime.now(),
+          'status': json['isActive'] == true ? '有効' : '無効',
         };
       }).toList();
 
@@ -129,7 +133,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
     final selectedIds = <int>[];
     for (int i = 0; i < selectedRows.length; i++) {
       if (selectedRows[i]) {
-        selectedIds.add(vocabularies[i]['numericId']);
+        selectedIds.add(vocabularies[i]['vocabId'] as int);
       }
     }
 
@@ -163,7 +167,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
     final selectedIds = <int>[];
     for (int i = 0; i < selectedRows.length; i++) {
       if (selectedRows[i]) {
-        selectedIds.add(vocabularies[i]['numericId']);
+        selectedIds.add(vocabularies[i]['vocabId'] as int);
       }
     }
 
@@ -494,7 +498,10 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                                       ),
                                     ),
                                     _buildTableCell(
-                                      Text(vocab['id'], style: const TextStyle(fontSize: 13)),
+                                      Text(
+                                        vocab['vocabId'].toString().padLeft(4, '0'),
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
                                       80,
                                     ),
                                     _buildTableCell(
@@ -505,16 +512,16 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                                             MaterialPageRoute(
                                               builder: (context) => VocabularyDetailPage(
                                                 vocab: {
-                                                  'id': vocab['id'],
-                                                  'numericId': vocab['numericId'],
+                                                  'id': vocab['vocabId'].toString().padLeft(4, '0'),
+                                                  'numericId': vocab['vocabId'],
                                                   'word': vocab['word'],
-                                                  'meaning': vocab['meaning'],
+                                                  'meaning': vocab['meaningJa'],
                                                   'pronunciation': vocab['pronunciation'],
                                                   'partOfSpeech': vocab['partOfSpeech'],
                                                   'exampleSentence': vocab['exampleSentence'],
-                                                  'exampleTranslation': vocab['exampleTranslation'],
-                                                  'createdAt': vocab['addedDate'].toString(),
-                                                  'updatedAt': DateTime.now().toString(),
+                                                  'exampleTranslation': vocab['exampleTranslate'],
+                                                  'createdAt': vocab['createdAt'].toString(),
+                                                  'updatedAt': vocab['updatedAt'].toString(),
                                                   'status': vocab['status'],
                                                 },
                                               ),
@@ -537,7 +544,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                                               ),
                                             ),
                                             const SizedBox(height: 4),
-                                            Text(vocab['meaning'],
+                                            Text(vocab['meaningJa'],
                                               style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                                           ],
                                         ),
