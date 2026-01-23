@@ -7,10 +7,12 @@ import 'services/admin_api_service.dart';
 class Artist {
   final String id;
   final String name;
+  final String genre;
   final String status;
   final bool isActive;
   final DateTime addedDate;
   final DateTime? updatedDate;
+  final String? genreId;
   final String? artistApiId;
   final String? imageUrl;
   final int numericId;
@@ -18,10 +20,12 @@ class Artist {
   Artist({
     required this.id,
     required this.name,
+    required this.genre,
     required this.status,
     required this.isActive,
     required this.addedDate,
     this.updatedDate,
+    this.genreId,
     this.artistApiId,
     this.imageUrl,
     required this.numericId,
@@ -31,6 +35,7 @@ class Artist {
     return Artist(
       id: json['artistId']?.toString() ?? '',
       name: json['artistName'] ?? '',
+      genre: json['genreName'] ?? '',
       status: (json['isActive'] == true) ? '有効' : '無効',
       isActive: json['isActive'] == true,
       addedDate: json['createdAt'] != null
@@ -39,6 +44,7 @@ class Artist {
       updatedDate: json['lastSyncedAt'] != null
           ? DateTime.tryParse(json['lastSyncedAt'])
           : null,
+      genreId: json['genreId']?.toString(),
       artistApiId: json['artistApiId'],
       imageUrl: json['imageUrl'],
       numericId: json['artistId'] as int? ?? 0,
@@ -48,10 +54,12 @@ class Artist {
   Artist copyWith({
     String? id,
     String? name,
+    String? genre,
     String? status,
     bool? isActive,
     DateTime? addedDate,
     DateTime? updatedDate,
+    String? genreId,
     String? artistApiId,
     String? imageUrl,
     int? numericId,
@@ -59,10 +67,12 @@ class Artist {
     return Artist(
       id: id ?? this.id,
       name: name ?? this.name,
+      genre: genre ?? this.genre,
       status: status ?? this.status,
       isActive: isActive ?? this.isActive,
       addedDate: addedDate ?? this.addedDate,
       updatedDate: updatedDate ?? this.updatedDate,
+      genreId: genreId ?? this.genreId,
       artistApiId: artistApiId ?? this.artistApiId,
       imageUrl: imageUrl ?? this.imageUrl,
       numericId: numericId ?? this.numericId,
@@ -663,6 +673,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                   _buildTableHeader('', 1),
                   _buildTableHeader('ID', 1),
                   _buildTableHeader('アーティスト', 2),
+                  _buildTableHeader('ジャンル', 2),
                   _buildTableHeader('状態', 1),
                 ],
               ),
@@ -703,6 +714,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                                       ),
                                       _buildTableCell(artist.id, 1, TextAlign.center),
                                       _buildTableCell(artist.name, 2, TextAlign.left),
+                                      _buildTableCell(artist.genre, 2, TextAlign.left),
                                       _buildTableCell('', 1, TextAlign.center,
                                           child: _buildStatusIndicator(artist.status)),
                                     ],

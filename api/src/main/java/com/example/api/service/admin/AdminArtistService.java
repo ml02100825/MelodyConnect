@@ -3,6 +3,7 @@ package com.example.api.service.admin;
 import com.example.api.dto.admin.AdminArtistRequest;
 import com.example.api.dto.admin.AdminArtistResponse;
 import com.example.api.entity.Artist;
+import com.example.api.repository.ArtistGenreRepository;
 import com.example.api.repository.ArtistRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,9 @@ public class AdminArtistService {
 
     @Autowired
     private ArtistRepository artistRepository;
+
+    @Autowired
+    private ArtistGenreRepository artistGenreRepository;
 
     public AdminArtistResponse.ListResponse getArtists(int page, int size, String artistName, Boolean isActive) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "artistId"));
@@ -125,6 +129,8 @@ public class AdminArtistService {
         AdminArtistResponse response = new AdminArtistResponse();
         response.setArtistId(artist.getArtistId());
         response.setArtistName(artist.getArtistName());
+        response.setGenreName(
+                artistGenreRepository.findFirstGenreNameByArtistId(artist.getArtistId()).orElse(null));
         response.setImageUrl(artist.getImageUrl());
         response.setArtistApiId(artist.getArtistApiId());
         response.setIsActive(artist.getIsActive());

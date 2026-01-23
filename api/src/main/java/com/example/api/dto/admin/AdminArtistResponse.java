@@ -7,6 +7,7 @@ public class AdminArtistResponse {
 
     private Long artistId;
     private String artistName;
+    private String genreName;
     private String imageUrl;
     private String artistApiId;
     private Boolean isActive;
@@ -17,6 +18,8 @@ public class AdminArtistResponse {
     public void setArtistId(Long artistId) { this.artistId = artistId; }
     public String getArtistName() { return artistName; }
     public void setArtistName(String artistName) { this.artistName = artistName; }
+    public String getGenreName() { return genreName; }
+    public void setGenreName(String genreName) { this.genreName = genreName; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
     public String getArtistApiId() { return artistApiId; }

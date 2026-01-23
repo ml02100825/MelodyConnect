@@ -81,4 +81,14 @@ public interface ArtistGenreRepository extends JpaRepository<ArtistGenre, Long> 
                    "ORDER BY RAND() LIMIT 1", 
            nativeQuery = true)
     Optional<ArtistGenre> findRandomByGenreNameLike(@Param("genrePattern") String genrePattern);
+
+    /**
+     * アーティストIDに紐づくジャンル名を1件取得
+     */
+    @Query(value = "SELECT g.name FROM artist_genre ag " +
+                   "INNER JOIN genre g ON ag.genre_id = g.genre_id " +
+                   "WHERE ag.artist_id = :artistId " +
+                   "ORDER BY ag.artist_genre_id ASC LIMIT 1",
+           nativeQuery = true)
+    Optional<String> findFirstGenreNameByArtistId(@Param("artistId") Long artistId);
 }
