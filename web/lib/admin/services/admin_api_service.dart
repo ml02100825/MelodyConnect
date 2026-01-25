@@ -486,4 +486,72 @@ class AdminApiService {
     });
     return jsonDecode(response.body);
   }
+
+  // ========== 単語報告管理API ==========
+
+  static Future<Map<String, dynamic>> getVocabularyReports({
+    int page = 0,
+    int size = 20,
+    String? status,
+  }) async {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'size': size.toString(),
+    };
+    if (status != null) queryParams['status'] = status;
+
+    final response = await get('/api/admin/vocabulary-reports', queryParams: queryParams);
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getVocabularyReport(int reportId) async {
+    final response = await get('/api/admin/vocabulary-reports/$reportId');
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> updateVocabularyReportStatus(int reportId, String status, String? adminMemo) async {
+    final response = await put('/api/admin/vocabulary-reports/$reportId/status', body: {
+      'status': status,
+      if (adminMemo != null) 'adminMemo': adminMemo,
+    });
+    return jsonDecode(response.body);
+  }
+
+  static Future<void> deleteVocabularyReport(int reportId) async {
+    await delete('/api/admin/vocabulary-reports/$reportId');
+  }
+
+  // ========== 問題報告管理API ==========
+
+  static Future<Map<String, dynamic>> getQuestionReports({
+    int page = 0,
+    int size = 20,
+    String? status,
+  }) async {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'size': size.toString(),
+    };
+    if (status != null) queryParams['status'] = status;
+
+    final response = await get('/api/admin/question-reports', queryParams: queryParams);
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getQuestionReport(int reportId) async {
+    final response = await get('/api/admin/question-reports/$reportId');
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> updateQuestionReportStatus(int reportId, String status, String? adminMemo) async {
+    final response = await put('/api/admin/question-reports/$reportId/status', body: {
+      'status': status,
+      if (adminMemo != null) 'adminMemo': adminMemo,
+    });
+    return jsonDecode(response.body);
+  }
+
+  static Future<void> deleteQuestionReport(int reportId) async {
+    await delete('/api/admin/question-reports/$reportId');
+  }
 }

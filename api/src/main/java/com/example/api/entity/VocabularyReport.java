@@ -8,7 +8,8 @@ import java.time.LocalDateTime;
     name = "vocabulary_report",
     indexes = {
         @Index(name = "idx_vocabulary_report_vocabulary_id", columnList = "vocabulary_id"),
-        @Index(name = "idx_vocabulary_report_user_id", columnList = "user_id")
+        @Index(name = "idx_vocabulary_report_user_id", columnList = "user_id"),
+        @Index(name = "idx_vocabulary_report_status", columnList = "status")
     },
     uniqueConstraints = {
         @UniqueConstraint(name = "uk_vocabulary_report_user_vocabulary", columnNames = {"user_id", "vocabulary_id"})
@@ -34,10 +35,20 @@ public class VocabularyReport {
     @Column(name = "added_at", nullable = false)
     private LocalDateTime addedAt;
 
+    @Column(name = "status", length = 20)
+    private String status = "未対応";
+
+    @Lob
+    @Column(name = "admin_memo", columnDefinition = "TEXT")
+    private String adminMemo;
+
     @PrePersist
     public void prePersist() {
         if (this.addedAt == null) {
             this.addedAt = LocalDateTime.now();
+        }
+        if (this.status == null) {
+            this.status = "未対応";
         }
     }
 
@@ -79,5 +90,21 @@ public class VocabularyReport {
 
     public void setAddedAt(LocalDateTime addedAt) {
         this.addedAt = addedAt;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getAdminMemo() {
+        return adminMemo;
+    }
+
+    public void setAdminMemo(String adminMemo) {
+        this.adminMemo = adminMemo;
     }
 }
