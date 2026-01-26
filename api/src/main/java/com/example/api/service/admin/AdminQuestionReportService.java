@@ -39,6 +39,7 @@ public class AdminQuestionReportService {
     @Autowired
     private UserRepository userRepository;
 
+    @Transactional(readOnly = true)
     public AdminQuestionReportResponse.ListResponse getQuestionReports(int page, int size, String status) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "questionReportId"));
 
@@ -61,6 +62,7 @@ public class AdminQuestionReportService {
         return new AdminQuestionReportResponse.ListResponse(reports, page, size, reportPage.getTotalElements(), reportPage.getTotalPages());
     }
 
+    @Transactional(readOnly = true)
     public AdminQuestionReportResponse getQuestionReport(Long reportId) {
         QuestionReport report = questionReportRepository.findById(reportId)
                 .orElseThrow(() -> new IllegalArgumentException("問題報告が見つかりません: " + reportId));

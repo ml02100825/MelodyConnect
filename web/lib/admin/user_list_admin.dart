@@ -65,10 +65,10 @@ class _UserListAdminState extends State<UserListAdmin> {
       }
 
       bool? banFlag;
-      if (freezeStatus == '停止中') {
-        banFlag = false;
-      } else if (freezeStatus == '有効') {
+      if (freezeStatus == '有効') {
         banFlag = true;
+      } else if (freezeStatus == '有効') {
+        banFlag = false;
       }
 
       bool? subscribeFlag;
@@ -338,7 +338,7 @@ class _UserListAdminState extends State<UserListAdmin> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('停止中', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    Text('有効', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
                     SizedBox(height: 4),
                     _buildCompactDropdownRow(freezeStatus, ['全て', '停止中', '有効'], (value) {
                       setState(() => freezeStatus = value ?? '全て');
@@ -731,7 +731,7 @@ class _UserListAdminState extends State<UserListAdmin> {
                 _buildTableHeader('サブスク', 2),
 
                 // 停止中列
-                _buildTableHeader('停止中', 2),
+                _buildTableHeader('有効', 2),
               ],
             ),
           ),
