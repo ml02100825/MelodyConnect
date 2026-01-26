@@ -1,11 +1,12 @@
 package com.example.api.controller;
 
+import com.example.api.entity.User;
 import com.example.api.entity.UserPaymentMethod;
 import com.example.api.repository.UserPaymentMethodRepository;
+import com.example.api.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,29 +19,30 @@ public class PaymentController {
     @Autowired
     private UserPaymentMethodRepository paymentRepository;
 
+    @Autowired
+    private UserRepository userRepository; // 追加: ユーザー情報更新用
+
+    // === クレジットカード関連 ===
+
     // 一覧取得
     @GetMapping
-    public List<UserPaymentMethod> getMethods(@AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = Long.parseLong(userDetails.getUsername());
+    public List<UserPaymentMethod> getMethods(@AuthenticationPrincipal Long userId) {
         return paymentRepository.findByUserId(userId);
     }
 
     // 追加
     @PostMapping
     public ResponseEntity<?> addMethod(@RequestBody Map<String, String> request, 
-                                       @AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = Long.parseLong(userDetails.getUsername());
+                                       @AuthenticationPrincipal Long userId) {
         savePaymentMethod(userId, request, new UserPaymentMethod());
         return ResponseEntity.ok(Map.of("message", "カードを追加しました"));
     }
 
-    // 更新（Edit画面用）
+    // 更新
     @PutMapping("/{id}")
     public ResponseEntity<?> updateMethod(@PathVariable Long id,
                                           @RequestBody Map<String, String> request,
-                                          @AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = Long.parseLong(userDetails.getUsername());
-        
+                                          @AuthenticationPrincipal Long userId) {
         return paymentRepository.findById(id)
             .filter(method -> method.getUserId().equals(userId))
             .map(method -> {
@@ -52,10 +54,7 @@ public class PaymentController {
 
     // 削除
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteMethod(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = Long.parseLong(userDetails.getUsername());
-        
-        // 自分のカードかチェックして削除
+    public ResponseEntity<?> deleteMethod(@PathVariable Long id, @AuthenticationPrincipal Long userId) {
         return paymentRepository.findById(id)
             .filter(method -> method.getUserId().equals(userId))
             .map(method -> {
@@ -65,10 +64,50 @@ public class PaymentController {
             .orElse(ResponseEntity.notFound().build());
     }
 
-    // 保存・更新の共通処理
+    // === サブスクリプション関連 (新規追加) ===
+
+    // ステータス確認
+    @GetMapping("/subscription-status")
+    public ResponseEntity<?> getSubscriptionStatus(@AuthenticationPrincipal Long userId) {
+        return userRepository.findById(userId)
+            .map(user -> ResponseEntity.ok(Map.of("isSubscribed", user.isSubscribeFlag())))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    // 登録 (カードがあればOK)
+    @PostMapping("/subscribe")
+    public ResponseEntity<?> subscribe(@AuthenticationPrincipal Long userId) {
+        // 1. カードが登録されているかチェック
+        List<UserPaymentMethod> methods = paymentRepository.findByUserId(userId);
+        if (methods.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "支払い方法が登録されていません"));
+        }
+
+        // 2. ユーザーのサブスクフラグをONにする
+        return userRepository.findById(userId)
+            .map(user -> {
+                user.setSubscribeFlag(true);
+                userRepository.save(user);
+                return ResponseEntity.ok(Map.of("message", "ConnectPlusに登録しました"));
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    // 解約
+    @PostMapping("/unsubscribe")
+    public ResponseEntity<?> unsubscribe(@AuthenticationPrincipal Long userId) {
+        return userRepository.findById(userId)
+            .map(user -> {
+                user.setSubscribeFlag(false);
+                userRepository.save(user);
+                return ResponseEntity.ok(Map.of("message", "解約しました"));
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    // === 内部メソッド ===
     private void savePaymentMethod(Long userId, Map<String, String> request, UserPaymentMethod method) {
         String cardNumber = request.get("cardNumber");
-        // 下4桁のみ抽出（入力値が短い場合はそのまま）
         String last4 = (cardNumber != null && cardNumber.length() > 4) 
                 ? cardNumber.substring(cardNumber.length() - 4) 
                 : (cardNumber != null ? cardNumber : "0000");

@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http; // 追加
 import '../bottom_nav.dart';
+import '../services/token_storage_service.dart'; // 追加
 import 'payment_management_screen.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -10,20 +13,57 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  // TODO: 実際はFirebaseやAPIから取得する
+  final _tokenStorage = TokenStorageService();
+  
   bool isSubscribed = false;
-
+  bool _isLoading = true;
   List<dynamic> _paymentMethods = [];
   Map<String, dynamic>? _selectedPaymentMethod;
-  bool _isLoading = true;
-  
+
+  // APIのベースURL
+  static const String baseUrl = 'http://localhost:8080/api/payments';
+
   @override
   void initState() {
     super.initState();
-    _loadPaymentMethods();
+    _initData();
   }
 
-  // APIから支払い方法を取得
+  // 初期データ読み込み（サブスク状態 & カード情報）
+  Future<void> _initData() async {
+    setState(() => _isLoading = true);
+    await Future.wait([
+      _checkSubscriptionStatus(),
+      _loadPaymentMethods(),
+    ]);
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  // サブスク状態の確認
+  Future<void> _checkSubscriptionStatus() async {
+    try {
+      final token = await _tokenStorage.getAccessToken();
+      if (token == null) return;
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/subscription-status'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            isSubscribed = data['isSubscribed'] ?? false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Status check error: $e');
+    }
+  }
+
+  // カード情報の取得
   Future<void> _loadPaymentMethods() async {
     try {
       final methods = await PaymentApiService.getPaymentMethods();
@@ -33,10 +73,68 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           if (_paymentMethods.isNotEmpty && _selectedPaymentMethod == null) {
             _selectedPaymentMethod = _paymentMethods.first;
           }
-          _isLoading = false;
         });
       }
     } catch (e) {
+      debugPrint('Payment load error: $e');
+    }
+  }
+
+  // サブスク登録処理
+  Future<void> _subscribe() async {
+    try {
+      setState(() => _isLoading = true);
+      final token = await _tokenStorage.getAccessToken();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/subscribe'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        await _checkSubscriptionStatus(); // 状態更新
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ConnectPlusに登録しました！'), backgroundColor: Colors.blue),
+          );
+        }
+      } else {
+        final error = jsonDecode(utf8.decode(response.bodyBytes));
+        throw Exception(error['error'] ?? '登録に失敗しました');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('エラー: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // 解約処理
+  Future<void> _unsubscribe() async {
+    try {
+      setState(() => _isLoading = true);
+      final token = await _tokenStorage.getAccessToken();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/unsubscribe'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        await _checkSubscriptionStatus(); // 状態更新
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('解約しました'), backgroundColor: Colors.orange),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Unsubscribe error: $e');
+    } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -161,8 +259,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     _buildInfoRow('プラン', 'ConnectPlus 月間プラン'),
                     const Divider(height: 24),
                     _buildInfoRow('金額', '¥500/月'),
-                    const Divider(height: 24),
-                    _buildInfoRow('次回更新日', '2025年12月20日'),
+                    // お支払い方法の表示（適宜APIから取得したものを表示）
                     if (_primaryPaymentMethod != null) ...[
                       const Divider(height: 24),
                       _buildInfoRow(
@@ -223,7 +320,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => _handleSubscribe(),
+                  onPressed: () => _handleSubscribeAction(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -270,9 +367,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       ),
       bottomNavigationBar: BottomNavBar(
         currentIndex: 0,
-        onTap: (index) {
-          // TODO: 画面遷移処理
-        },
+        onTap: (index) {},
       ),
     );
   }
@@ -338,7 +433,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  void _handleSubscribe() async {
+  void _handleSubscribeAction() async {
     if (_hasPaymentMethod) {
       _showSubscribeDialog();
     } else {
@@ -455,13 +550,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              setState(() => isSubscribed = true);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('購入が完了しました'),
-                  backgroundColor: Colors.blue,
-                ),
-              );
+              _subscribe(); // API呼び出し
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             child: const Text('購入する'),
@@ -488,13 +577,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              setState(() => isSubscribed = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('サブスクリプションを解約しました'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
+              _unsubscribe(); // API呼び出し
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('解約する'),

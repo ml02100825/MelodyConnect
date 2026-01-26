@@ -178,4 +178,34 @@ class AuthApiService {
       throw Exception('ネットワークエラーが発生しました');
     }
   }
+
+  /// 退会(アカウント削除)
+  ///
+  /// [userId] - ユーザーID
+  /// [accessToken] - アクセストークン
+  ///
+  /// 成功した場合はtrue、失敗した場合は例外をスロー
+  Future<bool> withdraw(int userId, String accessToken) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/withdraw/$userId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+     
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? '退会処理に失敗しました');
+      }
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('ネットワークエラーが発生しました');
+    }
+  }
 }
