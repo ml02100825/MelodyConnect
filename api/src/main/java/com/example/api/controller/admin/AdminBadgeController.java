@@ -8,10 +8,12 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,10 +32,17 @@ public class AdminBadgeController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String idSearch,
             @RequestParam(required = false) String badgeName,
+            @RequestParam(required = false) String acquisitionCondition,
             @RequestParam(required = false) Integer mode,
-            @RequestParam(required = false) Boolean isActive) {
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
-            return ResponseEntity.ok(adminBadgeService.getBadges(page, size, idSearch, badgeName, mode, isActive));
+            return ResponseEntity.ok(
+                    adminBadgeService.getBadges(
+                            page, size, idSearch, badgeName, acquisitionCondition, mode, isActive,
+                            createdFrom, createdTo, sortDirection));
         } catch (Exception e) {
             logger.error("バッジ一覧取得エラー", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("バッジ一覧の取得に失敗しました"));

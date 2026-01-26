@@ -61,7 +61,7 @@ class _TourokuDialogState extends State<TourokuDialog> {
         break;
       case 'badge':
         _controllers['name'] = TextEditingController();
-        _controllers['mode'] = TextEditingController(text: '対戦');
+        _controllers['mode'] = TextEditingController(text: '1');
         _controllers['condition'] = TextEditingController();
         break;
     }
@@ -280,7 +280,7 @@ class _TourokuDialogState extends State<TourokuDialog> {
         return [
           _buildTextField('バッジ名', 'name', '例: バッジ01'),
           const SizedBox(height: 16),
-          _buildDropdown('モード', 'mode', ['対戦', 'スラングアカウント', '楽曲', '単語', '問題', 'アーティスト']),
+          _buildDropdown('モード', 'mode', ['1', '2', '3', '4', '5']),
           const SizedBox(height: 16),
           _buildTextField('取得条件', 'condition', '例: 初めて勝利する'),
         ];

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,9 +36,11 @@ public class AdminVocabularyService {
      * 単語一覧取得
      */
     public AdminVocabularyResponse.ListResponse getVocabularies(
-            int page, int size, String idSearch, String word, String partOfSpeech, Boolean isActive) {
+            int page, int size, String idSearch, String word, String partOfSpeech, Boolean isActive,
+            LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "vocabId"));
+        Sort.Direction direction = parseSortDirection(sortDirection);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "vocabId"));
 
         Specification<Vocabulary> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -49,13 +52,19 @@ public class AdminVocabularyService {
                 predicates.add(cb.like(root.get("word"), "%" + word + "%"));
             }
             if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.like(root.get("vocabId").as(String.class), "%" + idSearch + "%"));
+                predicates.add(cb.equal(root.get("vocabId").as(String.class), idSearch));
             }
             if (partOfSpeech != null && !partOfSpeech.isEmpty()) {
                 predicates.add(cb.equal(root.get("part_of_speech"), partOfSpeech));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
+            }
+            if (createdFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("created_at"), createdFrom));
+            }
+            if (createdTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("created_at"), createdTo));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -182,5 +191,12 @@ public class AdminVocabularyService {
         response.setCreatedAt(vocab.getCreated_at());
         response.setUpdatedAt(vocab.getUpdated_at());
         return response;
+    }
+
+    private Sort.Direction parseSortDirection(String sortDirection) {
+        if ("asc".equalsIgnoreCase(sortDirection)) {
+            return Sort.Direction.ASC;
+        }
+        return Sort.Direction.DESC;
     }
 }

@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,16 +46,18 @@ public class AdminQuestionService {
     @Transactional(readOnly = true)
     public AdminQuestionResponse.ListResponse getQuestions(
             int page, int size, String idSearch, Long artistId, String questionFormat, String language,
-            Integer difficultyLevel, Boolean isActive) {
+            Integer difficultyLevel, Boolean isActive, String questionText, String answer,
+            String songName, String artistName, LocalDateTime addedFrom, LocalDateTime addedTo, String sortDirection) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "questionId"));
+        Sort.Direction direction = parseSortDirection(sortDirection);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "questionId"));
 
         Specification<Question> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
 
             if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.like(root.get("questionId").as(String.class), "%" + idSearch + "%"));
+                predicates.add(cb.equal(root.get("questionId").as(String.class), idSearch));
             }
             if (artistId != null) {
                 predicates.add(cb.equal(root.get("artist").get("artistId"), artistId));
@@ -65,11 +68,29 @@ public class AdminQuestionService {
             if (language != null && !language.isEmpty()) {
                 predicates.add(cb.equal(root.get("language"), language));
             }
+            if (questionText != null && !questionText.isEmpty()) {
+                predicates.add(cb.like(root.get("text"), "%" + questionText + "%"));
+            }
+            if (answer != null && !answer.isEmpty()) {
+                predicates.add(cb.like(root.get("answer"), "%" + answer + "%"));
+            }
+            if (songName != null && !songName.isEmpty()) {
+                predicates.add(cb.like(root.get("song").get("songname"), "%" + songName + "%"));
+            }
+            if (artistName != null && !artistName.isEmpty()) {
+                predicates.add(cb.like(root.get("artist").get("artistName"), "%" + artistName + "%"));
+            }
             if (difficultyLevel != null) {
                 predicates.add(cb.equal(root.get("difficultyLevel"), difficultyLevel));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
+            }
+            if (addedFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("addingAt"), addedFrom));
+            }
+            if (addedTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("addingAt"), addedTo));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -212,5 +233,12 @@ public class AdminQuestionService {
             return "FILL_IN_BLANK";
         }
         return format.name();
+    }
+
+    private Sort.Direction parseSortDirection(String sortDirection) {
+        if ("asc".equalsIgnoreCase(sortDirection)) {
+            return Sort.Direction.ASC;
+        }
+        return Sort.Direction.DESC;
     }
 }

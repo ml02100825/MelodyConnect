@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +38,10 @@ public class AdminSongService {
     private ArtistRepository artistRepository;
 
     public AdminSongResponse.ListResponse getSongs(
-            int page, int size, String idSearch, String songname, Long artistId, String language, Boolean isActive) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "songId"));
+            int page, int size, String idSearch, String songname, String artistName, Boolean isActive,
+            LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
+        Sort.Direction direction = parseSortDirection(sortDirection);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "songId"));
 
         Specification<Song> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -48,16 +51,24 @@ public class AdminSongService {
                 predicates.add(cb.like(root.get("songname"), "%" + songname + "%"));
             }
             if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.like(root.get("songId").as(String.class), "%" + idSearch + "%"));
+                predicates.add(cb.equal(root.get("songId").as(String.class), idSearch));
             }
-            if (artistId != null) {
-                predicates.add(cb.equal(root.get("artistId"), artistId));
-            }
-            if (language != null && !language.isEmpty()) {
-                predicates.add(cb.equal(root.get("language"), language));
+            if (artistName != null && !artistName.isEmpty()) {
+                List<Long> artistIds = artistRepository.findArtistIdsByArtistNameContaining(artistName);
+                if (artistIds.isEmpty()) {
+                    predicates.add(cb.disjunction());
+                } else {
+                    predicates.add(root.get("artistId").in(artistIds));
+                }
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
+            }
+            if (createdFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("created_at"), createdFrom));
+            }
+            if (createdTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("created_at"), createdTo));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -171,5 +182,12 @@ public class AdminSongService {
         response.setIsActive(song.getIsActive());
         response.setCreatedAt(song.getCreated_at());
         return response;
+    }
+
+    private Sort.Direction parseSortDirection(String sortDirection) {
+        if ("asc".equalsIgnoreCase(sortDirection)) {
+            return Sort.Direction.ASC;
+        }
+        return Sort.Direction.DESC;
     }
 }

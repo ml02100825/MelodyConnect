@@ -8,10 +8,12 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,10 +38,18 @@ public class AdminQuestionController {
             @RequestParam(required = false) String questionFormat,
             @RequestParam(required = false) String language,
             @RequestParam(required = false) Integer difficultyLevel,
-            @RequestParam(required = false) Boolean isActive) {
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) String questionText,
+            @RequestParam(required = false) String answer,
+            @RequestParam(required = false) String songName,
+            @RequestParam(required = false) String artistName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime addedFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime addedTo,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
             return ResponseEntity.ok(adminQuestionService.getQuestions(
-                    page, size, idSearch, artistId, questionFormat, language, difficultyLevel, isActive));
+                    page, size, idSearch, artistId, questionFormat, language, difficultyLevel, isActive,
+                    questionText, answer, songName, artistName, addedFrom, addedTo, sortDirection));
         } catch (Exception e) {
             logger.error("問題一覧取得エラー", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("問題一覧の取得に失敗しました"));

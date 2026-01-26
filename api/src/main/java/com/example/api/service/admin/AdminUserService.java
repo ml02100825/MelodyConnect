@@ -41,9 +41,11 @@ public class AdminUserService {
             Long id, String userUuid, String username, String email,
             Boolean banFlag, Boolean subscribeFlag,
             LocalDateTime createdFrom, LocalDateTime createdTo,
-            LocalDateTime offlineFrom, LocalDateTime offlineTo) {
+            LocalDateTime offlineFrom, LocalDateTime offlineTo,
+            String sortDirection) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        Sort.Direction direction = parseSortDirection(sortDirection);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "id"));
 
         Specification<User> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -167,5 +169,12 @@ public class AdminUserService {
         detail.setAcceptedAt(user.getAcceptedAt());
         detail.setCanceledAt(user.getCanceledAt());
         return detail;
+    }
+
+    private Sort.Direction parseSortDirection(String sortDirection) {
+        if ("asc".equalsIgnoreCase(sortDirection)) {
+            return Sort.Direction.ASC;
+        }
+        return Sort.Direction.DESC;
     }
 }

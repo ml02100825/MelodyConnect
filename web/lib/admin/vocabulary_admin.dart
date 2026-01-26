@@ -34,6 +34,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
   String statusFilter = 'すべて';
   DateTime? startDate;
   DateTime? endDate;
+  bool _sortAscending = false;
 
   bool get hasSelection => selectedRows.any((selected) => selected);
 
@@ -68,6 +69,9 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
             ? partOfSpeechController.text.trim()
             : null,
         isActive: isActive,
+        createdFrom: startDate,
+        createdTo: endDate,
+        sortDirection: _sortAscending ? 'asc' : 'desc',
       );
 
       final content = response['vocabularies'] as List<dynamic>? ?? [];
@@ -219,6 +223,11 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
       children: [
         _buildSearchArea(),
         const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _buildSortToggle(),
+        ),
+        const SizedBox(height: 16),
         Expanded(child: _buildTable()),
         _buildPagination(),
         const SizedBox(height: 16),
@@ -377,11 +386,14 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                     context: context,
                     initialDate: startDate ?? DateTime.now(),
                     firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
+                    lastDate: endDate ?? DateTime(2100),
                   );
                   if (picked != null) {
                     setState(() {
                       startDate = picked;
+                      if (endDate != null && picked.isAfter(endDate!)) {
+                        endDate = picked;
+                      }
                     });
                   }
                 },
@@ -417,7 +429,7 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                   final DateTime? picked = await showDatePicker(
                     context: context,
                     initialDate: endDate ?? startDate ?? DateTime.now(),
-                    firstDate: DateTime(2000),
+                    firstDate: startDate ?? DateTime(2000),
                     lastDate: DateTime(2100),
                   );
                   if (picked != null) {
@@ -582,6 +594,22 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
                           ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSortToggle() {
+    return OutlinedButton.icon(
+      onPressed: () {
+        setState(() {
+          _sortAscending = !_sortAscending;
+        });
+        _loadFromApi();
+      },
+      icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+      label: Text(_sortAscending ? '昇順' : '降順', style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       ),
     );
   }

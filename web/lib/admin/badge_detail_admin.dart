@@ -47,12 +47,11 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
   
   // モードオプション
   final List<String> modeOptions = [
-    '対戦',
-    'スラングアカウント',
-    '楽曲',
-    '単語',
-    '問題',
-    'アーティスト',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
   ];
 
   @override

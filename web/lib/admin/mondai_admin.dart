@@ -27,6 +27,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
   String statusFilter = '状態';
   DateTime? startDate;
   DateTime? endDate;
+  bool _sortAscending = false;
 
   bool get hasSelection => selectedRows.any((selected) => selected);
 
@@ -42,6 +43,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
   // プルダウンオプション（一覧から抽出）
   List<String> _questionFormatOptions = ['問題形式'];
   List<String> _difficultyLevelOptions = ['難易度'];
+  bool _optionsInitialized = false;
 
   @override
   void initState() {
@@ -76,9 +78,9 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         idSearch = idController.text.trim();
       }
 
-      int? artistId;
+      String? artistName;
       if (artistController.text.trim().isNotEmpty) {
-        artistId = int.tryParse(artistController.text.trim());
+        artistName = artistController.text.trim();
       }
 
       int? difficultyLevel;
@@ -90,10 +92,16 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         page: _currentPage,
         size: _pageSize,
         idSearch: idSearch,
-        artistId: artistId,
+        artistName: artistName,
         questionFormat: questionFormat,
         difficultyLevel: difficultyLevel,
         isActive: isActive,
+        questionText: questionController.text.trim().isNotEmpty ? questionController.text.trim() : null,
+        answer: correctAnswerController.text.trim().isNotEmpty ? correctAnswerController.text.trim() : null,
+        songName: songNameController.text.trim().isNotEmpty ? songNameController.text.trim() : null,
+        addedFrom: startDate,
+        addedTo: endDate,
+        sortDirection: _sortAscending ? 'asc' : 'desc',
       );
 
       final content = response['questions'] as List<dynamic>? ?? [];
@@ -140,8 +148,11 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         _totalPages = response['totalPages'] ?? 1;
         _totalElements = response['totalElements'] ?? 0;
         selectedRows = List.generate(questions.length, (index) => false);
-        _questionFormatOptions = ['問題形式', ...formats];
-        _difficultyLevelOptions = ['難易度', ...levels.map((level) => level.toString())];
+        if (!_optionsInitialized) {
+          _questionFormatOptions = ['問題形式', ...formats];
+          _difficultyLevelOptions = ['難易度', ...levels.map((level) => level.toString())];
+          _optionsInitialized = true;
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -269,6 +280,11 @@ class _MondaiAdminState extends State<MondaiAdmin> {
       children: [
         _buildSearchArea(),
         const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _buildSortToggle(),
+        ),
+        const SizedBox(height: 16),
         Expanded(child: _buildDataList()),
         _buildPagination(),
         const SizedBox(height: 16),
@@ -471,11 +487,14 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                     context: context,
                     initialDate: startDate ?? DateTime.now(),
                     firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
+                    lastDate: endDate ?? DateTime(2100),
                   );
                   if (picked != null) {
                     setState(() {
                       startDate = picked;
+                      if (endDate != null && picked.isAfter(endDate!)) {
+                        endDate = picked;
+                      }
                     });
                   }
                 },
@@ -511,7 +530,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                   final DateTime? picked = await showDatePicker(
                     context: context,
                     initialDate: endDate ?? startDate ?? DateTime.now(),
-                    firstDate: DateTime(2000),
+                    firstDate: startDate ?? DateTime(2000),
                     lastDate: DateTime(2100),
                   );
                   if (picked != null) {
@@ -525,6 +544,22 @@ class _MondaiAdminState extends State<MondaiAdmin> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildSortToggle() {
+    return OutlinedButton.icon(
+      onPressed: () {
+        setState(() {
+          _sortAscending = !_sortAscending;
+        });
+        _loadFromApi();
+      },
+      icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+      label: Text(_sortAscending ? '昇順' : '降順', style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      ),
     );
   }
 

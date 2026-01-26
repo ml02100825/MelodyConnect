@@ -45,7 +45,7 @@ class User {
           ? DateTime.parse(json['subscriptionCancelledAt'])
           : null,
       subscription: json['subscribeFlag'] == true ? '加入中' : '×',
-      isFrozen: json['banFlag'] ?? false,
+      isFrozen: json['banFlag'] == false,
     );
   }
 
