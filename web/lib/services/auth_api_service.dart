@@ -15,6 +15,7 @@ class SessionInvalidException implements Exception {
 /// バックエンドの認証エンドポイントとの通信を行います
 class AuthApiService {
   // 開発環境のAPIベースURL（本番環境では適切なURLに変更してください）
+  // Android Emulatorなら 10.0.2.2、iOSなら localhost
   static const String baseUrl = 'http://localhost:8080/api/auth';
 
   /// ユーザー登録
@@ -38,9 +39,9 @@ class AuthApiService {
       );
 
       if (response.statusCode == 201) {
-        return jsonDecode(response.body);
+        return jsonDecode(utf8.decode(response.bodyBytes));
       } else {
-        final error = jsonDecode(response.body);
+        final error = jsonDecode(utf8.decode(response.bodyBytes));
         throw Exception(error['error'] ?? '登録に失敗しました');
       }
     } catch (e) {
@@ -72,9 +73,9 @@ class AuthApiService {
       );
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        return jsonDecode(utf8.decode(response.bodyBytes));
       } else {
-        final error = jsonDecode(response.body);
+        final error = jsonDecode(utf8.decode(response.bodyBytes));
         throw Exception(error['error'] ?? 'ログインに失敗しました');
       }
     } catch (e) {
@@ -104,9 +105,9 @@ class AuthApiService {
       );
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        return jsonDecode(utf8.decode(response.bodyBytes));
       } else {
-        final error = jsonDecode(response.body);
+        final error = jsonDecode(utf8.decode(response.bodyBytes));
         throw Exception(error['error'] ?? 'トークンのリフレッシュに失敗しました');
       }
     } catch (e) {
@@ -136,7 +137,7 @@ class AuthApiService {
       );
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        return jsonDecode(utf8.decode(response.bodyBytes));
       } else {
         // 401 = セッション無効
         throw SessionInvalidException('セッションが無効です');
@@ -151,24 +152,28 @@ class AuthApiService {
 
   /// ログアウト
   ///
-  /// [userId] - ユーザーID
-  /// [accessToken] - アクセストークン
+  /// [refreshToken] - 現在のリフレッシュトークン（特定のセッションを削除するため）
+  /// [accessToken] - アクセストークン（認証ヘッダー用）
   ///
   /// 成功した場合はtrue、失敗した場合は例外をスロー
-  Future<bool> logout(int userId, String accessToken) async {
+  Future<bool> logout(String refreshToken, String accessToken) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/logout/$userId'),
+        Uri.parse('$baseUrl/logout'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
+        body: jsonEncode({
+          'refreshToken': refreshToken,
+        }),
       );
 
       if (response.statusCode == 200) {
         return true;
       } else {
-        final error = jsonDecode(response.body);
+        // 失敗してもクライアント側ではログアウト扱いにするのが一般的ですが、エラー内容は返します
+        final error = jsonDecode(utf8.decode(response.bodyBytes));
         throw Exception(error['error'] ?? 'ログアウトに失敗しました');
       }
     } catch (e) {
@@ -176,6 +181,61 @@ class AuthApiService {
         rethrow;
       }
       throw Exception('ネットワークエラーが発生しました');
+    }
+  }
+
+  // ==========================================
+  // ★追加: パスワードリセット関連メソッド
+  // ==========================================
+
+  /// パスワードリセット要求 (メール送信シミュレーション)
+  ///
+  /// [email] - リセットしたいアカウントのメールアドレス
+  Future<void> requestPasswordReset(String email) async {
+    // Spring Bootの @RequestParam に合わせてクエリパラメータで送信
+    final uri = Uri.parse('$baseUrl/request-password-reset').replace(queryParameters: {
+      'email': email,
+    });
+
+    final response = await http.post(uri);
+
+    if (response.statusCode != 200) {
+      String message = '送信に失敗しました';
+      try {
+        final body = jsonDecode(utf8.decode(response.bodyBytes));
+        if (body['error'] != null) {
+          message = body['error'];
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+  }
+
+  /// パスワード更新実行
+  ///
+  /// [token] - メール(ログ)で受け取ったリセットコード
+  /// [newPassword] - 新しいパスワード
+  Future<void> confirmPasswordReset(String token, String newPassword) async {
+    final uri = Uri.parse('$baseUrl/reset-password');
+
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'token': token,
+        'newPassword': newPassword,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      String message = 'パスワード更新に失敗しました';
+      try {
+        final body = jsonDecode(utf8.decode(response.bodyBytes));
+        if (body['error'] != null) {
+          message = body['error'];
+        }
+      } catch (_) {}
+      throw Exception(message);
     }
   }
 }

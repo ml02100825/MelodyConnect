@@ -1,11 +1,11 @@
 package com.example.api.controller;
 
 import com.example.api.dto.*;
-import com.example.api.entity.User;
-import com.example.api.repository.UserRepository;
 import com.example.api.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,24 +16,20 @@ import java.util.Map;
 
 /**
  * 認証コントローラー
- * ユーザー登録、ログイン、トークンリフレッシュのエンドポイントを提供します
+ * ユーザー登録、ログイン、トークンリフレッシュ、パスワードリセットのエンドポイントを提供します
  * CORS設定はWebConfigで一括管理
  */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+
     @Autowired
     private AuthService authService;
 
-    @Autowired
-    private UserRepository userRepository;
-
     /**
      * ユーザー登録エンドポイント
-     * @param request 登録リクエスト
-     * @param httpRequest HTTPリクエスト
-     * @return 認証レスポンス
      */
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request,
@@ -41,12 +37,15 @@ public class AuthController {
         try {
             String userAgent = httpRequest.getHeader("User-Agent");
             String ip = getClientIp(httpRequest);
+            
+            logger.info("新規登録リクエスト受信: {}", request.getEmail());
 
             AuthResponse response = authService.register(request, userAgent, ip);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
+            logger.error("登録処理エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("登録処理中にエラーが発生しました"));
         }
@@ -54,9 +53,6 @@ public class AuthController {
 
     /**
      * ログインエンドポイント
-     * @param request ログインリクエスト
-     * @param httpRequest HTTPリクエスト
-     * @return 認証レスポンス
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
@@ -65,12 +61,15 @@ public class AuthController {
             String userAgent = httpRequest.getHeader("User-Agent");
             String ip = getClientIp(httpRequest);
 
+            logger.info("ログインリクエスト受信: {}", request.getEmail());
+
             AuthResponse response = authService.login(request, userAgent, ip);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
+            logger.error("ログイン処理エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("ログイン処理中にエラーが発生しました"));
         }
@@ -78,8 +77,6 @@ public class AuthController {
 
     /**
      * トークンリフレッシュエンドポイント
-     * @param request リフレッシュトークンリクエスト
-     * @return 新しいアクセストークンを含む認証レスポンス
      */
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
@@ -90,6 +87,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
+            logger.error("リフレッシュ処理エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("トークンリフレッシュ処理中にエラーが発生しました"));
         }
@@ -97,33 +95,75 @@ public class AuthController {
 
     /**
      * ログアウトエンドポイント
-     * @param userId ユーザーID
-     * @return 成功メッセージ
+     * ★変更点: UserIdではなくRefreshTokenを受け取って特定のセッションを無効化します
+     * @param request リフレッシュトークンを含むマップ
      */
-    @PostMapping("/logout/{userId}")
-    public ResponseEntity<?> logout(@PathVariable Long userId) {
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestBody Map<String, String> request) {
         try {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
-            authService.logout(user);
+            String refreshToken = request.get("refreshToken");
+            authService.logout(refreshToken);
+            
             Map<String, String> response = new HashMap<>();
             response.put("message", "ログアウトしました");
             return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
+            logger.error("ログアウト処理エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("ログアウト処理中にエラーが発生しました"));
         }
     }
 
     /**
+     * パスワードリセット要求エンドポイント (★追加)
+     * メールアドレスを受け取り、リセット用トークンを発行（ログ出力）します
+     */
+    @PostMapping("/request-password-reset")
+    public ResponseEntity<?> requestPasswordReset(@RequestParam String email) {
+        try {
+            logger.info("パスワードリセット要求受信: {}", email);
+            authService.requestPasswordReset(email);
+            // セキュリティ上、メールが存在しなくても成功メッセージを返すのが一般的です
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "パスワードリセット手順をメールで送信しました");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("パスワードリセット要求エラー", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("処理中にエラーが発生しました"));
+        }
+    }
+
+    /**
+     * パスワード更新実行エンドポイント (★追加)
+     * トークンと新しいパスワードを受け取り、更新を実行します
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> request) {
+        try {
+            String token = request.get("token");
+            String newPassword = request.get("newPassword");
+
+            if (token == null || newPassword == null) {
+                return ResponseEntity.badRequest().body(createErrorResponse("トークンと新しいパスワードが必要です"));
+            }
+
+            authService.resetPassword(token, newPassword);
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "パスワードを更新しました");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("パスワード更新エラー", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("パスワード更新中にエラーが発生しました"));
+        }
+    }
+
+    /**
      * セッション検証エンドポイント
-     * リフレッシュトークンを使ってセッションの有効性を確認する
-     * 有効な場合は新しいアクセストークンを発行する
-     * @param request リフレッシュトークンリクエスト
-     * @return 認証レスポンス（有効な場合）または401（無効な場合）
      */
     @PostMapping("/validate")
     public ResponseEntity<?> validateSession(@Valid @RequestBody RefreshTokenRequest request) {
@@ -131,10 +171,10 @@ public class AuthController {
             AuthResponse response = authService.refreshAccessToken(request.getRefreshToken());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            // セッションが無効（失効、revoke済み、または不正なトークン）
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(createErrorResponse("セッションが無効です"));
         } catch (Exception e) {
+            logger.error("セッション検証エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("セッション検証中にエラーが発生しました"));
         }
@@ -142,8 +182,6 @@ public class AuthController {
 
     /**
      * クライアントのIPアドレスを取得
-     * @param request HTTPリクエスト
-     * @return IPアドレス
      */
     private String getClientIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
@@ -156,7 +194,6 @@ public class AuthController {
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getRemoteAddr();
         }
-        // 複数のIPがある場合は最初のものを使用
         if (ip != null && ip.contains(",")) {
             ip = ip.split(",")[0].trim();
         }
@@ -165,8 +202,6 @@ public class AuthController {
 
     /**
      * エラーレスポンスを作成
-     * @param message エラーメッセージ
-     * @return エラーレスポンスマップ
      */
     private Map<String, String> createErrorResponse(String message) {
         Map<String, String> error = new HashMap<>();
