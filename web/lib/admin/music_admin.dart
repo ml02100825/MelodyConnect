@@ -23,7 +23,6 @@ class _MusicAdminState extends State<MusicAdmin> {
   DateTime? startDate;
   DateTime? endDate;
 
-  String? _selectedGenre;
   String? _selectedStatus;
 
   // API連携用
@@ -36,32 +35,12 @@ class _MusicAdminState extends State<MusicAdmin> {
   bool _isLoading = false;
   String? _error;
 
-  // ジャンルオプション（APIから取得）
-  List<String> _genreOptions = [];
-
   bool get hasSelection => _selectedIds.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
-    _loadGenres();
     _loadFromApi();
-  }
-
-  Future<void> _loadGenres() async {
-    try {
-      final response = await AdminApiService.getGenres(size: 100);
-      final genres = (response['genres'] as List<dynamic>? ?? [])
-          .map((g) => g['name'] as String)
-          .toList();
-      if (mounted) {
-        setState(() {
-          _genreOptions = genres;
-        });
-      }
-    } catch (e) {
-      // エラー時は空リストのまま
-    }
   }
 
   Future<void> _loadFromApi() async {
@@ -83,9 +62,13 @@ class _MusicAdminState extends State<MusicAdmin> {
         artistId = int.tryParse(_artistController.text.trim());
       }
 
+      final String? idSearch =
+          _idController.text.trim().isNotEmpty ? _idController.text.trim() : null;
+
       final response = await AdminApiService.getSongs(
         page: _currentPage,
         size: _pageSize,
+        idSearch: idSearch,
         songname: _songNameController.text.trim().isNotEmpty ? _songNameController.text.trim() : null,
         artistId: artistId,
         language: _languageController.text.trim().isNotEmpty ? _languageController.text.trim() : null,
@@ -136,7 +119,6 @@ class _MusicAdminState extends State<MusicAdmin> {
       _languageController.clear();
       startDate = null;
       endDate = null;
-      _selectedGenre = null;
       _selectedStatus = null;
       _selectedIds.clear();
     });
@@ -251,20 +233,14 @@ class _MusicAdminState extends State<MusicAdmin> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildDropdown('ジャンル', _selectedGenre, _genreOptions, (value) {
-                  setState(() {
-                    _selectedGenre = value;
-                  });
-                }),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
                 child: _buildDropdown('状態', _selectedStatus, const ['有効', '無効'], (value) {
                   setState(() {
                     _selectedStatus = value;
                   });
                 }),
               ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
             ],
           ),
           const SizedBox(height: 12),

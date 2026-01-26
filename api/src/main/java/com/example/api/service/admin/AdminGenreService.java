@@ -28,7 +28,7 @@ public class AdminGenreService {
     @Autowired
     private GenreRepository genreRepository;
 
-    public AdminGenreResponse.ListResponse getGenres(int page, int size, String name, Boolean isActive) {
+    public AdminGenreResponse.ListResponse getGenres(int page, int size, String idSearch, String name, Boolean isActive) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
 
         Specification<Genre> spec = (root, query, cb) -> {
@@ -37,6 +37,9 @@ public class AdminGenreService {
 
             if (name != null && !name.isEmpty()) {
                 predicates.add(cb.like(root.get("name"), "%" + name + "%"));
+            }
+            if (idSearch != null && !idSearch.isEmpty()) {
+                predicates.add(cb.like(root.get("id").as(String.class), "%" + idSearch + "%"));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));

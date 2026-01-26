@@ -149,6 +149,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
       final response = await AdminApiService.getArtists(
         page: _currentPage,
         size: _pageSize,
+        idSearch: idSearch.trim().isNotEmpty ? idSearch.trim() : null,
         artistName: artistSearch.trim().isNotEmpty ? artistSearch.trim() : null,
         isActive: isActive,
       );

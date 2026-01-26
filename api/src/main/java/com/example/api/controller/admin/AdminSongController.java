@@ -28,12 +28,13 @@ public class AdminSongController {
     public ResponseEntity<?> getSongs(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String idSearch,
             @RequestParam(required = false) String songname,
             @RequestParam(required = false) Long artistId,
             @RequestParam(required = false) String language,
             @RequestParam(required = false) Boolean isActive) {
         try {
-            return ResponseEntity.ok(adminSongService.getSongs(page, size, songname, artistId, language, isActive));
+            return ResponseEntity.ok(adminSongService.getSongs(page, size, idSearch, songname, artistId, language, isActive));
         } catch (Exception e) {
             logger.error("楽曲一覧取得エラー", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("楽曲一覧の取得に失敗しました"));

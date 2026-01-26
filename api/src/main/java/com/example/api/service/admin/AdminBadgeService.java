@@ -28,7 +28,8 @@ public class AdminBadgeService {
     @Autowired
     private BadgeRepository badgeRepository;
 
-    public AdminBadgeResponse.ListResponse getBadges(int page, int size, String badgeName, Boolean isActive) {
+    public AdminBadgeResponse.ListResponse getBadges(
+            int page, int size, String idSearch, String badgeName, Integer mode, Boolean isActive) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
 
         Specification<Badge> spec = (root, query, cb) -> {
@@ -37,6 +38,13 @@ public class AdminBadgeService {
 
             if (badgeName != null && !badgeName.isEmpty()) {
                 predicates.add(cb.like(root.get("badgeName"), "%" + badgeName + "%"));
+            }
+            if (idSearch != null && !idSearch.isEmpty()) {
+                predicates.add(cb.like(root.get("id").as(String.class), "%" + idSearch + "%"));
+            }
+            String modeValue = convertModeToValue(mode);
+            if (modeValue != null) {
+                predicates.add(cb.equal(root.get("mode"), modeValue));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
@@ -132,5 +140,19 @@ public class AdminBadgeService {
         response.setIsActive(badge.isActiveFlag());
         response.setCreatedAt(badge.getCreatedAt());
         return response;
+    }
+
+    private String convertModeToValue(Integer mode) {
+        if (mode == null) {
+            return null;
+        }
+        return switch (mode) {
+            case 1 -> "CONTINUE";
+            case 2 -> "BATTLE";
+            case 3 -> "RANKING";
+            case 4 -> "COLLECT";
+            case 5 -> "SPECIAL";
+            default -> null;
+        };
     }
 }

@@ -62,8 +62,9 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
       final response = await AdminApiService.getVocabularies(
         page: _currentPage,
         size: _pageSize,
+        idSearch: idController.text.trim().isNotEmpty ? idController.text.trim() : null,
         word: wordController.text.trim().isNotEmpty ? wordController.text.trim() : null,
-        language: partOfSpeechController.text.trim().isNotEmpty
+        partOfSpeech: partOfSpeechController.text.trim().isNotEmpty
             ? partOfSpeechController.text.trim()
             : null,
         isActive: isActive,

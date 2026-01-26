@@ -32,7 +32,7 @@ public class AdminArtistService {
     @Autowired
     private ArtistGenreRepository artistGenreRepository;
 
-    public AdminArtistResponse.ListResponse getArtists(int page, int size, String artistName, Boolean isActive) {
+    public AdminArtistResponse.ListResponse getArtists(int page, int size, String idSearch, String artistName, Boolean isActive) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "artistId"));
 
         Specification<Artist> spec = (root, query, cb) -> {
@@ -41,6 +41,9 @@ public class AdminArtistService {
 
             if (artistName != null && !artistName.isEmpty()) {
                 predicates.add(cb.like(root.get("artistName"), "%" + artistName + "%"));
+            }
+            if (idSearch != null && !idSearch.isEmpty()) {
+                predicates.add(cb.like(root.get("artistId").as(String.class), "%" + idSearch + "%"));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));

@@ -28,10 +28,11 @@ public class AdminGenreController {
     public ResponseEntity<?> getGenres(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String idSearch,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) Boolean isActive) {
         try {
-            return ResponseEntity.ok(adminGenreService.getGenres(page, size, name, isActive));
+            return ResponseEntity.ok(adminGenreService.getGenres(page, size, idSearch, name, isActive));
         } catch (Exception e) {
             logger.error("ジャンル一覧取得エラー", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("ジャンル一覧の取得に失敗しました"));
