@@ -30,6 +30,10 @@ public class AuthController {
 
     /**
      * ユーザー登録エンドポイント
+     * 新規ユーザーを作成し、セッションを開始します。
+     * * @param request 登録リクエスト (メールアドレス、パスワード)
+     * @param httpRequest HTTPリクエスト (IPアドレス、User-Agent取得用)
+     * @return 認証レスポンス (ユーザー情報、アクセストークン、リフレッシュトークン)
      */
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request,
@@ -53,6 +57,10 @@ public class AuthController {
 
     /**
      * ログインエンドポイント
+     * メールアドレスとパスワードで認証し、トークンを発行します。
+     * * @param request ログインリクエスト (メールアドレス、パスワード)
+     * @param httpRequest HTTPリクエスト (IPアドレス、User-Agent取得用)
+     * @return 認証レスポンス (ユーザー情報、アクセストークン、リフレッシュトークン)
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
@@ -77,6 +85,9 @@ public class AuthController {
 
     /**
      * トークンリフレッシュエンドポイント
+     * 有効なリフレッシュトークンを使用して、新しいアクセストークンを発行します。
+     * * @param request リフレッシュトークンを含むリクエスト
+     * @return 認証レスポンス (新しいアクセストークンを含む)
      */
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
@@ -95,8 +106,9 @@ public class AuthController {
 
     /**
      * ログアウトエンドポイント
-     * ★変更点: UserIdではなくRefreshTokenを受け取って特定のセッションを無効化します
-     * @param request リフレッシュトークンを含むマップ
+     * 指定されたリフレッシュトークンに紐づくセッションを無効化（削除）します。
+     * * @param request リフレッシュトークンを含むマップ {"refreshToken": "..."}
+     * @return 成功メッセージ
      */
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@RequestBody Map<String, String> request) {
@@ -115,15 +127,17 @@ public class AuthController {
     }
 
     /**
-     * パスワードリセット要求エンドポイント (★追加)
-     * メールアドレスを受け取り、リセット用トークンを発行（ログ出力）します
+     * パスワードリセット要求エンドポイント
+     * メールアドレスを受け取り、リセット用コードをメールで送信します。
+     * * @param email リセット対象のメールアドレス
+     * @return 送信完了メッセージ
      */
     @PostMapping("/request-password-reset")
     public ResponseEntity<?> requestPasswordReset(@RequestParam String email) {
         try {
             logger.info("パスワードリセット要求受信: {}", email);
             authService.requestPasswordReset(email);
-            // セキュリティ上、メールが存在しなくても成功メッセージを返すのが一般的です
+            
             Map<String, String> response = new HashMap<>();
             response.put("message", "パスワードリセット手順をメールで送信しました");
             return ResponseEntity.ok(response);
@@ -135,8 +149,10 @@ public class AuthController {
     }
 
     /**
-     * パスワード更新実行エンドポイント (★追加)
-     * トークンと新しいパスワードを受け取り、更新を実行します
+     * パスワード更新実行エンドポイント
+     * リセット用トークンと新しいパスワードを受け取り、パスワードを更新します。
+     * * @param request トークン("token")と新パスワード("newPassword")を含むマップ
+     * @return 更新完了メッセージ
      */
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> request) {
@@ -164,6 +180,9 @@ public class AuthController {
 
     /**
      * セッション検証エンドポイント
+     * アプリ起動時などに、リフレッシュトークンが有効かを確認します。
+     * * @param request リフレッシュトークンを含むリクエスト
+     * @return 有効な場合は認証レスポンス
      */
     @PostMapping("/validate")
     public ResponseEntity<?> validateSession(@Valid @RequestBody RefreshTokenRequest request) {
@@ -181,7 +200,7 @@ public class AuthController {
     }
 
     /**
-     * クライアントのIPアドレスを取得
+     * クライアントのIPアドレスを取得するヘルパーメソッド
      */
     private String getClientIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
@@ -201,7 +220,7 @@ public class AuthController {
     }
 
     /**
-     * エラーレスポンスを作成
+     * JSON形式のエラーレスポンスを作成するヘルパーメソッド
      */
     private Map<String, String> createErrorResponse(String message) {
         Map<String, String> error = new HashMap<>();
