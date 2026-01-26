@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'artist_admin.dart';
+import 'services/admin_api_service.dart';
 
 class ArtistDetailAdmin extends StatefulWidget {
   final Artist artist;
@@ -29,28 +30,21 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
   // 編集用コントローラー
   late TextEditingController nameController;
   late TextEditingController genreController;
-  late TextEditingController genreIdController;
   late TextEditingController artistApiIdController;
   late TextEditingController imageUrlController;
-  
+
   // 元の値（キャンセル用）
   late String _originalName;
   late String _originalGenre;
-  late String _originalGenreId;
   late String _originalArtistApiId;
   late String _originalImageUrl;
   late String _originalStatus;
-  
+
   // 選択用状態
   late String selectedStatus;
-  
-  // ジャンルオプション
-  final List<String> genreOptions = [
-    'ジャンル01',
-    'ジャンル02',
-    'ジャンル03',
-    'ジャンル04',
-  ];
+
+  // ジャンルオプション（APIから取得）
+  List<String> genreOptions = [];
   
   // 削除確認用チェックボックス
   bool idChecked = false;
@@ -64,24 +58,45 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     // コントローラー初期化
     nameController = TextEditingController(text: widget.artist.name);
     genreController = TextEditingController(text: widget.artist.genre);
-    genreIdController = TextEditingController(text: widget.artist.genreId ?? '');
     artistApiIdController = TextEditingController(text: widget.artist.artistApiId ?? '');
     imageUrlController = TextEditingController(text: widget.artist.imageUrl ?? '');
-    
+
     // 元の値を保存（キャンセル用）
     _originalName = widget.artist.name;
     _originalGenre = widget.artist.genre;
-    _originalGenreId = widget.artist.genreId ?? '';
     _originalArtistApiId = widget.artist.artistApiId ?? '';
     _originalImageUrl = widget.artist.imageUrl ?? '';
     _originalStatus = widget.artist.status;
-    
+
     // 選択状態初期化
     selectedStatus = widget.artist.status;
-    
+
+    // ジャンルオプションを取得
+    _loadGenres();
+
     // 新規作成の場合は編集モードで開始
     if (widget.isNew) {
       _isEditing = true;
+    }
+  }
+
+  Future<void> _loadGenres() async {
+    try {
+      final response = await AdminApiService.getGenres(size: 100);
+      final genres = (response['genres'] as List<dynamic>? ?? [])
+          .map((g) => g['name'] as String)
+          .toList();
+      if (mounted) {
+        setState(() {
+          genreOptions = genres;
+          // 現在の値がリストにない場合は追加
+          if (genreController.text.isNotEmpty && !genres.contains(genreController.text)) {
+            genreOptions.insert(0, genreController.text);
+          }
+        });
+      }
+    } catch (e) {
+      // エラー時は空リストのまま
     }
   }
 
@@ -242,10 +257,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
         
         // ジャンル名
         _buildDetailRow('ジャンル名', genreController.text),
-        const SizedBox(height: 24),
-        
-        // ジャンルID
-        _buildDetailRow('ジャンルID', genreIdController.text),
         const SizedBox(height: 24),
         
         // アーティストAPI ID
@@ -468,16 +479,15 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
   void _cancelEdit() {
     setState(() {
       _isEditing = false;
-      
+
       // 元の値に戻す
       nameController.text = _originalName;
       genreController.text = _originalGenre;
-      genreIdController.text = _originalGenreId;
       artistApiIdController.text = _originalArtistApiId;
       imageUrlController.text = _originalImageUrl;
       selectedStatus = _originalStatus;
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('編集をキャンセルしました')),
     );
@@ -486,7 +496,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
   void _toggleStatus() {
     setState(() {
       selectedStatus = selectedStatus == '有効' ? '無効' : '有効';
-      
+
       // 状態変更を通知
       if (widget.onStatusChanged != null) {
         final updatedArtist = Artist(
@@ -497,7 +507,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
           isActive: selectedStatus == '有効',
           addedDate: widget.artist.addedDate,
           updatedDate: DateTime.now(),
-          genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
           artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
           imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
           numericId: widget.artist.numericId,
@@ -505,7 +514,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
         widget.onStatusChanged!(updatedArtist, 'status_changed');
       }
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('状態を${selectedStatus}に変更しました')),
     );
@@ -520,7 +529,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       isActive: selectedStatus == '有効',
       addedDate: widget.artist.addedDate,
       updatedDate: DateTime.now(),
-      genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
       artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
       imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
       numericId: widget.artist.numericId,
@@ -529,7 +537,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     // 元の値を更新
     _originalName = nameController.text;
     _originalGenre = genreController.text;
-    _originalGenreId = genreIdController.text;
     _originalArtistApiId = artistApiIdController.text;
     _originalImageUrl = imageUrlController.text;
     _originalStatus = selectedStatus;
@@ -687,12 +694,11 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       status: selectedStatus,
       isActive: selectedStatus == '有効',
       addedDate: widget.artist.addedDate,
-      genreId: genreIdController.text.isEmpty ? null : genreIdController.text,
       artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
       imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
       numericId: widget.artist.numericId,
     );
-    
+
     Navigator.pop(context, {
       'action': 'delete',
       'artist': deletedArtist,
@@ -703,7 +709,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
   void dispose() {
     nameController.dispose();
     genreController.dispose();
-    genreIdController.dispose();
     artistApiIdController.dispose();
     imageUrlController.dispose();
     super.dispose();

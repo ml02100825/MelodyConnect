@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
+import 'services/admin_api_service.dart';
 
 class MusicDetailPage extends StatefulWidget {
   final Map<String, dynamic> music;
@@ -31,10 +32,26 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
       builder: (BuildContext context) {
         return DeleteConfirmationDialog(
           music: widget.music,
-          onDelete: () {
-            // 削除処理
-            Navigator.pop(context); // ダイアログを閉じる
-            Navigator.pop(context); // 詳細画面を閉じる
+          onDelete: () async {
+            try {
+              final songId = int.tryParse(widget.music['id']?.toString() ?? '');
+              if (songId != null) {
+                await AdminApiService.disableSongs([songId]);
+              }
+              if (context.mounted) {
+                Navigator.pop(context); // ダイアログを閉じる
+              }
+              if (this.context.mounted) {
+                Navigator.pop(this.context, true); // 詳細画面を閉じる（リロード通知）
+              }
+            } catch (e) {
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(content: Text('削除に失敗しました: $e')),
+                );
+              }
+            }
           },
         );
       },
@@ -103,39 +120,13 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
             _detailRow('ID', widget.music['id']),
             const SizedBox(height: 24),
 
-            // 2列レイアウト
-            Row(
+            // 詳細情報
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _detailRow('名称', widget.music['songName']),
-                      const SizedBox(height: 16),
-                      _detailRow('アーティスト名', widget.music['artist']),
-                      const SizedBox(height: 16),
-                      _detailRow('アーティストID', widget.music['artistId'] ?? '00001'),
-                      const SizedBox(height: 16),
-                      _detailRow('ジャンル', widget.music['genre'] ?? 'ジャンル01'),
-                      const SizedBox(height: 16),
-                      _detailRow('ジャンルID', widget.music['genreId'] ?? '00001'),
-                      const SizedBox(height: 16),
-                      _detailRow('geniusソングID', widget.music['geniusSongId'] ?? '00000000'),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 60),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _detailRow('楽曲', widget.music['songName']),
-                      const SizedBox(height: 16),
-                      _detailRow('アーティスト01', widget.music['artist']),
-                    ],
-                  ),
-                ),
+                _detailRow('アーティストID', widget.music['artistId'] ?? ''),
+                const SizedBox(height: 16),
+                _detailRow('geniusソングID', widget.music['geniusSongId'] ?? ''),
               ],
             ),
 
@@ -231,9 +222,8 @@ class _DeleteConfirmationDialogState extends State<DeleteConfirmationDialog> {
   bool deleteId = false;
   bool deleteSongName = false;
   bool deleteArtist = false;
-  bool deleteGenre = false;
 
-  bool get canDelete => deleteId && deleteSongName && deleteArtist && deleteGenre;
+  bool get canDelete => deleteId && deleteSongName && deleteArtist;
 
   @override
   Widget build(BuildContext context) {
@@ -270,15 +260,9 @@ class _DeleteConfirmationDialogState extends State<DeleteConfirmationDialog> {
               });
             }),
             const SizedBox(height: 16),
-            _buildCheckboxRow('アーティスト', widget.music['artist'], deleteArtist, (value) {
+            _buildCheckboxRow('アーティスト', widget.music['artistId'] ?? '', deleteArtist, (value) {
               setState(() {
                 deleteArtist = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('ジャンル', widget.music['genre'] ?? 'ジャンル01', deleteGenre, (value) {
-              setState(() {
-                deleteGenre = value ?? false;
               });
             }),
             const SizedBox(height: 32),

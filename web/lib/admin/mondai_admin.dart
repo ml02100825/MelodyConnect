@@ -39,6 +39,10 @@ class _MondaiAdminState extends State<MondaiAdmin> {
   bool _isLoading = false;
   String? _error;
 
+  // プルダウンオプション（一覧から抽出）
+  List<String> _questionFormatOptions = ['問題形式'];
+  List<String> _difficultyLevelOptions = ['難易度'];
+
   @override
   void initState() {
     super.initState();
@@ -100,11 +104,25 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         };
       }).toList();
 
+      // 一覧からユニークな問題形式と難易度を抽出
+      final formats = loadedQuestions
+          .map((q) => _formatQuestionFormat(q['questionFormat']))
+          .where((f) => f.isNotEmpty)
+          .toSet()
+          .toList();
+      final levels = loadedQuestions
+          .map((q) => q['difficultyLevel']?.toString() ?? '')
+          .where((l) => l.isNotEmpty)
+          .toSet()
+          .toList();
+
       setState(() {
         questions = loadedQuestions;
         _totalPages = response['totalPages'] ?? 1;
         _totalElements = response['totalElements'] ?? 0;
         selectedRows = List.generate(questions.length, (index) => false);
+        _questionFormatOptions = ['問題形式', ...formats];
+        _difficultyLevelOptions = ['難易度', ...levels];
         _isLoading = false;
       });
     } catch (e) {
@@ -256,7 +274,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
               Expanded(flex: 1, child: _buildCompactTextField('ID', idController)),
               const SizedBox(width: 12),
               Expanded(flex: 1, child: _buildCompactDropdown('問題形式', categoryFilter,
-                ['問題形式', '穴埋め', 'リスニング', '選択', '並び替え'], (value) {
+                _questionFormatOptions, (value) {
                 setState(() {
                   categoryFilter = value ?? '問題形式';
                 });
@@ -272,7 +290,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
               Expanded(flex: 1, child: _buildCompactTextField('問題文', questionController)),
               const SizedBox(width: 12),
               Expanded(flex: 1, child: _buildCompactDropdown('難易度', difficultyFilter,
-                ['難易度', '初級', '中級', '上級'], (value) {
+                _difficultyLevelOptions, (value) {
                 setState(() {
                   difficultyFilter = value ?? '難易度';
                 });

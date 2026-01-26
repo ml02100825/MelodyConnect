@@ -12,7 +12,6 @@ class Artist {
   final bool isActive;
   final DateTime addedDate;
   final DateTime? updatedDate;
-  final String? genreId;
   final String? artistApiId;
   final String? imageUrl;
   final int numericId;
@@ -25,7 +24,6 @@ class Artist {
     required this.isActive,
     required this.addedDate,
     this.updatedDate,
-    this.genreId,
     this.artistApiId,
     this.imageUrl,
     required this.numericId,
@@ -44,7 +42,6 @@ class Artist {
       updatedDate: json['lastSyncedAt'] != null
           ? DateTime.tryParse(json['lastSyncedAt'])
           : null,
-      genreId: json['genreId']?.toString(),
       artistApiId: json['artistApiId'],
       imageUrl: json['imageUrl'],
       numericId: json['artistId'] as int? ?? 0,
@@ -59,7 +56,6 @@ class Artist {
     bool? isActive,
     DateTime? addedDate,
     DateTime? updatedDate,
-    String? genreId,
     String? artistApiId,
     String? imageUrl,
     int? numericId,
@@ -72,7 +68,6 @@ class Artist {
       isActive: isActive ?? this.isActive,
       addedDate: addedDate ?? this.addedDate,
       updatedDate: updatedDate ?? this.updatedDate,
-      genreId: genreId ?? this.genreId,
       artistApiId: artistApiId ?? this.artistApiId,
       imageUrl: imageUrl ?? this.imageUrl,
       numericId: numericId ?? this.numericId,
@@ -111,18 +106,30 @@ class _ArtistAdminState extends State<ArtistAdmin> {
   bool _isLoading = false;
   String? _error;
 
-  // ジャンルオプション
-  final List<String> genreOptions = [
-    'ジャンル01',
-    'ジャンル02',
-    'ジャンル03',
-    'ジャンル04',
-  ];
+  // ジャンルオプション（APIから取得）
+  List<String> genreOptions = [];
 
   @override
   void initState() {
     super.initState();
+    _loadGenres();
     _loadFromApi();
+  }
+
+  Future<void> _loadGenres() async {
+    try {
+      final response = await AdminApiService.getGenres(size: 100);
+      final genres = (response['genres'] as List<dynamic>? ?? [])
+          .map((g) => g['name'] as String)
+          .toList();
+      if (mounted) {
+        setState(() {
+          genreOptions = genres;
+        });
+      }
+    } catch (e) {
+      // エラー時は空リストのまま
+    }
   }
 
   Future<void> _loadFromApi() async {

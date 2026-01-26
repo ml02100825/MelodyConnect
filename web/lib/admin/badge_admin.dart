@@ -102,6 +102,9 @@ class _BadgeAdminState extends State<BadgeAdmin> {
   bool _isLoading = false;
   String? _error;
 
+  // モードオプション（一覧から抽出）
+  List<String> _modeOptions = ['モード'];
+
   @override
   void initState() {
     super.initState();
@@ -132,11 +135,19 @@ class _BadgeAdminState extends State<BadgeAdmin> {
       final content = response['badges'] as List<dynamic>? ?? [];
       final loadedBadges = content.map((json) => Badge.fromJson(json)).toList();
 
+      // 一覧からユニークなモードを抽出
+      final modes = loadedBadges
+          .map((b) => b.mode)
+          .where((m) => m.isNotEmpty)
+          .toSet()
+          .toList();
+
       setState(() {
         badges = loadedBadges;
         _totalPages = response['totalPages'] ?? 1;
         _totalElements = response['totalElements'] ?? 0;
         selectedRows = List.generate(badges.length, (index) => false);
+        _modeOptions = ['モード', ...modes];
         _isLoading = false;
       });
     } catch (e) {
@@ -285,7 +296,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
               Expanded(flex: 1, child: _buildCompactTextField('ID', idController)),
               const SizedBox(width: 12),
               Expanded(flex: 1, child: _buildCompactDropdown('モード', modeFilter,
-                ['モード', '対戦', 'スラングアカウント', '楽曲', '単語', '問題', 'アーティスト'], (value) {
+                _modeOptions, (value) {
                 setState(() {
                   modeFilter = value ?? 'モード';
                 });

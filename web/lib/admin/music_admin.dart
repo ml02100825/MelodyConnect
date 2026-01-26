@@ -36,12 +36,32 @@ class _MusicAdminState extends State<MusicAdmin> {
   bool _isLoading = false;
   String? _error;
 
+  // ジャンルオプション（APIから取得）
+  List<String> _genreOptions = [];
+
   bool get hasSelection => _selectedIds.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
+    _loadGenres();
     _loadFromApi();
+  }
+
+  Future<void> _loadGenres() async {
+    try {
+      final response = await AdminApiService.getGenres(size: 100);
+      final genres = (response['genres'] as List<dynamic>? ?? [])
+          .map((g) => g['name'] as String)
+          .toList();
+      if (mounted) {
+        setState(() {
+          _genreOptions = genres;
+        });
+      }
+    } catch (e) {
+      // エラー時は空リストのまま
+    }
   }
 
   Future<void> _loadFromApi() async {
@@ -224,7 +244,7 @@ class _MusicAdminState extends State<MusicAdmin> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildDropdown('ジャンル', _selectedGenre, const ['ジャンル1', 'ジャンル2'], (value) {
+                child: _buildDropdown('ジャンル', _selectedGenre, _genreOptions, (value) {
                   setState(() {
                     _selectedGenre = value;
                   });
