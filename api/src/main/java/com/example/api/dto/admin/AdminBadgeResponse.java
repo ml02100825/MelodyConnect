@@ -9,7 +9,7 @@ public class AdminBadgeResponse {
     private String badgeName;
     private String acquisitionCondition;
     private String imageUrl;
-    private String mode;
+    private Integer mode;
     private Boolean isActive;
     private LocalDateTime createdAt;
 
@@ -21,8 +21,8 @@ public class AdminBadgeResponse {
     public void setAcquisitionCondition(String acquisitionCondition) { this.acquisitionCondition = acquisitionCondition; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
-    public String getMode() { return mode; }
-    public void setMode(String mode) { this.mode = mode; }
+    public Integer getMode() { return mode; }
+    public void setMode(Integer mode) { this.mode = mode; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public LocalDateTime getCreatedAt() { return createdAt; }

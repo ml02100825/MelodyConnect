@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,8 +33,11 @@ public class AdminArtistService {
     @Autowired
     private ArtistGenreRepository artistGenreRepository;
 
-    public AdminArtistResponse.ListResponse getArtists(int page, int size, String idSearch, String artistName, Boolean isActive) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "artistId"));
+    public AdminArtistResponse.ListResponse getArtists(
+            int page, int size, String idSearch, String artistName, String genreName, Boolean isActive,
+            LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
+        Sort.Direction direction = parseSortDirection(sortDirection);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "artistId"));
 
         Specification<Artist> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -43,10 +47,24 @@ public class AdminArtistService {
                 predicates.add(cb.like(root.get("artistName"), "%" + artistName + "%"));
             }
             if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.like(root.get("artistId").as(String.class), "%" + idSearch + "%"));
+                predicates.add(cb.equal(root.get("artistId").as(String.class), idSearch));
+            }
+            if (genreName != null && !genreName.isEmpty()) {
+                List<Long> artistIds = artistGenreRepository.findArtistIdsByGenreName(genreName);
+                if (artistIds.isEmpty()) {
+                    predicates.add(cb.disjunction());
+                } else {
+                    predicates.add(root.get("artistId").in(artistIds));
+                }
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
+            }
+            if (createdFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), createdFrom));
+            }
+            if (createdTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), createdTo));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -140,5 +158,12 @@ public class AdminArtistService {
         response.setCreatedAt(artist.getCreatedAt());
         response.setLastSyncedAt(artist.getLastSyncedAt());
         return response;
+    }
+
+    private Sort.Direction parseSortDirection(String sortDirection) {
+        if ("asc".equalsIgnoreCase(sortDirection)) {
+            return Sort.Direction.ASC;
+        }
+        return Sort.Direction.DESC;
     }
 }

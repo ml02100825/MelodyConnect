@@ -43,6 +43,7 @@ class _UserListAdminState extends State<UserListAdmin> {
   // ドロップダウン選択
   String freezeStatus = '全て';
   String subscStatus = '全て';
+  bool _sortAscending = false;
 
   @override
   void initState() {
@@ -65,9 +66,9 @@ class _UserListAdminState extends State<UserListAdmin> {
 
       bool? banFlag;
       if (freezeStatus == '停止中') {
-        banFlag = true;
-      } else if (freezeStatus == '有効') {
         banFlag = false;
+      } else if (freezeStatus == '有効') {
+        banFlag = true;
       }
 
       bool? subscribeFlag;
@@ -86,6 +87,11 @@ class _UserListAdminState extends State<UserListAdmin> {
         email: emailController.text.trim().isNotEmpty ? emailController.text.trim() : null,
         banFlag: banFlag,
         subscribeFlag: subscribeFlag,
+        createdFrom: createdStart,
+        createdTo: createdEnd,
+        offlineFrom: lastLoginStart,
+        offlineTo: lastLoginEnd,
+        sortDirection: _sortAscending ? 'asc' : 'desc',
       );
 
       final content = response['users'] as List<dynamic>? ?? [];
@@ -271,6 +277,11 @@ class _UserListAdminState extends State<UserListAdmin> {
         // 検索条件エリア
         _buildSearchArea(),
         SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _buildSortToggle(),
+        ),
+        SizedBox(height: 12),
 
         // ユーザー一覧テーブル
         Expanded(
@@ -536,10 +547,13 @@ class _UserListAdminState extends State<UserListAdmin> {
                   context: context,
                   initialDate: startDate ?? DateTime.now(),
                   firstDate: DateTime(2000),
-                  lastDate: DateTime(2100),
+                  lastDate: endDate ?? DateTime(2100),
                 );
                 if (date != null) {
                   onStartChanged(date);
+                  if (endDate != null && date.isAfter(endDate)) {
+                    onEndChanged(date);
+                  }
                 }
               },
               child: Container(
@@ -578,7 +592,7 @@ class _UserListAdminState extends State<UserListAdmin> {
                 final date = await showDatePicker(
                   context: context,
                   initialDate: endDate ?? startDate ?? DateTime.now(),
-                  firstDate: DateTime(2000),
+                  firstDate: startDate ?? DateTime(2000),
                   lastDate: DateTime(2100),
                 );
                 if (date != null) {
@@ -609,6 +623,22 @@ class _UserListAdminState extends State<UserListAdmin> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSortToggle() {
+    return OutlinedButton.icon(
+      onPressed: () {
+        setState(() {
+          _sortAscending = !_sortAscending;
+        });
+        _loadFromApi();
+      },
+      icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+      label: Text(_sortAscending ? '昇順' : '降順', style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       ),
     );
   }

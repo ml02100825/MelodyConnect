@@ -31,7 +31,7 @@ class Badge {
     return Badge(
       id: json['id']?.toString() ?? '',
       name: json['badgeName'] ?? json['badgename'] ?? '',
-      mode: json['mode'] ?? '',
+      mode: json['mode']?.toString() ?? '',
       condition: json['acquisitionCondition'] ?? json['acquisitionConditions'] ?? '',
       status: (json['isActive'] == true) ? '有効' : '無効',
       isActive: json['isActive'] == true,
@@ -90,6 +90,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
   String statusFilter = '状態';
   DateTime? startDate;
   DateTime? endDate;
+  bool _sortAscending = false;
 
   bool get hasSelection => selectedRows.any((selected) => selected);
 
@@ -105,11 +106,11 @@ class _BadgeAdminState extends State<BadgeAdmin> {
   // モードオプション（固定値）
   final List<String> _modeOptions = [
     'モード',
-    'CONTINUE',
-    'BATTLE',
-    'RANKING',
-    'COLLECT',
-    'SPECIAL',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
   ];
 
   @override
@@ -137,8 +138,14 @@ class _BadgeAdminState extends State<BadgeAdmin> {
         size: _pageSize,
         idSearch: idController.text.trim().isNotEmpty ? idController.text.trim() : null,
         badgeName: nameController.text.trim().isNotEmpty ? nameController.text.trim() : null,
+        acquisitionCondition: conditionController.text.trim().isNotEmpty
+            ? conditionController.text.trim()
+            : null,
         mode: _convertModeToInt(modeFilter),
         isActive: isActive,
+        createdFrom: startDate,
+        createdTo: endDate,
+        sortDirection: _sortAscending ? 'asc' : 'desc',
       );
 
       final content = response['badges'] as List<dynamic>? ?? [];
@@ -273,6 +280,11 @@ class _BadgeAdminState extends State<BadgeAdmin> {
       children: [
         _buildSearchArea(),
         const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _buildSortToggle(),
+        ),
+        const SizedBox(height: 16),
         Expanded(child: _buildDataList()),
         _buildPagination(),
         const SizedBox(height: 16),
@@ -426,20 +438,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
 
   int? _convertModeToInt(String modeStr) {
     if (modeStr == 'モード' || modeStr.isEmpty) return null;
-    switch (modeStr) {
-      case 'CONTINUE':
-        return 1;
-      case 'BATTLE':
-        return 2;
-      case 'RANKING':
-        return 3;
-      case 'COLLECT':
-        return 4;
-      case 'SPECIAL':
-        return 5;
-      default:
-        return null;
-    }
+    return int.tryParse(modeStr);
   }
 
   Widget _buildDateRangeCompact(String label) {
@@ -477,11 +476,14 @@ class _BadgeAdminState extends State<BadgeAdmin> {
                     context: context,
                     initialDate: startDate ?? DateTime.now(),
                     firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
+                    lastDate: endDate ?? DateTime(2100),
                   );
                   if (picked != null) {
                     setState(() {
                       startDate = picked;
+                      if (endDate != null && picked.isAfter(endDate!)) {
+                        endDate = picked;
+                      }
                     });
                   }
                 },
@@ -517,7 +519,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
                   final DateTime? picked = await showDatePicker(
                     context: context,
                     initialDate: endDate ?? startDate ?? DateTime.now(),
-                    firstDate: DateTime(2000),
+                    firstDate: startDate ?? DateTime(2000),
                     lastDate: DateTime(2100),
                   );
                   if (picked != null) {
@@ -531,6 +533,22 @@ class _BadgeAdminState extends State<BadgeAdmin> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildSortToggle() {
+    return OutlinedButton.icon(
+      onPressed: () {
+        setState(() {
+          _sortAscending = !_sortAscending;
+        });
+        _loadFromApi();
+      },
+      icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+      label: Text(_sortAscending ? '昇順' : '降順', style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      ),
     );
   }
 

@@ -19,9 +19,9 @@ class _MusicAdminState extends State<MusicAdmin> {
   final TextEditingController _idController = TextEditingController();
   final TextEditingController _songNameController = TextEditingController();
   final TextEditingController _artistController = TextEditingController();
-  final TextEditingController _languageController = TextEditingController();
   DateTime? startDate;
   DateTime? endDate;
+  bool _sortAscending = false;
 
   String? _selectedStatus;
 
@@ -57,9 +57,9 @@ class _MusicAdminState extends State<MusicAdmin> {
         isActive = false;
       }
 
-      int? artistId;
+      String? artistName;
       if (_artistController.text.trim().isNotEmpty) {
-        artistId = int.tryParse(_artistController.text.trim());
+        artistName = _artistController.text.trim();
       }
 
       final String? idSearch =
@@ -70,9 +70,11 @@ class _MusicAdminState extends State<MusicAdmin> {
         size: _pageSize,
         idSearch: idSearch,
         songname: _songNameController.text.trim().isNotEmpty ? _songNameController.text.trim() : null,
-        artistId: artistId,
-        language: _languageController.text.trim().isNotEmpty ? _languageController.text.trim() : null,
+        artistName: artistName,
         isActive: isActive,
+        createdFrom: startDate,
+        createdTo: endDate,
+        sortDirection: _sortAscending ? 'asc' : 'desc',
       );
 
       final content = response['songs'] as List<dynamic>? ?? [];
@@ -116,7 +118,6 @@ class _MusicAdminState extends State<MusicAdmin> {
       _idController.clear();
       _songNameController.clear();
       _artistController.clear();
-      _languageController.clear();
       startDate = null;
       endDate = null;
       _selectedStatus = null;
@@ -207,6 +208,11 @@ class _MusicAdminState extends State<MusicAdmin> {
       children: [
         _buildSearchArea(),
         const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _buildSortToggle(),
+        ),
+        const SizedBox(height: 16),
         Expanded(child: _buildDataTable()),
         _buildPagination(),
         const SizedBox(height: 16),
@@ -251,9 +257,7 @@ class _MusicAdminState extends State<MusicAdmin> {
                 child: _buildSearchField('楽曲名', _songNameController),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildSearchField('言語', _languageController),
-              ),
+              const Expanded(child: SizedBox()),
               const SizedBox(width: 12),
               const Expanded(child: SizedBox()),
             ],
@@ -396,11 +400,14 @@ class _MusicAdminState extends State<MusicAdmin> {
                     context: context,
                     initialDate: startDate ?? DateTime.now(),
                     firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
+                    lastDate: endDate ?? DateTime(2100),
                   );
                   if (picked != null) {
                     setState(() {
                       startDate = picked;
+                      if (endDate != null && picked.isAfter(endDate!)) {
+                        endDate = picked;
+                      }
                     });
                   }
                 },
@@ -436,7 +443,7 @@ class _MusicAdminState extends State<MusicAdmin> {
                   final DateTime? picked = await showDatePicker(
                     context: context,
                     initialDate: endDate ?? startDate ?? DateTime.now(),
-                    firstDate: DateTime(2000),
+                    firstDate: startDate ?? DateTime(2000),
                     lastDate: DateTime(2100),
                   );
                   if (picked != null) {
@@ -627,6 +634,22 @@ class _MusicAdminState extends State<MusicAdmin> {
     );
   }
 
+  Widget _buildSortToggle() {
+    return OutlinedButton.icon(
+      onPressed: () {
+        setState(() {
+          _sortAscending = !_sortAscending;
+        });
+        _loadFromApi();
+      },
+      icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+      label: Text(_sortAscending ? '昇順' : '降順', style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      ),
+    );
+  }
+
   Widget _buildErrorView() {
     return Center(
       child: Padding(
@@ -812,7 +835,6 @@ class _MusicAdminState extends State<MusicAdmin> {
     _idController.dispose();
     _songNameController.dispose();
     _artistController.dispose();
-    _languageController.dispose();
     super.dispose();
   }
 }

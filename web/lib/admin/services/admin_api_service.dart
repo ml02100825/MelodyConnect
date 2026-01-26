@@ -115,6 +115,16 @@ class AdminApiService {
     };
   }
 
+  static String _toIsoStart(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day);
+    return normalized.toIso8601String();
+  }
+
+  static String _toIsoEnd(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+    return normalized.toIso8601String();
+  }
+
   // ========== ユーザー管理API ==========
 
   static Future<Map<String, dynamic>> getUsers({
@@ -126,6 +136,11 @@ class AdminApiService {
     String? email,
     bool? banFlag,
     bool? subscribeFlag,
+    DateTime? createdFrom,
+    DateTime? createdTo,
+    DateTime? offlineFrom,
+    DateTime? offlineTo,
+    String? sortDirection,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
@@ -137,6 +152,11 @@ class AdminApiService {
     if (email != null) queryParams['email'] = email;
     if (banFlag != null) queryParams['banFlag'] = banFlag.toString();
     if (subscribeFlag != null) queryParams['subscribeFlag'] = subscribeFlag.toString();
+    if (createdFrom != null) queryParams['createdFrom'] = _toIsoStart(createdFrom);
+    if (createdTo != null) queryParams['createdTo'] = _toIsoEnd(createdTo);
+    if (offlineFrom != null) queryParams['offlineFrom'] = _toIsoStart(offlineFrom);
+    if (offlineTo != null) queryParams['offlineTo'] = _toIsoEnd(offlineTo);
+    if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/users', queryParams: queryParams);
     return jsonDecode(response.body);
@@ -166,6 +186,9 @@ class AdminApiService {
     String? word,
     String? partOfSpeech,
     bool? isActive,
+    DateTime? createdFrom,
+    DateTime? createdTo,
+    String? sortDirection,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
@@ -175,6 +198,9 @@ class AdminApiService {
     if (word != null) queryParams['word'] = word;
     if (partOfSpeech != null) queryParams['partOfSpeech'] = partOfSpeech;
     if (isActive != null) queryParams['isActive'] = isActive.toString();
+    if (createdFrom != null) queryParams['createdFrom'] = _toIsoStart(createdFrom);
+    if (createdTo != null) queryParams['createdTo'] = _toIsoEnd(createdTo);
+    if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/vocabularies', queryParams: queryParams);
     return jsonDecode(response.body);
@@ -220,6 +246,13 @@ class AdminApiService {
     String? language,
     int? difficultyLevel,
     bool? isActive,
+    String? questionText,
+    String? answer,
+    String? songName,
+    String? artistName,
+    DateTime? addedFrom,
+    DateTime? addedTo,
+    String? sortDirection,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
@@ -231,6 +264,13 @@ class AdminApiService {
     if (language != null) queryParams['language'] = language;
     if (difficultyLevel != null) queryParams['difficultyLevel'] = difficultyLevel.toString();
     if (isActive != null) queryParams['isActive'] = isActive.toString();
+    if (questionText != null) queryParams['questionText'] = questionText;
+    if (answer != null) queryParams['answer'] = answer;
+    if (songName != null) queryParams['songName'] = songName;
+    if (artistName != null) queryParams['artistName'] = artistName;
+    if (addedFrom != null) queryParams['addedFrom'] = _toIsoStart(addedFrom);
+    if (addedTo != null) queryParams['addedTo'] = _toIsoEnd(addedTo);
+    if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/questions', queryParams: queryParams);
     return jsonDecode(response.body);
@@ -272,9 +312,11 @@ class AdminApiService {
     int size = 20,
     String? idSearch,
     String? songname,
-    int? artistId,
-    String? language,
+    String? artistName,
     bool? isActive,
+    DateTime? createdFrom,
+    DateTime? createdTo,
+    String? sortDirection,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
@@ -282,9 +324,11 @@ class AdminApiService {
     };
     if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (songname != null) queryParams['songname'] = songname;
-    if (artistId != null) queryParams['artistId'] = artistId.toString();
-    if (language != null) queryParams['language'] = language;
+    if (artistName != null) queryParams['artistName'] = artistName;
     if (isActive != null) queryParams['isActive'] = isActive.toString();
+    if (createdFrom != null) queryParams['createdFrom'] = _toIsoStart(createdFrom);
+    if (createdTo != null) queryParams['createdTo'] = _toIsoEnd(createdTo);
+    if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/songs', queryParams: queryParams);
     return jsonDecode(response.body);
@@ -327,6 +371,10 @@ class AdminApiService {
     String? idSearch,
     String? artistName,
     bool? isActive,
+    String? genreName,
+    DateTime? createdFrom,
+    DateTime? createdTo,
+    String? sortDirection,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
@@ -335,6 +383,10 @@ class AdminApiService {
     if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (artistName != null) queryParams['artistName'] = artistName;
     if (isActive != null) queryParams['isActive'] = isActive.toString();
+    if (genreName != null) queryParams['genreName'] = genreName;
+    if (createdFrom != null) queryParams['createdFrom'] = _toIsoStart(createdFrom);
+    if (createdTo != null) queryParams['createdTo'] = _toIsoEnd(createdTo);
+    if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/artists', queryParams: queryParams);
     return jsonDecode(response.body);
@@ -377,6 +429,9 @@ class AdminApiService {
     String? idSearch,
     String? name,
     bool? isActive,
+    DateTime? createdFrom,
+    DateTime? createdTo,
+    String? sortDirection,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
@@ -385,6 +440,9 @@ class AdminApiService {
     if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (name != null) queryParams['name'] = name;
     if (isActive != null) queryParams['isActive'] = isActive.toString();
+    if (createdFrom != null) queryParams['createdFrom'] = _toIsoStart(createdFrom);
+    if (createdTo != null) queryParams['createdTo'] = _toIsoEnd(createdTo);
+    if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/genres', queryParams: queryParams);
     return jsonDecode(response.body);
@@ -426,8 +484,12 @@ class AdminApiService {
     int size = 20,
     String? idSearch,
     String? badgeName,
+    String? acquisitionCondition,
     int? mode,
     bool? isActive,
+    DateTime? createdFrom,
+    DateTime? createdTo,
+    String? sortDirection,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
@@ -435,8 +497,12 @@ class AdminApiService {
     };
     if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (badgeName != null) queryParams['badgeName'] = badgeName;
+    if (acquisitionCondition != null) queryParams['acquisitionCondition'] = acquisitionCondition;
     if (mode != null) queryParams['mode'] = mode.toString();
     if (isActive != null) queryParams['isActive'] = isActive.toString();
+    if (createdFrom != null) queryParams['createdFrom'] = _toIsoStart(createdFrom);
+    if (createdTo != null) queryParams['createdTo'] = _toIsoEnd(createdTo);
+    if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/badges', queryParams: queryParams);
     return jsonDecode(response.body);
@@ -448,12 +514,28 @@ class AdminApiService {
   }
 
   static Future<Map<String, dynamic>> createBadge(Map<String, dynamic> data) async {
-    final response = await post('/api/admin/badges', body: data);
+    final payload = Map<String, dynamic>.from(data);
+    final modeValue = payload['mode'];
+    if (modeValue is String) {
+      final parsed = int.tryParse(modeValue);
+      if (parsed != null) {
+        payload['mode'] = parsed;
+      }
+    }
+    final response = await post('/api/admin/badges', body: payload);
     return jsonDecode(response.body);
   }
 
   static Future<Map<String, dynamic>> updateBadge(int badgeId, Map<String, dynamic> data) async {
-    final response = await put('/api/admin/badges/$badgeId', body: data);
+    final payload = Map<String, dynamic>.from(data);
+    final modeValue = payload['mode'];
+    if (modeValue is String) {
+      final parsed = int.tryParse(modeValue);
+      if (parsed != null) {
+        payload['mode'] = parsed;
+      }
+    }
+    final response = await put('/api/admin/badges/$badgeId', body: payload);
     return jsonDecode(response.body);
   }
 

@@ -26,6 +26,12 @@ public interface ArtistRepository extends JpaRepository<Artist, Long>, JpaSpecif
      * アーティストAPI IDで検索
      */
     Optional<Artist> findByArtistApiId(String artistApiId);
+
+    /**
+     * アーティスト名の部分一致でID一覧を取得
+     */
+    @Query("SELECT a.artistId FROM Artist a WHERE a.artistName LIKE %:artistName%")
+    List<Long> findArtistIdsByArtistNameContaining(@Param("artistName") String artistName);
     /**
      * 指定日時以降に同期されていないアーティストを取得
      * lastSyncedAtがnullまたは指定日時より前のアーティストを返す

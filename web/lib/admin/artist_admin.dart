@@ -97,6 +97,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
   String? statusFilter;
   DateTime? addedStart;
   DateTime? addedEnd;
+  bool _sortAscending = false;
 
   // API連携用
   int _currentPage = 0;
@@ -152,6 +153,10 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         idSearch: idSearch.trim().isNotEmpty ? idSearch.trim() : null,
         artistName: artistSearch.trim().isNotEmpty ? artistSearch.trim() : null,
         isActive: isActive,
+        genreName: genreFilter,
+        createdFrom: addedStart,
+        createdTo: addedEnd,
+        sortDirection: _sortAscending ? 'asc' : 'desc',
       );
 
       final content = response['artists'] as List<dynamic>? ?? [];
@@ -360,6 +365,11 @@ class _ArtistAdminState extends State<ArtistAdmin> {
         // 検索条件エリア
         _buildVerticalSearchArea(),
         const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _buildSortToggle(),
+        ),
+        const SizedBox(height: 16),
 
         // アーティスト一覧テーブル
         Expanded(
@@ -534,10 +544,13 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                           context: context,
                           initialDate: startDate ?? DateTime.now(),
                           firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
+                          lastDate: endDate ?? DateTime(2100),
                         );
                         if (date != null) {
                           onStartChanged(date);
+                          if (endDate != null && date.isAfter(endDate)) {
+                            onEndChanged(date);
+                          }
                           setState(() {});
                         }
                       },
@@ -577,7 +590,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                         final date = await showDatePicker(
                           context: context,
                           initialDate: endDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
+                          firstDate: startDate ?? DateTime(2000),
                           lastDate: DateTime(2100),
                         );
                         if (date != null) {
@@ -653,6 +666,22 @@ class _ArtistAdminState extends State<ArtistAdmin> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSortToggle() {
+    return OutlinedButton.icon(
+      onPressed: () {
+        setState(() {
+          _sortAscending = !_sortAscending;
+        });
+        _loadFromApi();
+      },
+      icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+      label: Text(_sortAscending ? '昇順' : '降順', style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      ),
     );
   }
 

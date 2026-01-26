@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,8 +29,11 @@ public class AdminGenreService {
     @Autowired
     private GenreRepository genreRepository;
 
-    public AdminGenreResponse.ListResponse getGenres(int page, int size, String idSearch, String name, Boolean isActive) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+    public AdminGenreResponse.ListResponse getGenres(
+            int page, int size, String idSearch, String name, Boolean isActive,
+            LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
+        Sort.Direction direction = parseSortDirection(sortDirection);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "id"));
 
         Specification<Genre> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -39,10 +43,16 @@ public class AdminGenreService {
                 predicates.add(cb.like(root.get("name"), "%" + name + "%"));
             }
             if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.like(root.get("id").as(String.class), "%" + idSearch + "%"));
+                predicates.add(cb.equal(root.get("id").as(String.class), idSearch));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
+            }
+            if (createdFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), createdFrom));
+            }
+            if (createdTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), createdTo));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -126,5 +136,12 @@ public class AdminGenreService {
         response.setIsActive(genre.getIsActive());
         response.setCreatedAt(genre.getCreatedAt());
         return response;
+    }
+
+    private Sort.Direction parseSortDirection(String sortDirection) {
+        if ("asc".equalsIgnoreCase(sortDirection)) {
+            return Sort.Direction.ASC;
+        }
+        return Sort.Direction.DESC;
     }
 }
