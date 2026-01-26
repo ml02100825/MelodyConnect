@@ -78,10 +78,16 @@ class _MusicAdminState extends State<MusicAdmin> {
         isActive = false;
       }
 
+      int? artistId;
+      if (_artistController.text.trim().isNotEmpty) {
+        artistId = int.tryParse(_artistController.text.trim());
+      }
+
       final response = await AdminApiService.getSongs(
         page: _currentPage,
         size: _pageSize,
         songname: _songNameController.text.trim().isNotEmpty ? _songNameController.text.trim() : null,
+        artistId: artistId,
         language: _languageController.text.trim().isNotEmpty ? _languageController.text.trim() : null,
         isActive: isActive,
       );
@@ -91,6 +97,7 @@ class _MusicAdminState extends State<MusicAdmin> {
         return {
           'songId': json['songId'] ?? 0,
           'artistId': json['artistId'] ?? 0,
+          'artistName': json['artistName'] ?? '',
           'songname': json['songname'] ?? '',
           'spotifyTrackId': json['spotifyTrackId'] ?? '',
           'geniusSongId': json['geniusSongId'] ?? '',
@@ -516,6 +523,14 @@ class _MusicAdminState extends State<MusicAdmin> {
                   ),
                 ),
                 const Expanded(
+                  flex: 2,
+                  child: Text(
+                    'アーティスト',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const Expanded(
                   flex: 1,
                   child: Text(
                     '状態',
@@ -604,6 +619,14 @@ class _MusicAdminState extends State<MusicAdmin> {
                                             decoration: TextDecoration.underline,
                                           ),
                                         ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        item['artistName'] as String,
+                                        style: const TextStyle(fontSize: 13),
+                                        textAlign: TextAlign.center,
                                       ),
                                     ),
                                     Expanded(

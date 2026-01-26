@@ -30,9 +30,9 @@ class Badge {
   factory Badge.fromJson(Map<String, dynamic> json) {
     return Badge(
       id: json['id']?.toString() ?? '',
-      name: json['badgename'] ?? '',
+      name: json['badgeName'] ?? json['badgename'] ?? '',
       mode: json['mode'] ?? '',
-      condition: json['acquisitionConditions'] ?? '',
+      condition: json['acquisitionCondition'] ?? json['acquisitionConditions'] ?? '',
       status: (json['isActive'] == true) ? '有効' : '無効',
       isActive: json['isActive'] == true,
       addedDate: json['createdAt'] != null

@@ -105,7 +105,7 @@ class _GenreAdminState extends State<GenreAdmin> {
       final response = await AdminApiService.getGenres(
         page: _currentPage,
         size: _pageSize,
-        name: genreSearch.isNotEmpty ? genreSearch : null,
+        name: genreSearch.trim().isNotEmpty ? genreSearch.trim() : null,
       );
 
       final content = response['genres'] as List<dynamic>? ?? [];

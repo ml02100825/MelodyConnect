@@ -73,9 +73,21 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         isActive = false;
       }
 
+      int? songId;
+      if (idController.text.trim().isNotEmpty) {
+        songId = int.tryParse(idController.text.trim());
+      }
+
+      int? artistId;
+      if (artistController.text.trim().isNotEmpty) {
+        artistId = int.tryParse(artistController.text.trim());
+      }
+
       final response = await AdminApiService.getQuestions(
         page: _currentPage,
         size: _pageSize,
+        songId: songId,
+        artistId: artistId,
         questionFormat: questionFormat,
         isActive: isActive,
       );
@@ -510,6 +522,11 @@ class _MondaiAdminState extends State<MondaiAdmin> {
     }
   }
 
+  String _truncateToFiveChars(String text) {
+    if (text.length <= 5) return text;
+    return '${text.substring(0, 5)}...';
+  }
+
   Widget _buildDataList() {
     return Container(
       decoration: BoxDecoration(
@@ -539,7 +556,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                   ),
                 ),
                 _buildListHeader('ID\n問題形式', 80),
-                _buildListHeader('問題文\n知識', 250),
+                _buildListHeader('問題文\n和訳', 250),
                 _buildListHeader('正答', 150),
                 _buildListHeader('楽曲名\nアーティスト名', 180),
                 _buildListHeader('状態', 80),
@@ -589,7 +606,9 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            _formatQuestionFormat(question['questionFormat'] as String?),
+                                            _truncateToFiveChars(
+                                              _formatQuestionFormat(question['questionFormat'] as String?),
+                                            ),
                                             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                                           ),
                                         ],
@@ -636,10 +655,10 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
-                                            if (question['text'].contains('\n')) ...[
+                                            if ((question['translationJa'] ?? '').toString().isNotEmpty) ...[
                                               const SizedBox(height: 4),
                                               Text(
-                                                question['text'].split('\n')[1],
+                                                question['translationJa'] ?? '',
                                                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
