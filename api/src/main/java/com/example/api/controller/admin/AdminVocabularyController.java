@@ -31,11 +31,12 @@ public class AdminVocabularyController {
     public ResponseEntity<?> getVocabularies(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String idSearch,
             @RequestParam(required = false) String word,
-            @RequestParam(required = false) String language,
+            @RequestParam(required = false) String partOfSpeech,
             @RequestParam(required = false) Boolean isActive) {
         try {
-            return ResponseEntity.ok(adminVocabularyService.getVocabularies(page, size, word, language, isActive));
+            return ResponseEntity.ok(adminVocabularyService.getVocabularies(page, size, idSearch, word, partOfSpeech, isActive));
         } catch (Exception e) {
             logger.error("単語一覧取得エラー", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("単語一覧の取得に失敗しました"));

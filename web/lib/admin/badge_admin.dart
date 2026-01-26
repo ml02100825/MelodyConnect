@@ -102,8 +102,15 @@ class _BadgeAdminState extends State<BadgeAdmin> {
   bool _isLoading = false;
   String? _error;
 
-  // モードオプション（一覧から抽出）
-  List<String> _modeOptions = ['モード'];
+  // モードオプション（固定値）
+  final List<String> _modeOptions = [
+    'モード',
+    'CONTINUE',
+    'BATTLE',
+    'RANKING',
+    'COLLECT',
+    'SPECIAL',
+  ];
 
   @override
   void initState() {
@@ -128,26 +135,20 @@ class _BadgeAdminState extends State<BadgeAdmin> {
       final response = await AdminApiService.getBadges(
         page: _currentPage,
         size: _pageSize,
+        idSearch: idController.text.trim().isNotEmpty ? idController.text.trim() : null,
         badgeName: nameController.text.trim().isNotEmpty ? nameController.text.trim() : null,
+        mode: _convertModeToInt(modeFilter),
         isActive: isActive,
       );
 
       final content = response['badges'] as List<dynamic>? ?? [];
       final loadedBadges = content.map((json) => Badge.fromJson(json)).toList();
 
-      // 一覧からユニークなモードを抽出
-      final modes = loadedBadges
-          .map((b) => b.mode)
-          .where((m) => m.isNotEmpty)
-          .toSet()
-          .toList();
-
       setState(() {
         badges = loadedBadges;
         _totalPages = response['totalPages'] ?? 1;
         _totalElements = response['totalElements'] ?? 0;
         selectedRows = List.generate(badges.length, (index) => false);
-        _modeOptions = ['モード', ...modes];
         _isLoading = false;
       });
     } catch (e) {
@@ -381,10 +382,18 @@ class _BadgeAdminState extends State<BadgeAdmin> {
   }
 
   Widget _buildCompactDropdown(String label, String value, List<String> items, Function(String?) onChanged) {
+    final uniqueItems = items.toSet().toList();
+    final selectedValue = uniqueItems.contains(value) ? value : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           decoration: InputDecoration(
@@ -396,17 +405,41 @@ class _BadgeAdminState extends State<BadgeAdmin> {
             filled: true,
             fillColor: Colors.white,
           ),
-          value: value,
-          items: items
+          value: selectedValue,
+          items: uniqueItems
               .map((item) => DropdownMenuItem(
                     value: item,
-                    child: Text(item, style: const TextStyle(fontSize: 13)),
+                    child: Text(
+                      item,
+                      style: const TextStyle(fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
                   ))
               .toList(),
           onChanged: onChanged,
         ),
       ],
     );
+  }
+
+  int? _convertModeToInt(String modeStr) {
+    if (modeStr == 'モード' || modeStr.isEmpty) return null;
+    switch (modeStr) {
+      case 'CONTINUE':
+        return 1;
+      case 'BATTLE':
+        return 2;
+      case 'RANKING':
+        return 3;
+      case 'COLLECT':
+        return 4;
+      case 'SPECIAL':
+        return 5;
+      default:
+        return null;
+    }
   }
 
   Widget _buildDateRangeCompact(String label) {

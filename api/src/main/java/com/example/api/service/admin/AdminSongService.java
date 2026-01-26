@@ -36,7 +36,8 @@ public class AdminSongService {
     @Autowired
     private ArtistRepository artistRepository;
 
-    public AdminSongResponse.ListResponse getSongs(int page, int size, String songname, Long artistId, String language, Boolean isActive) {
+    public AdminSongResponse.ListResponse getSongs(
+            int page, int size, String idSearch, String songname, Long artistId, String language, Boolean isActive) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "songId"));
 
         Specification<Song> spec = (root, query, cb) -> {
@@ -45,6 +46,9 @@ public class AdminSongService {
 
             if (songname != null && !songname.isEmpty()) {
                 predicates.add(cb.like(root.get("songname"), "%" + songname + "%"));
+            }
+            if (idSearch != null && !idSearch.isEmpty()) {
+                predicates.add(cb.like(root.get("songId").as(String.class), "%" + idSearch + "%"));
             }
             if (artistId != null) {
                 predicates.add(cb.equal(root.get("artistId"), artistId));

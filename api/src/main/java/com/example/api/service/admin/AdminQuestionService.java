@@ -44,7 +44,8 @@ public class AdminQuestionService {
 
     @Transactional(readOnly = true)
     public AdminQuestionResponse.ListResponse getQuestions(
-            int page, int size, Long songId, Long artistId, String questionFormat, String language, Boolean isActive) {
+            int page, int size, String idSearch, Long artistId, String questionFormat, String language,
+            Integer difficultyLevel, Boolean isActive) {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "questionId"));
 
@@ -52,17 +53,20 @@ public class AdminQuestionService {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
 
-            if (songId != null) {
-                predicates.add(cb.equal(root.get("song").get("songId"), songId));
+            if (idSearch != null && !idSearch.isEmpty()) {
+                predicates.add(cb.like(root.get("questionId").as(String.class), "%" + idSearch + "%"));
             }
             if (artistId != null) {
                 predicates.add(cb.equal(root.get("artist").get("artistId"), artistId));
             }
             if (questionFormat != null && !questionFormat.isEmpty()) {
-                predicates.add(cb.equal(root.get("questionFormat"), QuestionFormat.valueOf(questionFormat)));
+                predicates.add(cb.equal(root.get("questionFormat"), parseQuestionFormat(questionFormat)));
             }
             if (language != null && !language.isEmpty()) {
                 predicates.add(cb.equal(root.get("language"), language));
+            }
+            if (difficultyLevel != null) {
+                predicates.add(cb.equal(root.get("difficultyLevel"), difficultyLevel));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
@@ -159,7 +163,7 @@ public class AdminQuestionService {
         question.setText(request.getText());
         question.setAnswer(request.getAnswer());
         question.setCompleteSentence(request.getCompleteSentence());
-        question.setQuestionFormat(QuestionFormat.valueOf(request.getQuestionFormat()));
+        question.setQuestionFormat(parseQuestionFormat(request.getQuestionFormat()));
         question.setDifficultyLevel(request.getDifficultyLevel());
         question.setLanguage(request.getLanguage());
         question.setTranslationJa(request.getTranslationJa());
@@ -177,7 +181,7 @@ public class AdminQuestionService {
         response.setText(question.getText());
         response.setAnswer(question.getAnswer());
         response.setCompleteSentence(question.getCompleteSentence());
-        response.setQuestionFormat(question.getQuestionFormat().name());
+        response.setQuestionFormat(formatQuestionFormat(question.getQuestionFormat()));
         response.setDifficultyLevel(question.getDifficultyLevel());
         response.setLanguage(question.getLanguage());
         response.setTranslationJa(question.getTranslationJa());
@@ -185,5 +189,28 @@ public class AdminQuestionService {
         response.setIsActive(question.getIsActive());
         response.setAddingAt(question.getAddingAt());
         return response;
+    }
+
+    private QuestionFormat parseQuestionFormat(String questionFormat) {
+        if (questionFormat == null || questionFormat.isEmpty()) {
+            throw new IllegalArgumentException("問題形式が指定されていません");
+        }
+        switch (questionFormat) {
+            case "FILL_IN_BLANK":
+            case "FILL_IN_THE_BLANK":
+            case "FILL_BLANK":
+                return QuestionFormat.FILL_IN_THE_BLANK;
+            case "LISTENING":
+                return QuestionFormat.LISTENING;
+            default:
+                return QuestionFormat.valueOf(questionFormat);
+        }
+    }
+
+    private String formatQuestionFormat(QuestionFormat format) {
+        if (format == QuestionFormat.FILL_IN_THE_BLANK) {
+            return "FILL_IN_BLANK";
+        }
+        return format.name();
     }
 }

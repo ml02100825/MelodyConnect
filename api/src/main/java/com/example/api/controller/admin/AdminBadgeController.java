@@ -28,10 +28,12 @@ public class AdminBadgeController {
     public ResponseEntity<?> getBadges(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String idSearch,
             @RequestParam(required = false) String badgeName,
+            @RequestParam(required = false) Integer mode,
             @RequestParam(required = false) Boolean isActive) {
         try {
-            return ResponseEntity.ok(adminBadgeService.getBadges(page, size, badgeName, isActive));
+            return ResponseEntity.ok(adminBadgeService.getBadges(page, size, idSearch, badgeName, mode, isActive));
         } catch (Exception e) {
             logger.error("バッジ一覧取得エラー", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("バッジ一覧の取得に失敗しました"));

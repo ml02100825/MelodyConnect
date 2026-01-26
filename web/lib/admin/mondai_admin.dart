@@ -60,10 +60,8 @@ class _MondaiAdminState extends State<MondaiAdmin> {
       String? questionFormat;
       if (categoryFilter != '問題形式') {
         // API側のフォーマットに変換
-        if (categoryFilter == '穴埋め') questionFormat = 'FILL_BLANK';
+        if (categoryFilter == '穴埋め') questionFormat = 'FILL_IN_BLANK';
         if (categoryFilter == 'リスニング') questionFormat = 'LISTENING';
-        if (categoryFilter == '選択') questionFormat = 'CHOICE';
-        if (categoryFilter == '並び替え') questionFormat = 'SORT';
       }
 
       bool? isActive;
@@ -73,9 +71,9 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         isActive = false;
       }
 
-      int? songId;
+      String? idSearch;
       if (idController.text.trim().isNotEmpty) {
-        songId = int.tryParse(idController.text.trim());
+        idSearch = idController.text.trim();
       }
 
       int? artistId;
@@ -83,12 +81,18 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         artistId = int.tryParse(artistController.text.trim());
       }
 
+      int? difficultyLevel;
+      if (difficultyFilter != '難易度') {
+        difficultyLevel = int.tryParse(difficultyFilter);
+      }
+
       final response = await AdminApiService.getQuestions(
         page: _currentPage,
         size: _pageSize,
-        songId: songId,
+        idSearch: idSearch,
         artistId: artistId,
         questionFormat: questionFormat,
+        difficultyLevel: difficultyLevel,
         isActive: isActive,
       );
 
@@ -118,15 +122,18 @@ class _MondaiAdminState extends State<MondaiAdmin> {
 
       // 一覧からユニークな問題形式と難易度を抽出
       final formats = loadedQuestions
-          .map((q) => _formatQuestionFormat(q['questionFormat']))
+          .map((q) => _formatQuestionFormat(q['questionFormat'] as String?))
           .where((f) => f.isNotEmpty)
           .toSet()
           .toList();
       final levels = loadedQuestions
-          .map((q) => q['difficultyLevel']?.toString() ?? '')
-          .where((l) => l.isNotEmpty)
+          .map((q) => q['difficultyLevel'])
+          .where((l) => l != null)
+          .map((l) => int.tryParse(l.toString()))
+          .whereType<int>()
           .toSet()
-          .toList();
+          .toList()
+        ..sort();
 
       setState(() {
         questions = loadedQuestions;
@@ -134,7 +141,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
         _totalElements = response['totalElements'] ?? 0;
         selectedRows = List.generate(questions.length, (index) => false);
         _questionFormatOptions = ['問題形式', ...formats];
-        _difficultyLevelOptions = ['難易度', ...levels];
+        _difficultyLevelOptions = ['難易度', ...levels.map((level) => level.toString())];
         _isLoading = false;
       });
     } catch (e) {
@@ -387,10 +394,18 @@ class _MondaiAdminState extends State<MondaiAdmin> {
   }
 
   Widget _buildCompactDropdown(String label, String value, List<String> items, Function(String?) onChanged) {
+    final uniqueItems = items.toSet().toList();
+    final selectedValue = uniqueItems.contains(value) ? value : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           decoration: InputDecoration(
@@ -402,11 +417,17 @@ class _MondaiAdminState extends State<MondaiAdmin> {
             filled: true,
             fillColor: Colors.white,
           ),
-          value: value,
-          items: items
+          value: selectedValue,
+          items: uniqueItems
               .map((item) => DropdownMenuItem(
                     value: item,
-                    child: Text(item, style: const TextStyle(fontSize: 13)),
+                    child: Text(
+                      item,
+                      style: const TextStyle(fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
                   ))
               .toList(),
           onChanged: onChanged,
@@ -509,16 +530,13 @@ class _MondaiAdminState extends State<MondaiAdmin> {
 
   String _formatQuestionFormat(String? format) {
     switch (format) {
-      case 'FILL_BLANK':
+      case 'FILL_IN_BLANK':
+      case 'FILL_IN_THE_BLANK':
         return '穴埋め';
       case 'LISTENING':
         return 'リスニング';
-      case 'CHOICE':
-        return '選択';
-      case 'SORT':
-        return '並び替え';
       default:
-        return '穴埋め';
+        return '';
     }
   }
 
@@ -555,7 +573,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                     },
                   ),
                 ),
-                _buildListHeader('ID\n問題形式', 80),
+                _buildListHeader('ID/問題形式', 80),
                 _buildListHeader('問題文\n和訳', 250),
                 _buildListHeader('正答', 150),
                 _buildListHeader('楽曲名\nアーティスト名', 180),
@@ -610,6 +628,9 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                               _formatQuestionFormat(question['questionFormat'] as String?),
                                             ),
                                             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            softWrap: false,
                                           ),
                                         ],
                                       ),

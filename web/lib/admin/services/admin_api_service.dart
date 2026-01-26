@@ -162,16 +162,18 @@ class AdminApiService {
   static Future<Map<String, dynamic>> getVocabularies({
     int page = 0,
     int size = 20,
+    String? idSearch,
     String? word,
-    String? language,
+    String? partOfSpeech,
     bool? isActive,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
       'size': size.toString(),
     };
+    if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (word != null) queryParams['word'] = word;
-    if (language != null) queryParams['language'] = language;
+    if (partOfSpeech != null) queryParams['partOfSpeech'] = partOfSpeech;
     if (isActive != null) queryParams['isActive'] = isActive.toString();
 
     final response = await get('/api/admin/vocabularies', queryParams: queryParams);
@@ -212,20 +214,22 @@ class AdminApiService {
   static Future<Map<String, dynamic>> getQuestions({
     int page = 0,
     int size = 20,
-    int? songId,
+    String? idSearch,
     int? artistId,
     String? questionFormat,
     String? language,
+    int? difficultyLevel,
     bool? isActive,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
       'size': size.toString(),
     };
-    if (songId != null) queryParams['songId'] = songId.toString();
+    if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (artistId != null) queryParams['artistId'] = artistId.toString();
     if (questionFormat != null) queryParams['questionFormat'] = questionFormat;
     if (language != null) queryParams['language'] = language;
+    if (difficultyLevel != null) queryParams['difficultyLevel'] = difficultyLevel.toString();
     if (isActive != null) queryParams['isActive'] = isActive.toString();
 
     final response = await get('/api/admin/questions', queryParams: queryParams);
@@ -266,6 +270,7 @@ class AdminApiService {
   static Future<Map<String, dynamic>> getSongs({
     int page = 0,
     int size = 20,
+    String? idSearch,
     String? songname,
     int? artistId,
     String? language,
@@ -275,6 +280,7 @@ class AdminApiService {
       'page': page.toString(),
       'size': size.toString(),
     };
+    if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (songname != null) queryParams['songname'] = songname;
     if (artistId != null) queryParams['artistId'] = artistId.toString();
     if (language != null) queryParams['language'] = language;
@@ -318,6 +324,7 @@ class AdminApiService {
   static Future<Map<String, dynamic>> getArtists({
     int page = 0,
     int size = 20,
+    String? idSearch,
     String? artistName,
     bool? isActive,
   }) async {
@@ -325,6 +332,7 @@ class AdminApiService {
       'page': page.toString(),
       'size': size.toString(),
     };
+    if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (artistName != null) queryParams['artistName'] = artistName;
     if (isActive != null) queryParams['isActive'] = isActive.toString();
 
@@ -366,6 +374,7 @@ class AdminApiService {
   static Future<Map<String, dynamic>> getGenres({
     int page = 0,
     int size = 20,
+    String? idSearch,
     String? name,
     bool? isActive,
   }) async {
@@ -373,6 +382,7 @@ class AdminApiService {
       'page': page.toString(),
       'size': size.toString(),
     };
+    if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (name != null) queryParams['name'] = name;
     if (isActive != null) queryParams['isActive'] = isActive.toString();
 
@@ -414,14 +424,18 @@ class AdminApiService {
   static Future<Map<String, dynamic>> getBadges({
     int page = 0,
     int size = 20,
+    String? idSearch,
     String? badgeName,
+    int? mode,
     bool? isActive,
   }) async {
     final queryParams = <String, String>{
       'page': page.toString(),
       'size': size.toString(),
     };
+    if (idSearch != null) queryParams['idSearch'] = idSearch;
     if (badgeName != null) queryParams['badgeName'] = badgeName;
+    if (mode != null) queryParams['mode'] = mode.toString();
     if (isActive != null) queryParams['isActive'] = isActive.toString();
 
     final response = await get('/api/admin/badges', queryParams: queryParams);

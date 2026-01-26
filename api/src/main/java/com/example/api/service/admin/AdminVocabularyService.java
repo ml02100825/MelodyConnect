@@ -35,7 +35,7 @@ public class AdminVocabularyService {
      * 単語一覧取得
      */
     public AdminVocabularyResponse.ListResponse getVocabularies(
-            int page, int size, String word, String language, Boolean isActive) {
+            int page, int size, String idSearch, String word, String partOfSpeech, Boolean isActive) {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "vocabId"));
 
@@ -48,8 +48,11 @@ public class AdminVocabularyService {
             if (word != null && !word.isEmpty()) {
                 predicates.add(cb.like(root.get("word"), "%" + word + "%"));
             }
-            if (language != null && !language.isEmpty()) {
-                predicates.add(cb.equal(root.get("language"), language));
+            if (idSearch != null && !idSearch.isEmpty()) {
+                predicates.add(cb.like(root.get("vocabId").as(String.class), "%" + idSearch + "%"));
+            }
+            if (partOfSpeech != null && !partOfSpeech.isEmpty()) {
+                predicates.add(cb.equal(root.get("part_of_speech"), partOfSpeech));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));

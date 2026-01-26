@@ -28,10 +28,11 @@ public class AdminArtistController {
     public ResponseEntity<?> getArtists(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String idSearch,
             @RequestParam(required = false) String artistName,
             @RequestParam(required = false) Boolean isActive) {
         try {
-            return ResponseEntity.ok(adminArtistService.getArtists(page, size, artistName, isActive));
+            return ResponseEntity.ok(adminArtistService.getArtists(page, size, idSearch, artistName, isActive));
         } catch (Exception e) {
             logger.error("アーティスト一覧取得エラー", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("アーティスト一覧の取得に失敗しました"));

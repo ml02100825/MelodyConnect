@@ -31,13 +31,15 @@ public class AdminQuestionController {
     public ResponseEntity<?> getQuestions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) Long songId,
+            @RequestParam(required = false) String idSearch,
             @RequestParam(required = false) Long artistId,
             @RequestParam(required = false) String questionFormat,
             @RequestParam(required = false) String language,
+            @RequestParam(required = false) Integer difficultyLevel,
             @RequestParam(required = false) Boolean isActive) {
         try {
-            return ResponseEntity.ok(adminQuestionService.getQuestions(page, size, songId, artistId, questionFormat, language, isActive));
+            return ResponseEntity.ok(adminQuestionService.getQuestions(
+                    page, size, idSearch, artistId, questionFormat, language, difficultyLevel, isActive));
         } catch (Exception e) {
             logger.error("問題一覧取得エラー", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("問題一覧の取得に失敗しました"));
