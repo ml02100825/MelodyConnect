@@ -2,7 +2,9 @@ package com.example.api.service.admin;
 
 import com.example.api.dto.admin.AdminSongRequest;
 import com.example.api.dto.admin.AdminSongResponse;
+import com.example.api.entity.Artist;
 import com.example.api.entity.Song;
+import com.example.api.repository.ArtistRepository;
 import com.example.api.repository.SongRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,8 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +32,9 @@ public class AdminSongService {
 
     @Autowired
     private SongRepository songRepository;
+
+    @Autowired
+    private ArtistRepository artistRepository;
 
     public AdminSongResponse.ListResponse getSongs(int page, int size, String songname, Long artistId, String language, Boolean isActive) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "songId"));
@@ -53,8 +61,20 @@ public class AdminSongService {
 
         Page<Song> songPage = songRepository.findAll(spec, pageable);
 
+        Map<Long, String> artistNameMap = new HashMap<>();
+        List<Long> artistIds = songPage.getContent().stream()
+                .map(Song::getArtistId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (!artistIds.isEmpty()) {
+            artistNameMap = artistRepository.findAllById(artistIds).stream()
+                    .collect(Collectors.toMap(Artist::getArtistId, Artist::getArtistName));
+        }
+
+        Map<Long, String> finalArtistNameMap = artistNameMap;
         List<AdminSongResponse> songs = songPage.getContent().stream()
-                .map(this::toResponse)
+                .map(song -> toResponse(song, finalArtistNameMap.get(song.getArtistId())))
                 .collect(Collectors.toList());
 
         return new AdminSongResponse.ListResponse(songs, page, size, songPage.getTotalElements(), songPage.getTotalPages());
@@ -63,7 +83,13 @@ public class AdminSongService {
     public AdminSongResponse getSong(Long songId) {
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new IllegalArgumentException("楽曲が見つかりません: " + songId));
-        return toResponse(song);
+        String artistName = null;
+        if (song.getArtistId() != null) {
+            artistName = artistRepository.findById(song.getArtistId())
+                    .map(Artist::getArtistName)
+                    .orElse(null);
+        }
+        return toResponse(song, artistName);
     }
 
     @Transactional
@@ -72,7 +98,7 @@ public class AdminSongService {
         updateFromRequest(song, request);
         song = songRepository.save(song);
         logger.info("楽曲作成: {}", song.getSongId());
-        return toResponse(song);
+        return toResponse(song, null);
     }
 
     @Transactional
@@ -82,7 +108,7 @@ public class AdminSongService {
         updateFromRequest(song, request);
         song = songRepository.save(song);
         logger.info("楽曲更新: {}", songId);
-        return toResponse(song);
+        return toResponse(song, null);
     }
 
     @Transactional
@@ -129,10 +155,11 @@ public class AdminSongService {
         song.setIsActive(request.getIsActive());
     }
 
-    private AdminSongResponse toResponse(Song song) {
+    private AdminSongResponse toResponse(Song song, String artistName) {
         AdminSongResponse response = new AdminSongResponse();
         response.setSongId(song.getSongId());
         response.setArtistId(song.getArtistId());
+        response.setArtistName(artistName);
         response.setSongname(song.getSongname());
         response.setSpotifyTrackId(song.getSpotifyTrackId());
         response.setGeniusSongId(song.getGeniusSongId());

@@ -63,6 +63,9 @@ class _VocabularyAdminState extends State<VocabularyAdmin> {
         page: _currentPage,
         size: _pageSize,
         word: wordController.text.trim().isNotEmpty ? wordController.text.trim() : null,
+        language: partOfSpeechController.text.trim().isNotEmpty
+            ? partOfSpeechController.text.trim()
+            : null,
         isActive: isActive,
       );
 

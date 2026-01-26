@@ -10,6 +10,7 @@ public class AdminSongResponse {
 
     private Long songId;
     private Long artistId;
+    private String artistName;
     private String songname;
     private String spotifyTrackId;
     private Long geniusSongId;
@@ -21,6 +22,8 @@ public class AdminSongResponse {
     public void setSongId(Long songId) { this.songId = songId; }
     public Long getArtistId() { return artistId; }
     public void setArtistId(Long artistId) { this.artistId = artistId; }
+    public String getArtistName() { return artistName; }
+    public void setArtistName(String artistName) { this.artistName = artistName; }
     public String getSongname() { return songname; }
     public void setSongname(String songname) { this.songname = songname; }
     public String getSpotifyTrackId() { return spotifyTrackId; }
