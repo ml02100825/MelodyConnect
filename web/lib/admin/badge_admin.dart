@@ -7,7 +7,7 @@ import 'services/admin_api_service.dart';
 class Badge {
   final String id;
   final String name;
-  final String mode;
+  final int? mode;
   final String condition;
   final String status;
   final bool isActive;
@@ -31,7 +31,7 @@ class Badge {
     return Badge(
       id: json['id']?.toString() ?? '',
       name: json['badgeName'] ?? json['badgename'] ?? '',
-      mode: json['mode']?.toString() ?? '',
+      mode: json['mode'] as int?,
       condition: json['acquisitionCondition'] ?? json['acquisitionConditions'] ?? '',
       status: (json['isActive'] == true) ? '有効' : '無効',
       isActive: json['isActive'] == true,
@@ -48,7 +48,7 @@ class Badge {
   Badge copyWith({
     String? id,
     String? name,
-    String? mode,
+    int? mode,
     String? condition,
     String? status,
     bool? isActive,
@@ -677,7 +677,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
                                       150,
                                     ),
                                     _buildListCell(
-                                      Text(_convertModeToDisplay(badge.mode), style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
+                                      Text(_convertModeToDisplay(badge.mode?.toString() ?? ''), style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
                                       100,
                                     ),
                                     _buildListCell(

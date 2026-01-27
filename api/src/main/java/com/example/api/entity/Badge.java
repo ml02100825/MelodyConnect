@@ -57,8 +57,8 @@ public class Badge {
     }
 
     // ===== getters / setters =====
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() { return badgeId; }
+    public void setId(Long badgeId) { this.badgeId = badgeId; }
 
     public String getBadgeName() { return badgeName; }
     public void setBadgeName(String badgeName) { this.badgeName = badgeName; }
@@ -78,6 +78,6 @@ public class Badge {
     public Boolean getIsDeleted() { return isDeleted; }
     public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
 
-    public String getMode() { return mode; }
-    public void setMode(String mode) { this.mode = mode; }
+    public Integer getMode() { return mode; }
+    public void setMode(Integer mode) { this.mode = mode; }
 }

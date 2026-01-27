@@ -66,11 +66,11 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
     // 元の値を保存（キャンセル用）
     _originalName = widget.badge.name;
     _originalCondition = widget.badge.condition;
-    _originalMode = widget.badge.mode;
+    _originalMode = widget.badge.mode?.toString() ?? '';
     _originalStatus = widget.badge.status;
     
     // 選択状態初期化
-    selectedMode = widget.badge.mode;
+    selectedMode = widget.badge.mode?.toString() ?? '';
     selectedStatus = widget.badge.status;
     
     // 新規作成の場合は編集モードで開始
@@ -494,7 +494,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
         final updatedBadge = Badge(
           id: widget.badge.id,
           name: nameController.text,
-          mode: selectedMode,
+          mode: int.tryParse(selectedMode),
           condition: conditionController.text,
           status: selectedStatus,
           isActive: selectedStatus == '有効',
@@ -515,7 +515,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
     final updatedBadge = Badge(
       id: widget.badge.id,
       name: nameController.text,
-      mode: selectedMode,
+      mode: int.tryParse(selectedMode),
       condition: conditionController.text,
       status: selectedStatus,
       isActive: selectedStatus == '有効',
@@ -689,7 +689,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
     final deletedBadge = Badge(
       id: widget.badge.id,
       name: nameController.text,
-      mode: selectedMode,
+      mode: int.tryParse(selectedMode),
       condition: conditionController.text,
       status: selectedStatus,
       isActive: selectedStatus == '有効',

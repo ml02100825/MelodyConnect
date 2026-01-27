@@ -48,9 +48,8 @@ public class AdminBadgeService {
             if (idSearch != null && !idSearch.isEmpty()) {
                 predicates.add(cb.equal(root.get("id").as(String.class), idSearch));
             }
-            String modeValue = convertModeToValue(mode);
-            if (modeValue != null) {
-                predicates.add(cb.equal(root.get("mode"), modeValue));
+            if (mode != null) {
+                predicates.add(cb.equal(root.get("mode"), mode));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
@@ -138,7 +137,7 @@ public class AdminBadgeService {
         badge.setBadgeName(request.getBadgeName());
         badge.setAcquisitionCondition(request.getAcquisitionCondition());
         badge.setImageUrl(request.getImageUrl());
-        badge.setMode(convertModeToValue(request.getMode()));
+        badge.setMode(request.getMode());
         badge.setActiveFlag(request.getIsActive());
     }
 
@@ -148,43 +147,10 @@ public class AdminBadgeService {
         response.setBadgeName(badge.getBadgeName());
         response.setAcquisitionCondition(badge.getAcquisitionCondition());
         response.setImageUrl(badge.getImageUrl());
-        response.setMode(convertModeToNumber(badge.getMode()));
+        response.setMode(badge.getMode());
         response.setIsActive(badge.isActiveFlag());
         response.setCreatedAt(badge.getCreatedAt());
         return response;
-    }
-
-    private String convertModeToValue(Integer mode) {
-        if (mode == null) {
-            return null;
-        }
-        return switch (mode) {
-            case 1 -> "1";
-            case 2 -> "2";
-            case 3 -> "3";
-            case 4 -> "4";
-            case 5 -> "5";
-            default -> null;
-        };
-    }
-
-    private Integer convertModeToNumber(String mode) {
-        if (mode == null) {
-            return null;
-        }
-        return switch (mode) {
-            case "1" -> 1;
-            case "2" -> 2;
-            case "3" -> 3;
-            case "4" -> 4;
-            case "5" -> 5;
-            case "CONTINUE" -> 1;
-            case "BATTLE" -> 2;
-            case "RANKING" -> 3;
-            case "COLLECT" -> 4;
-            case "SPECIAL" -> 5;
-            default -> null;
-        };
     }
 
     private Sort.Direction parseSortDirection(String sortDirection) {
