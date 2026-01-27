@@ -3,20 +3,15 @@ package com.example.api.service;
 import com.example.api.dto.AuthResponse;
 import com.example.api.dto.LoginRequest;
 import com.example.api.dto.RegisterRequest;
-import com.example.api.entity.Rate;
-import com.example.api.entity.Session;
-import com.example.api.entity.User;
-import com.example.api.entity.WeeklyLessons;
-import com.example.api.repository.RateRepository;
-import com.example.api.repository.SessionRepository;
-import com.example.api.repository.UserRepository;
-import com.example.api.repository.WeeklyLessonsRepository;
+import com.example.api.entity.*;
+import com.example.api.repository.*;
 import com.example.api.util.JwtUtil;
 import com.example.api.util.SeasonCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException; // ★追加
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,10 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * 認証サービスクラス
@@ -55,6 +50,9 @@ public class AuthService {
     private WeeklyLessonsRepository weeklyLessonsRepository;
 
     @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     @Autowired
@@ -68,20 +66,6 @@ public class AuthService {
     private String fromEmail;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-
-    // パスワードリセット用トークンの一時保存 (DBカラム変更なしで対応)
-    // メモリリーク対策として @Scheduled で定期的に掃除します
-    private static class ResetTokenInfo {
-        String email;
-        LocalDateTime expiry;
-
-        ResetTokenInfo(String email, LocalDateTime expiry) {
-            this.email = email;
-            this.expiry = expiry;
-        }
-    }
-    // トークン(UUID) -> 情報
-    private final Map<String, ResetTokenInfo> resetTokenStore = new ConcurrentHashMap<>();
 
     /**
      * SHA-256でハッシュ化
@@ -99,6 +83,27 @@ public class AuthService {
             return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256アルゴリズムが見つかりません", e);
+        }
+    }
+
+    /**
+     * パスワードポリシーの検証 (共通メソッド)
+     */
+    private void validatePasswordPolicy(String password) {
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("パスワードを入力してください");
+        }
+        // 1. バイト長チェック (Bcryptの制限 72byte)
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
+        }
+        // 2. 文字数チェック (8文字以上)
+        if (password.length() < 8) {
+            throw new IllegalArgumentException("パスワードは8文字以上である必要があります");
+        }
+        // 3. 複雑性チェック (半角英数字記号のみ許可)
+        if (!Pattern.matches("^[a-zA-Z0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?]+$", password)) {
+            throw new IllegalArgumentException("パスワードに使用できない文字が含まれています");
         }
     }
 
@@ -133,10 +138,8 @@ public class AuthService {
             throw new IllegalArgumentException("このメールアドレスは既に登録されています");
         }
 
-        byte[] passwordBytes = request.getPassword().getBytes(StandardCharsets.UTF_8);
-        if (passwordBytes.length > 72) {
-            throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
-        }
+        // パスワードポリシー検証
+        validatePasswordPolicy(request.getPassword());
 
         String passwordHash = passwordEncoder.encode(request.getPassword());
 
@@ -192,7 +195,6 @@ public class AuthService {
 
     /**
      * トークンリフレッシュ
-     * (トークン種別チェックとDBセッション検証を追加済み)
      */
     @Transactional
     public AuthResponse refreshAccessToken(String refreshToken) {
@@ -280,24 +282,24 @@ public class AuthService {
     }
 
     // ==========================================
-    // パスワードリセット (メール送信 & 定期掃除)
+    // パスワードリセット (DB管理版)
     // ==========================================
 
     /**
-     * ★追加: メモリ上の期限切れリセットトークンを定期削除
+     * DB上の期限切れリセットトークンを定期削除
      * 1時間(3600000ms)ごとに実行
      */
     @Scheduled(fixedRate = 3600000)
+    @Transactional
     public void cleanupExpiredResetTokens() {
-        LocalDateTime now = LocalDateTime.now();
-        // 期限切れのエントリを一括削除
-        resetTokenStore.entrySet().removeIf(entry -> entry.getValue().expiry.isBefore(now));
-        logger.debug("期限切れリセットトークンのクリーンアップ完了");
+        passwordResetTokenRepository.deleteAllExpiredSince(LocalDateTime.now());
+        logger.debug("期限切れリセットトークンのDBクリーンアップ完了");
     }
 
     /**
      * パスワードリセット要求
      */
+    @Transactional
     public void requestPasswordReset(String email) {
         Optional<User> userOpt = userRepository.findByMailaddress(email);
         if (userOpt.isEmpty()) {
@@ -305,8 +307,19 @@ public class AuthService {
             return;
         }
 
-        String token = UUID.randomUUID().toString();
-        resetTokenStore.put(token, new ResetTokenInfo(email, LocalDateTime.now().plusHours(1)));
+        User user = userOpt.get();
+
+        // 既存のトークンがあれば削除（常に最新のみ有効にする）
+        passwordResetTokenRepository.deleteByUser(user);
+
+        // 新しいトークンを生成してDBに保存
+        String tokenStr = UUID.randomUUID().toString();
+        PasswordResetToken resetToken = new PasswordResetToken(
+                tokenStr, 
+                user, 
+                LocalDateTime.now().plusHours(1)
+        );
+        passwordResetTokenRepository.save(resetToken);
 
         try {
             SimpleMailMessage message = new SimpleMailMessage();
@@ -316,7 +329,7 @@ public class AuthService {
             message.setText(
                     "パスワードリセットのリクエストを受け付けました。\n" +
                     "以下のコードをアプリに入力して、新しいパスワードを設定してください。\n\n" +
-                    "リセットコード: " + token + "\n\n" +
+                    "リセットコード: " + tokenStr + "\n\n" +
                     "※このコードの有効期限は1時間です。\n" +
                     "※心当たりがない場合はこのメールを無視してください。"
             );
@@ -324,7 +337,7 @@ public class AuthService {
             mailSender.send(message);
             logger.info("リセットメール送信完了: {}", email);
             
-        } catch (Exception e) {
+        } catch (MailException e) { // ★修正: 具体的な例外(MailException)をキャッチ
             logger.error("メール送信失敗: {}", e.getMessage(), e);
             throw new RuntimeException("メールの送信に失敗しました。しばらく待ってから再試行してください。");
         }
@@ -334,30 +347,46 @@ public class AuthService {
      * パスワード更新実行
      */
     @Transactional
-    public void resetPassword(String token, String newPassword) {
-        ResetTokenInfo info = resetTokenStore.get(token);
+    public void resetPassword(String tokenStr, String newPassword) {
+        // DBからトークンを検索
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(tokenStr)
+                .orElseThrow(() -> new IllegalArgumentException("無効なリセットコードです"));
 
-        if (info == null) {
-            throw new IllegalArgumentException("無効なリセットコードです");
-        }
-        if (info.expiry.isBefore(LocalDateTime.now())) {
-            resetTokenStore.remove(token);
+        if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            passwordResetTokenRepository.delete(resetToken);
             throw new IllegalArgumentException("リセットコードの有効期限が切れています");
         }
 
-        User user = userRepository.findByMailaddress(info.email)
-                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+        User user = resetToken.getUser();
 
-        byte[] passwordBytes = newPassword.getBytes(StandardCharsets.UTF_8);
-        if (passwordBytes.length > 72) {
-            throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
-        }
+        // パスワードポリシーの検証
+        validatePasswordPolicy(newPassword);
 
+        // パスワード更新
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        resetTokenStore.remove(token);
+        // 既存セッションの無効化（強制ログアウト）
+        revokeAllUserSessions(user);
+
+        // 使用済みトークンを削除
+        passwordResetTokenRepository.delete(resetToken);
         
         logger.info("パスワードリセット完了: UserID {}", user.getId());
+    }
+
+    /**
+     * 指定ユーザーの全アクティブセッションを無効化（削除）
+     */
+    private void revokeAllUserSessions(User user) {
+        try {
+            List<Session> sessions = sessionRepository.findValidSessionsByUser(user, LocalDateTime.now());
+            if (!sessions.isEmpty()) {
+                sessionRepository.deleteAll(sessions);
+                logger.info("パスワード変更に伴い全セッションを破棄: UserID {}", user.getId());
+            }
+        } catch (Exception e) {
+            logger.error("セッション破棄中にエラー（処理は続行）", e);
+        }
     }
 }

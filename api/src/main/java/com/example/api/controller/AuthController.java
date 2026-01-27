@@ -6,7 +6,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,13 +24,21 @@ public class AuthController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
-    @Autowired
-    private AuthService authService;
+    // 依存性をfinalにして不変性を保証
+    private final AuthService authService;
+
+    /**
+     * コンストラクタインジェクション
+     * Springが起動時に自動的にAuthServiceを注入します
+     */
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
 
     /**
      * ユーザー登録エンドポイント
      * 新規ユーザーを作成し、セッションを開始します。
-     * * @param request 登録リクエスト (メールアドレス、パスワード)
+     * @param request 登録リクエスト (メールアドレス、パスワード)
      * @param httpRequest HTTPリクエスト (IPアドレス、User-Agent取得用)
      * @return 認証レスポンス (ユーザー情報、アクセストークン、リフレッシュトークン)
      */
@@ -58,7 +65,7 @@ public class AuthController {
     /**
      * ログインエンドポイント
      * メールアドレスとパスワードで認証し、トークンを発行します。
-     * * @param request ログインリクエスト (メールアドレス、パスワード)
+     * @param request ログインリクエスト (メールアドレス、パスワード)
      * @param httpRequest HTTPリクエスト (IPアドレス、User-Agent取得用)
      * @return 認証レスポンス (ユーザー情報、アクセストークン、リフレッシュトークン)
      */
@@ -86,7 +93,7 @@ public class AuthController {
     /**
      * トークンリフレッシュエンドポイント
      * 有効なリフレッシュトークンを使用して、新しいアクセストークンを発行します。
-     * * @param request リフレッシュトークンを含むリクエスト
+     * @param request リフレッシュトークンを含むリクエスト
      * @return 認証レスポンス (新しいアクセストークンを含む)
      */
     @PostMapping("/refresh")
@@ -107,14 +114,14 @@ public class AuthController {
     /**
      * ログアウトエンドポイント
      * 指定されたリフレッシュトークンに紐づくセッションを無効化（削除）します。
-     * * @param request リフレッシュトークンを含むマップ {"refreshToken": "..."}
+     * ★修正: Mapから専用DTO (LogoutRequest) に変更
+     * @param request リフレッシュトークンを含むリクエスト
      * @return 成功メッセージ
      */
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestBody Map<String, String> request) {
+    public ResponseEntity<?> logout(@Valid @RequestBody LogoutRequest request) {
         try {
-            String refreshToken = request.get("refreshToken");
-            authService.logout(refreshToken);
+            authService.logout(request.getRefreshToken());
             
             Map<String, String> response = new HashMap<>();
             response.put("message", "ログアウトしました");
@@ -129,7 +136,7 @@ public class AuthController {
     /**
      * パスワードリセット要求エンドポイント
      * メールアドレスを受け取り、リセット用コードをメールで送信します。
-     * * @param email リセット対象のメールアドレス
+     * @param email リセット対象のメールアドレス
      * @return 送信完了メッセージ
      */
     @PostMapping("/request-password-reset")
@@ -151,20 +158,14 @@ public class AuthController {
     /**
      * パスワード更新実行エンドポイント
      * リセット用トークンと新しいパスワードを受け取り、パスワードを更新します。
-     * * @param request トークン("token")と新パスワード("newPassword")を含むマップ
+     * ★修正: Mapから専用DTO (ResetPasswordRequest) に変更
+     * @param request トークンと新パスワードを含むリクエスト
      * @return 更新完了メッセージ
      */
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> request) {
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         try {
-            String token = request.get("token");
-            String newPassword = request.get("newPassword");
-
-            if (token == null || newPassword == null) {
-                return ResponseEntity.badRequest().body(createErrorResponse("トークンと新しいパスワードが必要です"));
-            }
-
-            authService.resetPassword(token, newPassword);
+            authService.resetPassword(request.getToken(), request.getNewPassword());
             
             Map<String, String> response = new HashMap<>();
             response.put("message", "パスワードを更新しました");
@@ -181,7 +182,7 @@ public class AuthController {
     /**
      * セッション検証エンドポイント
      * アプリ起動時などに、リフレッシュトークンが有効かを確認します。
-     * * @param request リフレッシュトークンを含むリクエスト
+     * @param request リフレッシュトークンを含むリクエスト
      * @return 有効な場合は認証レスポンス
      */
     @PostMapping("/validate")
