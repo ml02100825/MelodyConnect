@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
+import 'mondai_edit_admin.dart';
 
 class MondaiDetailPage extends StatefulWidget {
   final Map<String, dynamic> vocab;
@@ -11,12 +12,14 @@ class MondaiDetailPage extends StatefulWidget {
 }
 
 class _MondaiDetailPageState extends State<MondaiDetailPage> {
+  late Map<String, dynamic> _question;
   late String status;
 
   @override
   void initState() {
     super.initState();
-    status = widget.vocab['status'] ?? '有効';
+    _question = Map<String, dynamic>.from(widget.vocab);
+    status = _question['status'] ?? '有効';
   }
 
   void toggleStatus() {
@@ -30,7 +33,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
       context: context,
       builder: (BuildContext context) {
         return MondaiDeleteConfirmationDialog(
-          question: widget.vocab,
+          question: _question,
           onDelete: () {
             // 削除処理
             Navigator.pop(context); // ダイアログを閉じる
@@ -39,6 +42,20 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
         );
       },
     );
+  }
+
+  Future<void> _openEditPage() async {
+    final updated = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MondaiEditPage(question: _question),
+      ),
+    );
+    if (updated != null && mounted) {
+      setState(() {
+        _question = Map<String, dynamic>.from(updated as Map);
+      });
+    }
   }
 
   @override
@@ -62,17 +79,27 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '問題詳細',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '問題詳細',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  onPressed: _openEditPage,
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  tooltip: 'Edit',
+                ),
+              ],
             ),
             const SizedBox(height: 32),
 
             Text(
-              widget.vocab['question']?.toString().split('\n')[0] ?? '',
+              _question['question']?.toString().split('\n')[0] ?? '',
               style: const TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
@@ -80,15 +107,15 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
             ),
             const SizedBox(height: 24),
 
-            _detailRow('ID', widget.vocab['id']),
-            _detailRow('問題形式', widget.vocab['category']),
-            _detailRow('問題', widget.vocab['question']),
-            _detailRow('正答', widget.vocab['correctAnswer']),
-            _detailRow('難易度', widget.vocab['difficulty']),
-            _detailRow('楽曲名', widget.vocab['songName']),
-            _detailRow('アーティスト', widget.vocab['artist']),
-            _detailRow('追加日時', widget.vocab['addedDate']?.toString().split(' ')[0] ?? ''),
-            _detailRow('リリース日', widget.vocab['releaseDate']?.toString().split(' ')[0] ?? ''),
+            _detailRow('ID', _question['id']),
+            _detailRow('問題形式', _question['category']),
+            _detailRow('問題', _question['question']),
+            _detailRow('正答', _question['correctAnswer']),
+            _detailRow('難易度', _question['difficulty']),
+            _detailRow('楽曲名', _question['songName']),
+            _detailRow('アーティスト', _question['artist']),
+            _detailRow('追加日時', _question['addedDate']?.toString().split(' ')[0] ?? ''),
+            _detailRow('リリース日', _question['releaseDate']?.toString().split(' ')[0] ?? ''),
 
             const SizedBox(height: 16),
             _detailRow('状態', status),

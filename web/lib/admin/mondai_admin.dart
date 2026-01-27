@@ -680,15 +680,23 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                               builder: (context) => MondaiDetailPage(
                                                 vocab: {
                                                   'id': question['questionId'].toString(),
+                                                  'numericId': question['questionId'],
                                                   'question': question['text'],
                                                   'correctAnswer': question['answer'],
                                                   'category': _formatQuestionFormat(
                                                       question['questionFormat'] as String?),
+                                                  'questionFormat': question['questionFormat'],
                                                   'difficulty': question['difficultyLevel'],
                                                   'status': question['status'],
                                                   'addedDate': question['addingAt'],
                                                   'songName': question['songName'],
                                                   'artist': question['artistName'],
+                                                  'translationJa': question['translationJa'],
+                                                  'audioUrl': question['audioUrl'],
+                                                  'language': question['language'],
+                                                  'isActive': question['isActive'],
+                                                  'songId': question['songId'],
+                                                  'artistId': question['artistId'],
                                                 },
                                               ),
                                             ),

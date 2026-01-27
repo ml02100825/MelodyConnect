@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
+import 'vocabulary_edit_admin.dart';
 
 class VocabularyDetailPage extends StatefulWidget {
   final Map<String, dynamic> vocab;
@@ -11,12 +12,14 @@ class VocabularyDetailPage extends StatefulWidget {
 }
 
 class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
+  late Map<String, dynamic> _vocab;
   late String status;
 
   @override
   void initState() {
     super.initState();
-    status = (widget.vocab['status'] == '有効' || widget.vocab['status'] == 'enabled' || widget.vocab['status'] == true)
+    _vocab = Map<String, dynamic>.from(widget.vocab);
+    status = (_vocab['status'] == '有効' || _vocab['status'] == 'enabled' || _vocab['status'] == true)
         ? '有効'
         : '無効';
   }
@@ -32,7 +35,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
       context: context,
       builder: (BuildContext context) {
         return VocabularyDeleteConfirmationDialog(
-          vocab: widget.vocab,
+          vocab: _vocab,
           onDelete: () {
             // 削除処理
             Navigator.pop(context); // ダイアログを閉じる
@@ -41,6 +44,20 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
         );
       },
     );
+  }
+
+  Future<void> _openEditPage() async {
+    final updated = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VocabularyEditPage(vocab: _vocab),
+      ),
+    );
+    if (updated != null && mounted) {
+      setState(() {
+        _vocab = Map<String, dynamic>.from(updated as Map);
+      });
+    }
   }
 
   @override
@@ -64,17 +81,27 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '単語詳細',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '単語詳細',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  onPressed: _openEditPage,
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  tooltip: 'Edit',
+                ),
+              ],
             ),
             const SizedBox(height: 32),
 
             Text(
-              widget.vocab['word'] ?? '',
+              _vocab['word'] ?? '',
               style: const TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
@@ -82,15 +109,15 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
             ),
             const SizedBox(height: 24),
 
-            _detailRow('ID', widget.vocab['id']),
-            _detailRow('発音', widget.vocab['pronunciation']),
-            _detailRow('品詞', widget.vocab['partOfSpeech']),
-            _detailRow('意味', widget.vocab['meaning']),
-            _detailRow('例文', widget.vocab['exampleSentence']),
-            _detailRow('例文の訳', widget.vocab['exampleTranslation']),
-            _detailRow('音声URL', widget.vocab['audioUrl']),
-            _detailRow('追加日時', widget.vocab['createdAt']),
-            _detailRow('更新日時', widget.vocab['updatedAt']),
+            _detailRow('ID', _vocab['id']),
+            _detailRow('発音', _vocab['pronunciation']),
+            _detailRow('品詞', _vocab['partOfSpeech']),
+            _detailRow('意味', _vocab['meaning']),
+            _detailRow('例文', _vocab['exampleSentence']),
+            _detailRow('例文の訳', _vocab['exampleTranslation']),
+            _detailRow('音声URL', _vocab['audioUrl']),
+            _detailRow('追加日時', _vocab['createdAt']),
+            _detailRow('更新日時', _vocab['updatedAt']),
 
             const SizedBox(height: 16),
             _detailRow('状態', status),
