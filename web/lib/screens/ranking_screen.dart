@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../bottom_nav.dart';
+import '../services/token_storage_service.dart';
 
 class RankingScreen extends StatefulWidget {
   const RankingScreen({Key? key}) : super(key: key);
@@ -35,7 +36,8 @@ class _RankingScreenState extends State<RankingScreen>
 
   // サーバーのURL（環境に合わせて変更してください）
   final String _baseUrl = 'http://localhost:8080';
-  final int _currentUserId = 1;
+  final TokenStorageService _tokenStorage = TokenStorageService();
+  int? _currentUserId;
 
   String? _authToken;
   bool _isLoading = true;
@@ -56,6 +58,17 @@ class _RankingScreenState extends State<RankingScreen>
 
   Future<void> _initializeData() async {
     await _loadToken();
+    await _loadUserId();
+
+    if (_currentUserId == null) {
+      debugPrint('User ID is not available. Skip ranking fetch.');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      return;
+    }
 
     // 1. まずシーズン一覧を取得 (DBに存在するシーズンを確認)
     await _fetchSeasons();
@@ -76,6 +89,16 @@ class _RankingScreenState extends State<RankingScreen>
 
     // ★追加: ランキング画面を開いたのでバッジ判定をリクエスト
     _requestBadgeCheck();
+  }
+  Future<void> _loadUserId() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      setState(() {
+        _currentUserId = userId;
+      });
+    } catch (e) {
+      debugPrint('Error loading userId: $e');
+    }
   }
 
   Future<void> _loadToken() async {
@@ -169,12 +192,12 @@ class _RankingScreenState extends State<RankingScreen>
 
   Future<void> _fetchSeasonRanking(String season) async {
     if (season.isEmpty) return; // シーズン未定なら何もしない
-
+    if (_currentUserId == null) return;
     try {
       final queryParams = {
         'season': season,
         'limit': '50',
-        'userId': _currentUserId.toString(),
+        'userId': _currentUserId!.toString(),
         'friendsOnly': 'false',
       };
 
@@ -233,10 +256,12 @@ class _RankingScreenState extends State<RankingScreen>
   }
 
   Future<void> _fetchWeeklyRanking({DateTime? weekStart}) async {
+    
     try {
+      if (_currentUserId == null) return;
       final params = <String, String>{
         'limit': '50',
-        'userId': '$_currentUserId',
+        'userId': _currentUserId!.toString(),
         'friendsOnly': 'false'
       };
       // ※バックエンドの仕様変更により weekStart は無視されますが、送信しても問題ありません

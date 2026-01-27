@@ -6,6 +6,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.http.HttpStatus;
+
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,11 +34,16 @@ public class RankingController {
             @RequestParam(defaultValue = "シーズン3") String season,
             @RequestParam(defaultValue = "50") int limit,
             @RequestParam Long userId,
-            @RequestParam(defaultValue = "false") boolean friendsOnly
+            @RequestParam(defaultValue = "false") boolean friendsOnly,
+            Authentication authentication
     ) {
-        return ResponseEntity.ok(
-            rankingService.getSeasonRanking(season, limit, userId, friendsOnly)
-        );
+          Long authUserId = Long.parseLong(authentication.getName());
+          if (!authUserId.equals(userId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+          return ResponseEntity.ok(
+                rankingService.getSeasonRanking(season, limit, authUserId, friendsOnly)
+            );
     }
 
     // 週間ランキング
@@ -44,19 +52,26 @@ public class RankingController {
             @RequestParam(defaultValue = "50") int limit,
             @RequestParam Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
-            @RequestParam(defaultValue = "false") boolean friendsOnly
+            @RequestParam(defaultValue = "false") boolean friendsOnly,
+            Authentication authentication
     ) {
-        // weekStart引数は互換性のために残していますが、Service内では無視されweekFlagが優先されます
-        LocalDateTime startDateTime = (weekStart != null) ? weekStart.atStartOfDay() : LocalDateTime.now();
-
-        return ResponseEntity.ok(
-            rankingService.getWeeklyRanking(startDateTime, limit, userId, friendsOnly)
-        );
+          Long authUserId = Long.parseLong(authentication.getName());
+          if (!authUserId.equals(userId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+          LocalDateTime startDateTime = (weekStart != null) ? weekStart.atStartOfDay() : LocalDateTime.now();
+          return ResponseEntity.ok(
+                rankingService.getWeeklyRanking(startDateTime, limit, authUserId, friendsOnly)
+            );
     }
 
     // ランキング画面アクセス時のバッジ判定API
     @GetMapping("/access")
-    public ResponseEntity<String> processRankingAccess(@RequestParam Long userId) {
+    public ResponseEntity<String> processRankingAccess(@RequestParam Long userId, Authentication authentication) {
+         Long authUserId = Long.parseLong(authentication.getName());
+        if (!authUserId.equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         rankingService.processRankingAccess(userId);
         return ResponseEntity.ok("Ranking processed");
     }
