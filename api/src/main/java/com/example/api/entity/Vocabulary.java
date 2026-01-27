@@ -18,7 +18,7 @@ public class Vocabulary {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "vocab_id", nullable = false)
-    private Integer vocab_id;
+    private Integer vocabId;
 
     /**
      * 単語（そのままの形: memories, running等）

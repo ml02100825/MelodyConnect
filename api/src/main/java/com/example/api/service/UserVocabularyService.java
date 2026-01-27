@@ -293,7 +293,7 @@ public class UserVocabularyService {
             }
 
             // 3. 既にUserVocabularyに登録済みかチェック
-            if (userVocabularyRepository.existsByUserIdAndVocabId(userId, vocabulary.getVocab_id())) {
+            if (userVocabularyRepository.existsByUserIdAndVocabId(userId, vocabulary.getVocabId())) {
                 logger.debug("既に登録済みのためスキップ: userId={}, word={}", userId, normalizedWord);
                 return false;
             }
