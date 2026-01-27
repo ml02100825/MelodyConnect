@@ -284,6 +284,23 @@ public class BattleController {
         }
     }
 
+    /**
+     * 定期的に回答フェーズのタイムアウトをチェック（5秒ごと）
+     * 90秒経過しても両者が回答していない場合、強制的にラウンドを処理
+     */
+    @Scheduled(fixedRate = 5000)
+    public void checkAnswerPhaseTimeouts() {
+        try {
+            List<String> timedOutMatches = battleService.getTimedOutAnswerPhaseMatches();
+            for (String matchId : timedOutMatches) {
+                logger.info("回答フェーズタイムアウト、強制的にラウンド処理: matchId={}", matchId);
+                processRoundEnd(matchId);
+            }
+        } catch (Exception e) {
+            logger.error("回答フェーズタイムアウトチェックエラー", e);
+        }
+    }
+
     // ==================== Private Methods ====================
 
     /**

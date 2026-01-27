@@ -103,20 +103,20 @@ class QuizQuestion {
 class SongInfo {
   final int songId;
   final String songName;
-  final String artistName;
+  final String? artistName;  // nullable に変更（バックエンドがnullを返す可能性がある）
   final String? genre;
 
   SongInfo({
     required this.songId,
     required this.songName,
-    required this.artistName,
+    this.artistName,
     this.genre,
   });
 
   factory SongInfo.fromJson(Map<String, dynamic> json) {
     return SongInfo(
       songId: json['songId'],
-      songName: json['songName'],
+      songName: json['songName'] ?? '',
       artistName: json['artistName'],
       genre: json['genre'],
     );
@@ -128,17 +128,20 @@ class QuizCompleteRequest {
   final int sessionId;
   final int userId;
   final List<AnswerResult> answers;
+  final bool retired;  // リタイアフラグ（trueの場合はカウント増加しない）
 
   QuizCompleteRequest({
     required this.sessionId,
     required this.userId,
     required this.answers,
+    this.retired = false,
   });
 
   Map<String, dynamic> toJson() => {
     'sessionId': sessionId,
     'userId': userId,
     'answers': answers.map((a) => a.toJson()).toList(),
+    'retired': retired,
   };
 }
 

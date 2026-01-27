@@ -196,6 +196,9 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
 
   /// ★ 追加: 曲情報を表示
   Widget _buildSongInfoChip() {
+    final artistName = widget.songInfo?.artistName ?? '不明なアーティスト';
+    final songName = widget.songInfo?.songName ?? '不明な曲';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -210,7 +213,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              '${widget.songInfo!.artistName} - ${widget.songInfo!.songName}',
+              '$artistName - $songName',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.purple.shade800,
@@ -694,7 +697,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     }
 
 
-  Future<void> _completeQuiz() async {
+  Future<void> _completeQuiz({bool retired = false}) async {
     if (_accessToken == null) {
       _showError('認証情報が取得できませんでした');
       return;
@@ -705,6 +708,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         sessionId: widget.sessionId,
         userId: widget.userId,
         answers: _answers,
+        retired: retired,
       );
 
       final response = await _apiService.completeQuiz(request, _accessToken!);
@@ -773,7 +777,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
       ));
     }
 
-    // 結果画面へ遷移
-    await _completeQuiz();
+    // 結果画面へ遷移（リタイアフラグを送信）
+    await _completeQuiz(retired: true);
   }
 }

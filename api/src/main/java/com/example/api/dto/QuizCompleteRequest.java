@@ -32,6 +32,12 @@ public class QuizCompleteRequest {
     private List<AnswerResult> answers;
 
     /**
+     * リタイアフラグ（trueの場合はカウント増加しない）
+     */
+    @Builder.Default
+    private Boolean retired = false;
+
+    /**
      * 回答結果DTO
      */
     @Data
