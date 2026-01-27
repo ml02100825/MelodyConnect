@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -69,7 +69,7 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     @Modifying
     @Query("UPDATE User u SET u.life = u.life - 1, u.lifeLastRecoveredAt = :newRecoveredAt " +
            "WHERE u.id = :userId AND u.life >= 1 AND u.deleteFlag = false")
-    int consumeLife(@Param("userId") Long userId, @Param("newRecoveredAt") LocalDateTime newRecoveredAt);
+    int consumeLife(@Param("userId") Long userId, @Param("newRecoveredAt") Instant newRecoveredAt);
 
     /**
      * ライフと回復時刻を更新（回復計算結果の反映用）
@@ -83,5 +83,5 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
            "WHERE u.id = :userId AND u.deleteFlag = false")
     int updateLifeAndRecoveredAt(@Param("userId") Long userId,
                                   @Param("newLife") int newLife,
-                                  @Param("newRecoveredAt") LocalDateTime newRecoveredAt);
+                                  @Param("newRecoveredAt") Instant newRecoveredAt);
 }

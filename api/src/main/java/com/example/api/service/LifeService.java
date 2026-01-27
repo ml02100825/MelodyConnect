@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * ライフ（スタミナ）サービス
@@ -105,7 +105,6 @@ public class LifeService {
         }
 
         // 原子的にライフを消費
-        LocalDateTime now = LocalDateTime.now();
         int updatedRows = userRepository.consumeLife(userId, user.getLifeLastRecoveredAt());
 
         if (updatedRows == 0) {
@@ -192,8 +191,8 @@ public class LifeService {
      * @param user ユーザー
      */
     private void applyRecovery(User user) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime lastRecoveredAt = user.getLifeLastRecoveredAt();
+        Instant now = Instant.now();
+        Instant lastRecoveredAt = user.getLifeLastRecoveredAt();
 
         // 初回アクセス時（NULLの場合）は現在時刻をセット
         if (lastRecoveredAt == null) {
@@ -220,7 +219,7 @@ public class LifeService {
             int actualRecovery = newLife - user.getLife();
 
             // 回復時刻を更新（実際に回復した分だけ進める）
-            LocalDateTime newRecoveredAt = lastRecoveredAt.plusSeconds(actualRecovery * RECOVERY_INTERVAL_SECONDS);
+            Instant newRecoveredAt = lastRecoveredAt.plusSeconds(actualRecovery * RECOVERY_INTERVAL_SECONDS);
 
             user.setLife(newLife);
             user.setLifeLastRecoveredAt(newRecoveredAt);
@@ -241,12 +240,12 @@ public class LifeService {
             return 0;
         }
 
-        LocalDateTime lastRecoveredAt = user.getLifeLastRecoveredAt();
+        Instant lastRecoveredAt = user.getLifeLastRecoveredAt();
         if (lastRecoveredAt == null) {
             return RECOVERY_INTERVAL_SECONDS;
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         long elapsedSeconds = Duration.between(lastRecoveredAt, now).getSeconds();
         long remainingSeconds = RECOVERY_INTERVAL_SECONDS - (elapsedSeconds % RECOVERY_INTERVAL_SECONDS);
 

@@ -1,7 +1,7 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(
@@ -33,7 +33,7 @@ public class VocabularyReport {
     private Long userId;
 
     @Column(name = "added_at", nullable = false)
-    private LocalDateTime addedAt;
+    private Instant addedAt;
 
     @Column(name = "status", length = 20)
     private String status = "未対応";
@@ -45,7 +45,7 @@ public class VocabularyReport {
     @PrePersist
     public void prePersist() {
         if (this.addedAt == null) {
-            this.addedAt = LocalDateTime.now();
+            this.addedAt = Instant.now();
         }
         if (this.status == null) {
             this.status = "未対応";
@@ -84,11 +84,11 @@ public class VocabularyReport {
         this.userId = userId;
     }
 
-    public LocalDateTime getAddedAt() {
+    public Instant getAddedAt() {
         return addedAt;
     }
 
-    public void setAddedAt(LocalDateTime addedAt) {
+    public void setAddedAt(Instant addedAt) {
         this.addedAt = addedAt;
     }
 

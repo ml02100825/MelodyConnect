@@ -240,8 +240,9 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
 
   String _formatDateTime(DateTime? dateTime) {
     if (dateTime == null) return '－';
-    return '${dateTime.year}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.day.toString().padLeft(2, '0')} '
-           '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+    final localTime = dateTime.toLocal();
+    return '${localTime.year}/${localTime.month.toString().padLeft(2, '0')}/${localTime.day.toString().padLeft(2, '0')} '
+           '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}:${localTime.second.toString().padLeft(2, '0')}';
   }
 
   @override

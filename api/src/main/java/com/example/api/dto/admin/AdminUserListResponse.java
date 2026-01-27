@@ -1,6 +1,6 @@
 package com.example.api.dto.admin;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -33,8 +33,8 @@ public class AdminUserListResponse {
         private String email;
         private boolean banFlag;
         private boolean subscribeFlag;
-        private LocalDateTime createdAt;
-        private LocalDateTime offlineAt;
+        private Instant createdAt;
+        private Instant offlineAt;
 
         public AdminUserSummary() {}
 
@@ -50,10 +50,10 @@ public class AdminUserListResponse {
         public void setBanFlag(boolean banFlag) { this.banFlag = banFlag; }
         public boolean isSubscribeFlag() { return subscribeFlag; }
         public void setSubscribeFlag(boolean subscribeFlag) { this.subscribeFlag = subscribeFlag; }
-        public LocalDateTime getCreatedAt() { return createdAt; }
-        public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-        public LocalDateTime getOfflineAt() { return offlineAt; }
-        public void setOfflineAt(LocalDateTime offlineAt) { this.offlineAt = offlineAt; }
+        public Instant getCreatedAt() { return createdAt; }
+        public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+        public Instant getOfflineAt() { return offlineAt; }
+        public void setOfflineAt(Instant offlineAt) { this.offlineAt = offlineAt; }
     }
 
     // Getters and Setters

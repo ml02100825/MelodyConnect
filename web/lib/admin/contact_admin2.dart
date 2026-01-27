@@ -126,7 +126,7 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
   }
 
   Widget _buildMainContent() {
-    final receivedDate = widget.contact['receivedDate'] as DateTime;
+    final receivedDate = (widget.contact['receivedDate'] as DateTime).toLocal();
     final dateStr = '${receivedDate.year}/${receivedDate.month.toString().padLeft(2, '0')}/${receivedDate.day.toString().padLeft(2, '0')} ${receivedDate.hour.toString().padLeft(2, '0')}:${receivedDate.minute.toString().padLeft(2, '0')}';
 
     return SingleChildScrollView(

@@ -1,6 +1,6 @@
 package com.example.api.dto.admin;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 public class AdminContactResponse {
@@ -13,7 +13,7 @@ public class AdminContactResponse {
     private String imageUrl;
     private String status;
     private String adminMemo;
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     public Long getContactId() { return contactId; }
     public void setContactId(Long contactId) { this.contactId = contactId; }
@@ -31,8 +31,8 @@ public class AdminContactResponse {
     public void setStatus(String status) { this.status = status; }
     public String getAdminMemo() { return adminMemo; }
     public void setAdminMemo(String adminMemo) { this.adminMemo = adminMemo; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
     public static class ListResponse {
         private List<AdminContactResponse> contacts;

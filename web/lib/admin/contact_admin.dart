@@ -75,8 +75,8 @@ class _ContactAdminState extends State<ContactAdmin> {
               'subject': json['title'] ?? '',
               'status': json['status'] ?? '未対応',
               'receivedDate': json['createdAt'] != null
-                  ? DateTime.parse(json['createdAt'])
-                  : DateTime.now(),
+                  ? DateTime.parse(json['createdAt']).toUtc()
+                  : DateTime.now().toUtc(),
               'content': json['contactDetail'] ?? '',
               'adminMemo': json['adminMemo'] ?? '',
             };
@@ -103,8 +103,8 @@ class _ContactAdminState extends State<ContactAdmin> {
               'status': json['status'] ?? '未対応',
               'adminMemo': json['adminMemo'] ?? '',
               'addedAt': json['addedAt'] != null
-                  ? DateTime.parse(json['addedAt'])
-                  : DateTime.now(),
+                  ? DateTime.parse(json['addedAt']).toUtc()
+                  : DateTime.now().toUtc(),
             };
           }).toList();
           break;
@@ -131,8 +131,8 @@ class _ContactAdminState extends State<ContactAdmin> {
               'status': json['status'] ?? '未対応',
               'adminMemo': json['adminMemo'] ?? '',
               'addedAt': json['addedAt'] != null
-                  ? DateTime.parse(json['addedAt'])
-                  : DateTime.now(),
+                  ? DateTime.parse(json['addedAt']).toUtc()
+                  : DateTime.now().toUtc(),
             };
           }).toList();
           break;
@@ -329,7 +329,8 @@ class _ContactAdminState extends State<ContactAdmin> {
                             itemCount: _dataList.length,
                             itemBuilder: (context, index) {
                               final item = _dataList[index];
-                              final receivedDate = item['receivedDate'] as DateTime;
+                              final receivedDate =
+                                  (item['receivedDate'] as DateTime).toLocal();
                               final dateStr = '${receivedDate.year}/${receivedDate.month.toString().padLeft(2, '0')}/${receivedDate.day.toString().padLeft(2, '0')}';
                               final statusColor = _getStatusColor(item['status'] as String);
 
@@ -400,7 +401,8 @@ class _ContactAdminState extends State<ContactAdmin> {
                             itemCount: _dataList.length,
                             itemBuilder: (context, index) {
                               final item = _dataList[index];
-                              final addedAt = item['addedAt'] as DateTime;
+                              final addedAt =
+                                  (item['addedAt'] as DateTime).toLocal();
                               final dateStr = '${addedAt.year}/${addedAt.month.toString().padLeft(2, '0')}/${addedAt.day.toString().padLeft(2, '0')}';
                               final statusColor = _getStatusColor(item['status'] as String);
 
@@ -472,7 +474,8 @@ class _ContactAdminState extends State<ContactAdmin> {
                             itemCount: _dataList.length,
                             itemBuilder: (context, index) {
                               final item = _dataList[index];
-                              final addedAt = item['addedAt'] as DateTime;
+                              final addedAt =
+                                  (item['addedAt'] as DateTime).toLocal();
                               final dateStr = '${addedAt.year}/${addedAt.month.toString().padLeft(2, '0')}/${addedAt.day.toString().padLeft(2, '0')}';
                               final statusColor = _getStatusColor(item['status'] as String);
 

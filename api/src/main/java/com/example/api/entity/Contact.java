@@ -1,7 +1,7 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(
@@ -38,12 +38,12 @@ public class Contact {
     private String adminMemo;
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            createdAt = Instant.now();
         }
         if (status == null) {
             status = "未対応";
@@ -100,10 +100,10 @@ public class Contact {
         this.adminMemo = adminMemo;
     }
 
-    public LocalDateTime getCreatedAt() {
+    public Instant getCreatedAt() {
         return createdAt;
     }
-    public void setCreatedAt(LocalDateTime createdAt) {
+    public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
 }

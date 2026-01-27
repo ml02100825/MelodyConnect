@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -310,12 +311,13 @@ public class AuthService {
      */
     private void updateOfflineAtIfNoActiveSessions(User user) {
         LocalDateTime now = LocalDateTime.now();
+        Instant offlineAt = Instant.now();
         List<Session> validSessions = sessionRepository.findValidSessionsByUser(user, now);
 
         if (validSessions.isEmpty()) {
-            user.setOfflineAt(now);
+            user.setOfflineAt(offlineAt);
             userRepository.save(user);
-            logger.info("ユーザーの offlineAt を更新: userId={}, offlineAt={}", user.getId(), now);
+            logger.info("ユーザーの offlineAt を更新: userId={}, offlineAt={}", user.getId(), offlineAt);
         } else {
             logger.debug("有効なセッションが存在するため、offlineAt は更新しません: userId={}, activeSessions={}",
                          user.getId(), validSessions.size());

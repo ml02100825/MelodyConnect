@@ -33,16 +33,16 @@ class User {
       username: json['username'] ?? '',
       email: json['email'] ?? '',
       accountCreated: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : DateTime.now(),
+          ? DateTime.parse(json['createdAt']).toUtc()
+          : DateTime.now().toUtc(),
       lastLogin: json['offlineAt'] != null
-          ? DateTime.parse(json['offlineAt'])
-          : DateTime.now(),
+          ? DateTime.parse(json['offlineAt']).toUtc()
+          : DateTime.now().toUtc(),
       subscriptionRegistered: json['subscriptionRegisteredAt'] != null
-          ? DateTime.parse(json['subscriptionRegisteredAt'])
+          ? DateTime.parse(json['subscriptionRegisteredAt']).toUtc()
           : null,
       subscriptionCancelled: json['subscriptionCancelledAt'] != null
-          ? DateTime.parse(json['subscriptionCancelledAt'])
+          ? DateTime.parse(json['subscriptionCancelledAt']).toUtc()
           : null,
       subscription: json['subscribeFlag'] == true ? '加入中' : '×',
       isFrozen: json['banFlag'] == true,

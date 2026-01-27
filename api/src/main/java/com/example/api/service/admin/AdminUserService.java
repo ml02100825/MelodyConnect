@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,8 +40,8 @@ public class AdminUserService {
             int page, int size,
             Long id, String userUuid, String username, String email,
             Boolean banFlag, Boolean subscribeFlag,
-            LocalDateTime createdFrom, LocalDateTime createdTo,
-            LocalDateTime offlineFrom, LocalDateTime offlineTo,
+            Instant createdFrom, Instant createdTo,
+            Instant offlineFrom, Instant offlineTo,
             String sortDirection) {
 
         Sort.Direction direction = parseSortDirection(sortDirection);

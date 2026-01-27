@@ -1,6 +1,6 @@
 package com.example.api.dto.admin;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * 管理者用ユーザー詳細レスポンスDTO（一般ユーザーの詳細表示用）
@@ -13,10 +13,10 @@ public class AdminUserDetailResponse {
     private String email;
     private boolean banFlag;
     private boolean subscribeFlag;
-    private LocalDateTime createdAt;
-    private LocalDateTime offlineAt;
-    private LocalDateTime acceptedAt;
-    private LocalDateTime canceledAt;
+    private Instant createdAt;
+    private Instant offlineAt;
+    private Instant acceptedAt;
+    private Instant canceledAt;
 
     public AdminUserDetailResponse() {}
 
@@ -32,12 +32,12 @@ public class AdminUserDetailResponse {
     public void setBanFlag(boolean banFlag) { this.banFlag = banFlag; }
     public boolean isSubscribeFlag() { return subscribeFlag; }
     public void setSubscribeFlag(boolean subscribeFlag) { this.subscribeFlag = subscribeFlag; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    public LocalDateTime getOfflineAt() { return offlineAt; }
-    public void setOfflineAt(LocalDateTime offlineAt) { this.offlineAt = offlineAt; }
-    public LocalDateTime getAcceptedAt() { return acceptedAt; }
-    public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
-    public LocalDateTime getCanceledAt() { return canceledAt; }
-    public void setCanceledAt(LocalDateTime canceledAt) { this.canceledAt = canceledAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public Instant getOfflineAt() { return offlineAt; }
+    public void setOfflineAt(Instant offlineAt) { this.offlineAt = offlineAt; }
+    public Instant getAcceptedAt() { return acceptedAt; }
+    public void setAcceptedAt(Instant acceptedAt) { this.acceptedAt = acceptedAt; }
+    public Instant getCanceledAt() { return canceledAt; }
+    public void setCanceledAt(Instant canceledAt) { this.canceledAt = canceledAt; }
 }

@@ -1,6 +1,6 @@
 package com.example.api.dto.admin;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * ユーザー検索リクエストDTO（一般ユーザー検索用）
@@ -13,10 +13,10 @@ public class UserSearchRequest {
     private String email;
     private Boolean banFlag;
     private Boolean subscribeFlag;
-    private LocalDateTime createdFrom;
-    private LocalDateTime createdTo;
-    private LocalDateTime offlineFrom;
-    private LocalDateTime offlineTo;
+    private Instant createdFrom;
+    private Instant createdTo;
+    private Instant offlineFrom;
+    private Instant offlineTo;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -30,12 +30,12 @@ public class UserSearchRequest {
     public void setBanFlag(Boolean banFlag) { this.banFlag = banFlag; }
     public Boolean getSubscribeFlag() { return subscribeFlag; }
     public void setSubscribeFlag(Boolean subscribeFlag) { this.subscribeFlag = subscribeFlag; }
-    public LocalDateTime getCreatedFrom() { return createdFrom; }
-    public void setCreatedFrom(LocalDateTime createdFrom) { this.createdFrom = createdFrom; }
-    public LocalDateTime getCreatedTo() { return createdTo; }
-    public void setCreatedTo(LocalDateTime createdTo) { this.createdTo = createdTo; }
-    public LocalDateTime getOfflineFrom() { return offlineFrom; }
-    public void setOfflineFrom(LocalDateTime offlineFrom) { this.offlineFrom = offlineFrom; }
-    public LocalDateTime getOfflineTo() { return offlineTo; }
-    public void setOfflineTo(LocalDateTime offlineTo) { this.offlineTo = offlineTo; }
+    public Instant getCreatedFrom() { return createdFrom; }
+    public void setCreatedFrom(Instant createdFrom) { this.createdFrom = createdFrom; }
+    public Instant getCreatedTo() { return createdTo; }
+    public void setCreatedTo(Instant createdTo) { this.createdTo = createdTo; }
+    public Instant getOfflineFrom() { return offlineFrom; }
+    public void setOfflineFrom(Instant offlineFrom) { this.offlineFrom = offlineFrom; }
+    public Instant getOfflineTo() { return offlineTo; }
+    public void setOfflineTo(Instant offlineTo) { this.offlineTo = offlineTo; }
 }

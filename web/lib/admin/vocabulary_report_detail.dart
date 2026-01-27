@@ -126,7 +126,7 @@ class _VocabularyReportDetailPageState extends State<VocabularyReportDetailPage>
   }
 
   Widget _buildMainContent() {
-    final addedAt = widget.report['addedAt'] as DateTime;
+    final addedAt = (widget.report['addedAt'] as DateTime).toLocal();
     final dateStr = '${addedAt.year}/${addedAt.month.toString().padLeft(2, '0')}/${addedAt.day.toString().padLeft(2, '0')} ${addedAt.hour.toString().padLeft(2, '0')}:${addedAt.minute.toString().padLeft(2, '0')}';
 
     return SingleChildScrollView(

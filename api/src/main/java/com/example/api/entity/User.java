@@ -2,7 +2,7 @@ package com.example.api.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -60,31 +60,31 @@ public class User {
     private boolean subscribeFlag = false;
 
     @Column(name = "accepted_at")
-    private LocalDateTime acceptedAt;
+    private Instant acceptedAt;
 
     @Column(name = "life", nullable = false)
     private int life = 5;
 
     @Column(name = "life_last_recovered_at")
-    private LocalDateTime lifeLastRecoveredAt;
+    private Instant lifeLastRecoveredAt;
 
     @Column(name = "delete_flag", nullable = false)
     private boolean deleteFlag = false;
 
     @Column(name = "expires_at")
-    private LocalDateTime expiresAt;
+    private Instant expiresAt;
 
     @Column(name = "canceled_at")
-    private LocalDateTime canceledAt;
+    private Instant canceledAt;
 
     @Column(name = "offline_at")
-    private LocalDateTime offlineAt;
+    private Instant offlineAt;
 
     @Column(name = "user_uuid", length = 20, unique = true)
     private String userUuid;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "ban_flag", nullable = false)
     private boolean banFlag = false;
@@ -99,7 +99,7 @@ public class User {
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            createdAt = Instant.now();
         }
         // userUuidは手動で設定する（フレンド申請用のユーザーID）
     }
@@ -135,32 +135,32 @@ public class User {
     public boolean isSubscribeFlag() { return subscribeFlag; }
     public void setSubscribeFlag(boolean subscribeFlag) { this.subscribeFlag = subscribeFlag; }
 
-    public LocalDateTime getAcceptedAt() { return acceptedAt; }
-    public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
+    public Instant getAcceptedAt() { return acceptedAt; }
+    public void setAcceptedAt(Instant acceptedAt) { this.acceptedAt = acceptedAt; }
 
     public int getLife() { return life; }
     public void setLife(int life) { this.life = life; }
 
-    public LocalDateTime getLifeLastRecoveredAt() { return lifeLastRecoveredAt; }
-    public void setLifeLastRecoveredAt(LocalDateTime lifeLastRecoveredAt) { this.lifeLastRecoveredAt = lifeLastRecoveredAt; }
+    public Instant getLifeLastRecoveredAt() { return lifeLastRecoveredAt; }
+    public void setLifeLastRecoveredAt(Instant lifeLastRecoveredAt) { this.lifeLastRecoveredAt = lifeLastRecoveredAt; }
 
     public boolean isDeleteFlag() { return deleteFlag; }
     public void setDeleteFlag(boolean deleteFlag) { this.deleteFlag = deleteFlag; }
 
-    public LocalDateTime getExpiresAt() { return expiresAt; }
-    public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+    public Instant getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
 
-    public LocalDateTime getCanceledAt() { return canceledAt; }
-    public void setCanceledAt(LocalDateTime canceledAt) { this.canceledAt = canceledAt; }
+    public Instant getCanceledAt() { return canceledAt; }
+    public void setCanceledAt(Instant canceledAt) { this.canceledAt = canceledAt; }
 
-    public LocalDateTime getOfflineAt() { return offlineAt; }
-    public void setOfflineAt(LocalDateTime offlineAt) { this.offlineAt = offlineAt; }
+    public Instant getOfflineAt() { return offlineAt; }
+    public void setOfflineAt(Instant offlineAt) { this.offlineAt = offlineAt; }
 
     public String getUserUuid() { return userUuid; }
     public void setUserUuid(String userUuid) { this.userUuid = userUuid; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
     public boolean isBanFlag() { return banFlag; }
     public void setBanFlag(boolean banFlag) { this.banFlag = banFlag; }

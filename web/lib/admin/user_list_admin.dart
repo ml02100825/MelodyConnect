@@ -748,6 +748,7 @@ class _UserListAdminState extends State<UserListAdmin> {
                             itemCount: users.length,
                             itemBuilder: (context, index) {
                               final user = users[index];
+                              final lastLoginLocal = user.lastLogin.toLocal();
                               return Container(
                                 decoration: BoxDecoration(
                                   border: Border(
@@ -800,7 +801,7 @@ class _UserListAdminState extends State<UserListAdmin> {
 
                                       // 最終ログイン日
                                       _buildTableCell(
-                                        '${user.lastLogin.year}/${user.lastLogin.month.toString().padLeft(2, '0')}/${user.lastLogin.day.toString().padLeft(2, '0')}',
+                                        '${lastLoginLocal.year}/${lastLoginLocal.month.toString().padLeft(2, '0')}/${lastLoginLocal.day.toString().padLeft(2, '0')}',
                                         3,
                                         TextAlign.center
                                       ),

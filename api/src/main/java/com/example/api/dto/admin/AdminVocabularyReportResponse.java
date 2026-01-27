@@ -1,6 +1,6 @@
 package com.example.api.dto.admin;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 public class AdminVocabularyReportResponse {
@@ -14,7 +14,7 @@ public class AdminVocabularyReportResponse {
     private String reportContent;
     private String status;
     private String adminMemo;
-    private LocalDateTime addedAt;
+    private Instant addedAt;
 
     public Long getVocabularyReportId() { return vocabularyReportId; }
     public void setVocabularyReportId(Long vocabularyReportId) { this.vocabularyReportId = vocabularyReportId; }
@@ -34,8 +34,8 @@ public class AdminVocabularyReportResponse {
     public void setStatus(String status) { this.status = status; }
     public String getAdminMemo() { return adminMemo; }
     public void setAdminMemo(String adminMemo) { this.adminMemo = adminMemo; }
-    public LocalDateTime getAddedAt() { return addedAt; }
-    public void setAddedAt(LocalDateTime addedAt) { this.addedAt = addedAt; }
+    public Instant getAddedAt() { return addedAt; }
+    public void setAddedAt(Instant addedAt) { this.addedAt = addedAt; }
 
     public static class ListResponse {
         private List<AdminVocabularyReportResponse> vocabularyReports;
