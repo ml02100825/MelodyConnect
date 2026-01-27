@@ -91,6 +91,10 @@ class _UserListAdminState extends State<UserListAdmin> {
         createdTo: createdEnd,
         offlineFrom: lastLoginStart,
         offlineTo: lastLoginEnd,
+        expiresFrom: subscRegistStart,
+        expiresTo: subscRegistEnd,
+        canceledFrom: subscCancelStart,
+        canceledTo: subscCancelEnd,
         sortDirection: _sortAscending ? 'asc' : 'desc',
       );
 
@@ -727,6 +731,12 @@ class _UserListAdminState extends State<UserListAdmin> {
                 // 最終ログイン日列
                 _buildTableHeader('最終ログイン日', 3),
 
+                // サブスク登録日列
+                _buildTableHeader('サブスク登録日', 3),
+
+                // サブスク解約日列
+                _buildTableHeader('サブスク解約日', 3),
+
                 // サブスク列
                 _buildTableHeader('サブスク', 2),
 
@@ -801,6 +811,24 @@ class _UserListAdminState extends State<UserListAdmin> {
                                       // 最終ログイン日
                                       _buildTableCell(
                                         '${user.lastLogin.year}/${user.lastLogin.month.toString().padLeft(2, '0')}/${user.lastLogin.day.toString().padLeft(2, '0')}',
+                                        3,
+                                        TextAlign.center
+                                      ),
+
+                                      // サブスク登録日
+                                      _buildTableCell(
+                                        user.subscriptionRegistered != null
+                                            ? '${user.subscriptionRegistered!.year}/${user.subscriptionRegistered!.month.toString().padLeft(2, '0')}/${user.subscriptionRegistered!.day.toString().padLeft(2, '0')} ${user.subscriptionRegistered!.hour.toString().padLeft(2, '0')}:${user.subscriptionRegistered!.minute.toString().padLeft(2, '0')}'
+                                            : '-',
+                                        3,
+                                        TextAlign.center
+                                      ),
+
+                                      // サブスク解約日
+                                      _buildTableCell(
+                                        user.subscriptionCancelled != null
+                                            ? '${user.subscriptionCancelled!.year}/${user.subscriptionCancelled!.month.toString().padLeft(2, '0')}/${user.subscriptionCancelled!.day.toString().padLeft(2, '0')} ${user.subscriptionCancelled!.hour.toString().padLeft(2, '0')}:${user.subscriptionCancelled!.minute.toString().padLeft(2, '0')}'
+                                            : '-',
                                         3,
                                         TextAlign.center
                                       ),

@@ -106,11 +106,11 @@ class _BadgeAdminState extends State<BadgeAdmin> {
   // モードオプション（固定値）
   final List<String> _modeOptions = [
     'モード',
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
+    '1 - 継続者',
+    '2 - バトラー',
+    '3 - ランカー',
+    '4 - 獲得大王',
+    '5 - スペシャル',
   ];
 
   @override
@@ -438,7 +438,30 @@ class _BadgeAdminState extends State<BadgeAdmin> {
 
   int? _convertModeToInt(String modeStr) {
     if (modeStr == 'モード' || modeStr.isEmpty) return null;
+    // "1 - コンティニュー" から "1" を抽出
+    final parts = modeStr.split(' - ');
+    if (parts.isNotEmpty) {
+      return int.tryParse(parts[0]);
+    }
     return int.tryParse(modeStr);
+  }
+
+  String _convertModeToDisplay(String mode) {
+    if (mode.isEmpty) return '';
+    switch (mode) {
+      case '1':
+        return '継続者';
+      case '2':
+        return 'バトラー';
+      case '3':
+        return 'ランカー';
+      case '4':
+        return '獲得大王';
+      case '5':
+        return 'スペシャル';
+      default:
+        return mode;
+    }
   }
 
   Widget _buildDateRangeCompact(String label) {
@@ -654,7 +677,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
                                       150,
                                     ),
                                     _buildListCell(
-                                      Text(badge.mode, style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
+                                      Text(_convertModeToDisplay(badge.mode), style: const TextStyle(fontSize: 13), textAlign: TextAlign.center),
                                       100,
                                     ),
                                     _buildListCell(

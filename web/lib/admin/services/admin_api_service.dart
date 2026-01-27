@@ -140,6 +140,10 @@ class AdminApiService {
     DateTime? createdTo,
     DateTime? offlineFrom,
     DateTime? offlineTo,
+    DateTime? expiresFrom,
+    DateTime? expiresTo,
+    DateTime? canceledFrom,
+    DateTime? canceledTo,
     String? sortDirection,
   }) async {
     final queryParams = <String, String>{
@@ -156,6 +160,10 @@ class AdminApiService {
     if (createdTo != null) queryParams['createdTo'] = _toIsoEnd(createdTo);
     if (offlineFrom != null) queryParams['offlineFrom'] = _toIsoStart(offlineFrom);
     if (offlineTo != null) queryParams['offlineTo'] = _toIsoEnd(offlineTo);
+    if (expiresFrom != null) queryParams['expiresFrom'] = _toIsoStart(expiresFrom);
+    if (expiresTo != null) queryParams['expiresTo'] = _toIsoEnd(expiresTo);
+    if (canceledFrom != null) queryParams['canceledFrom'] = _toIsoStart(canceledFrom);
+    if (canceledTo != null) queryParams['canceledTo'] = _toIsoEnd(canceledTo);
     if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/users', queryParams: queryParams);

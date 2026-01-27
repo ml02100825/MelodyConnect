@@ -38,11 +38,11 @@ class User {
       lastLogin: json['offlineAt'] != null
           ? DateTime.parse(json['offlineAt'])
           : DateTime.now(),
-      subscriptionRegistered: json['subscriptionRegisteredAt'] != null
-          ? DateTime.parse(json['subscriptionRegisteredAt'])
+      subscriptionRegistered: json['expiresAt'] != null
+          ? DateTime.parse(json['expiresAt'])
           : null,
-      subscriptionCancelled: json['subscriptionCancelledAt'] != null
-          ? DateTime.parse(json['subscriptionCancelledAt'])
+      subscriptionCancelled: json['canceledAt'] != null
+          ? DateTime.parse(json['canceledAt'])
           : null,
       subscription: json['subscribeFlag'] == true ? '加入中' : '×',
       isFrozen: json['banFlag'] == true,

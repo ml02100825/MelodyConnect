@@ -42,6 +42,8 @@ public class AdminUserService {
             Boolean banFlag, Boolean subscribeFlag,
             LocalDateTime createdFrom, LocalDateTime createdTo,
             LocalDateTime offlineFrom, LocalDateTime offlineTo,
+            LocalDateTime expiresFrom, LocalDateTime expiresTo,
+            LocalDateTime canceledFrom, LocalDateTime canceledTo,
             String sortDirection) {
 
         Sort.Direction direction = parseSortDirection(sortDirection);
@@ -79,6 +81,18 @@ public class AdminUserService {
             }
             if (offlineTo != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("offlineAt"), offlineTo));
+            }
+            if (expiresFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("expiresAt"), expiresFrom));
+            }
+            if (expiresTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("expiresAt"), expiresTo));
+            }
+            if (canceledFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("canceledAt"), canceledFrom));
+            }
+            if (canceledTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("canceledAt"), canceledTo));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -153,6 +167,8 @@ public class AdminUserService {
         summary.setSubscribeFlag(user.isSubscribeFlag());
         summary.setCreatedAt(user.getCreatedAt());
         summary.setOfflineAt(user.getOfflineAt());
+        summary.setExpiresAt(user.getExpiresAt());
+        summary.setCanceledAt(user.getCanceledAt());
         return summary;
     }
 

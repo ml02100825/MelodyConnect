@@ -159,11 +159,11 @@ public class AdminBadgeService {
             return null;
         }
         return switch (mode) {
-            case 1 -> "CONTINUE";
-            case 2 -> "BATTLE";
-            case 3 -> "RANKING";
-            case 4 -> "COLLECT";
-            case 5 -> "SPECIAL";
+            case 1 -> "1";
+            case 2 -> "2";
+            case 3 -> "3";
+            case 4 -> "4";
+            case 5 -> "5";
             default -> null;
         };
     }
@@ -173,6 +173,11 @@ public class AdminBadgeService {
             return null;
         }
         return switch (mode) {
+            case "1" -> 1;
+            case "2" -> 2;
+            case "3" -> 3;
+            case "4" -> 4;
+            case "5" -> 5;
             case "CONTINUE" -> 1;
             case "BATTLE" -> 2;
             case "RANKING" -> 3;

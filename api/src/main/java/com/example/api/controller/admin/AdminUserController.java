@@ -45,12 +45,17 @@ public class AdminUserController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime offlineFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime offlineTo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime expiresFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime expiresTo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime canceledFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime canceledTo,
             @RequestParam(defaultValue = "desc") String sortDirection) {
 
         try {
             AdminUserListResponse response = adminUserService.getUsers(
                     page, size, id, userUuid, username, email,
-                    banFlag, subscribeFlag, createdFrom, createdTo, offlineFrom, offlineTo, sortDirection);
+                    banFlag, subscribeFlag, createdFrom, createdTo, offlineFrom, offlineTo,
+                    expiresFrom, expiresTo, canceledFrom, canceledTo, sortDirection);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("ユーザー一覧取得エラー", e);

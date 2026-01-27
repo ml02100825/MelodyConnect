@@ -44,6 +44,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
   bool idChecked = false;
   bool nameChecked = false;
   bool conditionChecked = false;
+  bool modeChecked = false;
   
   // モードオプション
   final List<String> modeOptions = [
@@ -233,6 +234,9 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
   }
 
   Widget _buildDetailRow(String label, String value) {
+    if (label == 'モード') {
+      value = _convertModeToDisplay(value);
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -363,6 +367,24 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
             filled: true,
           ),
         );
+    }
+  }
+
+  String _convertModeToDisplay(String mode) {
+    if (mode.isEmpty) return '';
+    switch (mode) {
+         case '1':
+        return '継続者';
+      case '2':
+        return 'バトラー';
+      case '3':
+        return 'ランカー';
+      case '4':
+        return '獲得大王';
+      case '5':
+        return 'スペシャル';
+      default:
+        return mode;
     }
   }
 
@@ -527,7 +549,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           // すべてのチェックボックスがチェックされているか確認
-          final allChecked = idChecked && nameChecked && conditionChecked;
+          final allChecked = idChecked && nameChecked && conditionChecked && modeChecked;
           
           return AlertDialog(
             title: Container(
@@ -595,6 +617,17 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
                         ),
                         value: conditionChecked,
                         onChanged: (value) => setDialogState(() => conditionChecked = value ?? false),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      CheckboxListTile(
+                        title: Text(
+                          'モード: $selectedMode',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        value: modeChecked,
+                        onChanged: (value) => setDialogState(() => modeChecked = value ?? false),
                         controlAffinity: ListTileControlAffinity.leading,
                         dense: true,
                         contentPadding: EdgeInsets.zero,

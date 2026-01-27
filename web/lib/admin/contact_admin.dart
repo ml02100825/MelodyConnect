@@ -380,6 +380,7 @@ class _ContactAdminState extends State<ContactAdmin> {
             child: Row(
               children: const [
                 Expanded(flex: 1, child: Text('ID', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
+                Expanded(flex: 1, child: Text('単語ID', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
                 Expanded(flex: 2, child: Text('単語', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
                 Expanded(flex: 2, child: Text('報告者', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
                 Expanded(flex: 3, child: Text('報告内容', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
@@ -410,6 +411,7 @@ class _ContactAdminState extends State<ContactAdmin> {
                                 child: Row(
                                   children: [
                                     Expanded(flex: 1, child: Text(item['id'] as String, style: const TextStyle(fontSize: 13), textAlign: TextAlign.center)),
+                                    Expanded(flex: 1, child: Text(item['vocabularyId']?.toString() ?? '', style: const TextStyle(fontSize: 13), textAlign: TextAlign.center)),
                                     Expanded(flex: 2, child: Text(item['word'] as String, style: const TextStyle(fontSize: 13), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis)),
                                     Expanded(flex: 2, child: Text(item['userEmail'] as String, style: const TextStyle(fontSize: 13), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis)),
                                     Expanded(flex: 3, child: Text(item['reportContent'] as String, style: const TextStyle(fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
@@ -452,6 +454,7 @@ class _ContactAdminState extends State<ContactAdmin> {
             child: Row(
               children: const [
                 Expanded(flex: 1, child: Text('ID', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
+                Expanded(flex: 1, child: Text('問題ID', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
                 Expanded(flex: 3, child: Text('問題文', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
                 Expanded(flex: 2, child: Text('曲名', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
                 Expanded(flex: 2, child: Text('報告者', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
@@ -482,6 +485,7 @@ class _ContactAdminState extends State<ContactAdmin> {
                                 child: Row(
                                   children: [
                                     Expanded(flex: 1, child: Text(item['id'] as String, style: const TextStyle(fontSize: 13), textAlign: TextAlign.center)),
+                                    Expanded(flex: 1, child: Text(item['questionId']?.toString() ?? '', style: const TextStyle(fontSize: 13), textAlign: TextAlign.center)),
                                     Expanded(flex: 3, child: Text(item['questionText'] as String, style: const TextStyle(fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
                                     Expanded(flex: 2, child: Text(item['songName'] as String, style: const TextStyle(fontSize: 13), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis)),
                                     Expanded(flex: 2, child: Text(item['userEmail'] as String, style: const TextStyle(fontSize: 13), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis)),

@@ -35,6 +35,8 @@ public class AdminUserListResponse {
         private boolean subscribeFlag;
         private LocalDateTime createdAt;
         private LocalDateTime offlineAt;
+        private LocalDateTime expiresAt;
+        private LocalDateTime canceledAt;
 
         public AdminUserSummary() {}
 
@@ -54,6 +56,10 @@ public class AdminUserListResponse {
         public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
         public LocalDateTime getOfflineAt() { return offlineAt; }
         public void setOfflineAt(LocalDateTime offlineAt) { this.offlineAt = offlineAt; }
+        public LocalDateTime getExpiresAt() { return expiresAt; }
+        public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+        public LocalDateTime getCanceledAt() { return canceledAt; }
+        public void setCanceledAt(LocalDateTime canceledAt) { this.canceledAt = canceledAt; }
     }
 
     // Getters and Setters
