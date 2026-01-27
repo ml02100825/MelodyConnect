@@ -23,3 +23,18 @@ public interface BadgeRepository extends JpaRepository<Badge, Long>, JpaSpecific
      */
     boolean existsByBadgeName(String badgeName);
 }
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface BadgeRepository extends JpaRepository<Badge, Long> {
+    // 全件取得 (有効かつ削除されていない)
+    List<Badge> findByIsActiveTrueAndIsDeletedFalse();
+
+    // ★追加: モード(数値)指定での取得用
+    List<Badge> findByModeAndIsActiveTrueAndIsDeletedFalse(Integer mode);
+
+    // バッジ名で検索
+    Optional<Badge> findByBadgeName(String badgeName);
+}

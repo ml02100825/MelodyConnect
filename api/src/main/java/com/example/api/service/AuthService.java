@@ -180,6 +180,11 @@ public class AuthService {
             rateRepository.save(rate);
         }
 
+        // ログイン回数をカウントアップ
+        int loginCount = user.getLoginCount() == null ? 0 : user.getLoginCount();
+        user.setLoginCount(loginCount + 1);
+        userRepository.save(user);
+
         // トークンを生成
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
