@@ -50,6 +50,9 @@ public class QuizStartResponse {
     @AllArgsConstructor
     public static class QuizQuestion {
         private Integer questionId;
+        private Long songId;
+        private String songName;
+        private String artistName;
         private String text;
         private String questionFormat; // "fill_in_the_blank" or "listening"
         private Integer difficultyLevel;

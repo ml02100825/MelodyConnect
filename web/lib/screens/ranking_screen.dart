@@ -290,7 +290,8 @@ class _RankingScreenState extends State<RankingScreen>
           list.add({
             'rank': e['rank'] ?? (list.length + 1),
             'name': e['name'] ?? '',
-            'count': e['rate'] ?? e['count'] ?? 0,
+            // Weekly ranking uses aggregated lessonsNum, so count must take priority.
+            'count': e['count'] ?? 0,
             'isFriend': e['isFriend'] ?? false,
             'isMe': e['isMe'] ?? false,
           });
