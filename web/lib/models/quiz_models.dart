@@ -63,6 +63,9 @@ class QuizStartResponse {
 /// クイズ問題
 class QuizQuestion {
   final int questionId;
+  final int? songId;
+  final String? songName;
+  final String? artistName;
   final String text;
   final String questionFormat;
   final int difficultyLevel;
@@ -74,6 +77,9 @@ class QuizQuestion {
 
   QuizQuestion({
     required this.questionId,
+    this.songId,
+    this.songName,
+    this.artistName,
     required this.text,
     required this.questionFormat,
     required this.difficultyLevel,
@@ -87,6 +93,9 @@ class QuizQuestion {
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
     return QuizQuestion(
       questionId: json['questionId'],
+      songId: json['songId'],
+      songName: json['songName'],
+      artistName: json['artistName'],
       text: json['text'],
       questionFormat: json['questionFormat'],
       difficultyLevel: json['difficultyLevel'] ?? 1,

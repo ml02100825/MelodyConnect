@@ -517,8 +517,16 @@ public class QuizService {
             answerValue = q.getAnswer();
         }
 
+        final Song song = q.getSong();
+        final Long songId = song != null ? song.getSongId() : null;
+        final String songName = song != null ? song.getSongname() : null;
+        final String artistName = q.getArtist() != null ? q.getArtist().getArtistName() : null;
+
         return QuizStartResponse.QuizQuestion.builder()
             .questionId(q.getQuestionId())
+            .songId(songId)
+            .songName(songName)
+            .artistName(artistName)
             .text(q.getText())
             .questionFormat(q.getQuestionFormat().getValue())
             .difficultyLevel(q.getDifficultyLevel())

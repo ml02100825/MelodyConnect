@@ -139,7 +139,12 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
               const SizedBox(height: 12),
               
               // ★ 追加: 曲情報
-              if (widget.songInfo != null) _buildSongInfoChip(),
+              if ((_currentQuestion.songId != null) ||
+                  (_currentQuestion.songName != null &&
+                      _currentQuestion.songName!.isNotEmpty) ||
+                  (_currentQuestion.artistName != null &&
+                      _currentQuestion.artistName!.isNotEmpty))
+                _buildSongInfoChip(),
               const SizedBox(height: 12),
 
               // 問題タイプ表示
@@ -196,8 +201,9 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
 
   /// ★ 追加: 曲情報を表示
   Widget _buildSongInfoChip() {
-    final artistName = widget.songInfo?.artistName ?? '不明なアーティスト';
-    final songName = widget.songInfo?.songName ?? '不明な曲';
+    final artistName =
+        _currentQuestion.artistName ?? '不明なアーティスト';
+    final songName = _currentQuestion.songName ?? '不明な曲';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
