@@ -22,6 +22,9 @@ public class Admin {
     @Column(name = "admin_id")
     private Long admin_id;
 
+    @Column(name = "email", nullable = false, unique = true, length = 255)
+    private String email;
+
     @Column(name = "password", nullable = false, length = 100)
     private String password;
 
@@ -42,6 +45,14 @@ public class Admin {
 
     public void setAdmin_id(Long admin_id) {
         this.admin_id = admin_id;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getPassword() {

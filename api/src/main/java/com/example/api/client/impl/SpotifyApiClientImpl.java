@@ -172,9 +172,9 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                 
                 // 重複チェック（コンピレーションアルバムなどで同じ曲が複数回出る場合がある）
                 for (Song song : tracksFromAlbum) {
-                    if (!seenTrackIds.contains(song.getSpotify_track_id())) {
+                    if (!seenTrackIds.contains(song.getSpotifyTrackId())) {
                         allSongs.add(song);
-                        seenTrackIds.add(song.getSpotify_track_id());
+                        seenTrackIds.add(song.getSpotifyTrackId());
                         totalTracks++;
                     }
                 }
@@ -753,7 +753,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
         String songName = trackNode.path("name").asText();
         song.setSongname(songName);
-        song.setSpotify_track_id(trackNode.path("id").asText());
+        song.setSpotifyTrackId(trackNode.path("id").asText());
 
         // アーティスト情報を取得してDBに保存
         JsonNode artists = trackNode.path("artists");
@@ -772,17 +772,17 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
             Artist artist = getOrCreateArtist(artistApiId, artistName != null ? artistName : "Unknown Artist");
 
             // artistIdがLong型に変更されたため、直接設定
-            song.setAritst_id(artist.getArtistId());
+            song.setArtistId(artist.getArtistId());
             logger.debug("Songにアーティストを設定: artistId={}, artistName={}", artist.getArtistId(), artist.getArtistName());
         } else {
             logger.warn("トラックにアーティスト情報がありません: {}", songName);
-            song.setAritst_id(1L);
+            song.setArtistId(1L);
         }
 
         song.setLanguage(null);
-        song.setGenius_song_id(null);
+        song.setGeniusSongId(null);
 
-        logger.debug("Spotify楽曲をパース: {} (ID: {})", song.getSongname(), song.getSpotify_track_id());
+        logger.debug("Spotify楽曲をパース: {} (ID: {})", song.getSongname(), song.getSpotifyTrackId());
         return song;
     }
 
@@ -836,10 +836,10 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     private Song createMockSong(String genre) {
         Song song = new Song();
         song.setSongname("Mock Song - " + System.currentTimeMillis());
-        song.setSpotify_track_id("mock_" + System.currentTimeMillis());
-        song.setGenius_song_id(null);
+        song.setSpotifyTrackId("mock_" + System.currentTimeMillis());
+        song.setGeniusSongId(null);
         song.setLanguage(null);
-        song.setAritst_id(1L);
+        song.setArtistId(1L);
         return song;
     }
 }

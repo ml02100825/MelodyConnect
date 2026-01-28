@@ -18,6 +18,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -34,6 +36,7 @@ import java.util.regex.Pattern;
  */
 @Service
 public class AuthService {
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
@@ -274,8 +277,16 @@ public class AuthService {
 
     /**
      * 期限切れセッションのクリーンアップ（DB）
+        sessionRepository.revokeAllUserSessions(user);
+        updateOfflineAtIfNoActiveSessions(user);
+    }
+
+    /**
+     * 期限切れセッションのクリーンアップ（1時間ごとに自動実行）
+     * セッションがすべて削除されたユーザーの offlineAt を更新
      */
     @Transactional
+    @Scheduled(fixedRate = 3600000) // 1時間 = 3,600,000ミリ秒
     public void cleanupExpiredSessions() {
         sessionRepository.deleteExpiredSessions(LocalDateTime.now());
         logger.info("期限切れセッションを削除しました");
@@ -387,6 +398,36 @@ public class AuthService {
             }
         } catch (Exception e) {
             logger.error("セッション破棄中にエラー（処理は続行）", e);
+        LocalDateTime now = LocalDateTime.now();
+
+        // 期限切れセッションを持つユーザーを事前に取得（効率化）
+        List<User> affectedUsers = sessionRepository.findUsersWithExpiredSessions(now);
+
+        // 期限切れセッションを削除
+        sessionRepository.deleteExpiredSessions(now);
+        logger.info("期限切れセッションを削除しました: 影響を受けたユーザー数={}", affectedUsers.size());
+
+        // 影響を受けたユーザーの offlineAt を更新
+        for (User user : affectedUsers) {
+            updateOfflineAtIfNoActiveSessions(user);
+        }
+    }
+
+    /**
+     * ユーザーの offlineAt を更新（有効なセッションが存在しない場合のみ）
+     * @param user ユーザー
+     */
+    private void updateOfflineAtIfNoActiveSessions(User user) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Session> validSessions = sessionRepository.findValidSessionsByUser(user, now);
+
+        if (validSessions.isEmpty()) {
+            user.setOfflineAt(now);
+            userRepository.save(user);
+            logger.info("ユーザーの offlineAt を更新: userId={}, offlineAt={}", user.getId(), now);
+        } else {
+            logger.debug("有効なセッションが存在するため、offlineAt は更新しません: userId={}, activeSessions={}",
+                         user.getId(), validSessions.size());
         }
     }
 }

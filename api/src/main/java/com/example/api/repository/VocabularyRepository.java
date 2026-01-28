@@ -2,6 +2,7 @@ package com.example.api.repository;
 
 import com.example.api.entity.Vocabulary;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,7 +14,7 @@ import java.util.Optional;
  * Vocabulary Repository
  */
 @Repository
-public interface VocabularyRepository extends JpaRepository<Vocabulary, Integer> {
+public interface VocabularyRepository extends JpaRepository<Vocabulary, Integer>, JpaSpecificationExecutor<Vocabulary> {
 
     /**
      * 単語で検索
@@ -28,7 +29,7 @@ public interface VocabularyRepository extends JpaRepository<Vocabulary, Integer>
     /**
      * base_formまたはtranslation_jaがnullのレコードを取得（バッチ処理用）
      */
-    @Query("SELECT v FROM Vocabulary v WHERE v.base_form IS NULL OR v.translation_ja IS NULL ORDER BY v.vocab_id ASC LIMIT :limit")
+    @Query("SELECT v FROM Vocabulary v WHERE v.base_form IS NULL OR v.translation_ja IS NULL ORDER BY v.vocabId ASC LIMIT :limit")
     List<Vocabulary> findByBaseFormIsNullOrTranslationJaIsNull(@Param("limit") int limit);
 
     /**
@@ -40,7 +41,7 @@ public interface VocabularyRepository extends JpaRepository<Vocabulary, Integer>
     /**
      * ID順に指定件数を取得（強制更新用）
      */
-    @Query("SELECT v FROM Vocabulary v ORDER BY v.vocab_id ASC LIMIT :limit")
+    @Query("SELECT v FROM Vocabulary v ORDER BY v.vocabId ASC LIMIT :limit")
     List<Vocabulary> findAllOrderByIdAsc(@Param("limit") int limit);
 
     /**

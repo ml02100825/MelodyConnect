@@ -2,6 +2,7 @@ package com.example.api.repository;
 
 import com.example.api.entity.QuestionReport;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -10,7 +11,7 @@ import java.util.Optional;
  * QuestionReport Repository
  */
 @Repository
-public interface QuestionReportRepository extends JpaRepository<QuestionReport, Long> {
+public interface QuestionReportRepository extends JpaRepository<QuestionReport, Long>, JpaSpecificationExecutor<QuestionReport> {
 
     /**
      * ユーザーIDと問題IDで通報を検索
