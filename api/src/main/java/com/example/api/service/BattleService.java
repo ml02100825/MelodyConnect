@@ -945,6 +945,13 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
     }
 
     /**
+     * 回答フェーズでタイムアウトした対戦のmatchUuidリストを取得
+     */
+    public java.util.List<String> getTimedOutAnswerPhaseMatches() {
+        return battleStateService.getTimedOutAnswerPhaseMatches();
+    }
+
+    /**
      * 降参処理
      */
     @Transactional
