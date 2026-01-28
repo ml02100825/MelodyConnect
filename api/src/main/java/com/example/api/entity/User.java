@@ -3,12 +3,7 @@ package com.example.api.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
-/**
- * ユーザーエンティティクラス
- * データベースのusersテーブルにマッピングされます
- */
 @Entity
 @Table(name = "users",
        indexes = {
@@ -22,6 +17,8 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
     private Long id;
+
+    // ... (他のフィールドは省略) ...
 
     @NotBlank
     @Size(max = 20)
@@ -47,15 +44,22 @@ public class User {
 
     @Min(0)
     @Max(100)
-
     @Column(name = "language", nullable = false)
     private int language = 0;
 
     @Column(name = "privacy")
     private Integer privacy = 0;
 
+    // ▼▼▼ ここを int に変更 ▼▼▼
+    /**
+     * サブスクリプションステータス
+     * 0: 未契約 / 解約済み (期限切れ)
+     * 1: 解約予約中 (期限までは利用可能)
+     * 2: 契約中 (自動更新あり)
+     */
     @Column(name = "subscribe_flag", nullable = false)
-    private boolean subscribeFlag = false;
+    private int subscribeFlag = 0;
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
@@ -90,16 +94,11 @@ public class User {
     @Column(name = "initial_setup_completed", nullable = false)
     private boolean initialSetupCompleted = false;
 
-
-    /**
-     * エンティティ保存前の処理
-     */
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
-        // userUuidは手動で設定する（フレンド申請用のユーザーID）
     }
 
     // ====== getters / setters ======
@@ -127,8 +126,10 @@ public class User {
     public int getPrivacy() { return privacy; }
     public void setPrivacy(int privacy) { this.privacy = privacy; }
 
-    public boolean isSubscribeFlag() { return subscribeFlag; }
-    public void setSubscribeFlag(boolean subscribeFlag) { this.subscribeFlag = subscribeFlag; }
+    // ▼▼▼ int に変更 ▼▼▼
+    public int getSubscribeFlag() { return subscribeFlag; }
+    public void setSubscribeFlag(int subscribeFlag) { this.subscribeFlag = subscribeFlag; }
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     public LocalDateTime getAcceptedAt() { return acceptedAt; }
     public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }

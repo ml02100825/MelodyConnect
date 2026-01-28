@@ -86,6 +86,7 @@ public class SecurityConfig {
                         .requestMatchers("/samples/**").permitAll()
                         .requestMatchers("/api/dev/**").permitAll() // 開発用エンドポイント
                         .requestMatchers("/api/vocabulary/**").permitAll() // ★追加: 単語帳API
+                        .requestMatchers("/api/payments/**").permitAll() // 支払い関連を許可
                         // プロフィール更新 (PUT) を認証済みユーザーに許可
                         .requestMatchers(HttpMethod.PUT, "/api/profile/**").authenticated()
                         // お問い合わせ (POST) を認証済みユーザーに許可

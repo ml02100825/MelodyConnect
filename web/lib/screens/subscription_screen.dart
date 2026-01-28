@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // 追加
+import 'package:http/http.dart' as http;
 import '../bottom_nav.dart';
-import '../services/token_storage_service.dart'; // 追加
+import '../services/token_storage_service.dart';
 import 'payment_management_screen.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -13,37 +13,29 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  final _tokenStorage = TokenStorageService();
-  
-  bool isSubscribed = false;
+  // 0: 未契約, 1: 解約予約, 2: 契約中
+  int subscriptionStatus = 0;
+  DateTime? expiryDate;
   bool _isLoading = true;
-  List<dynamic> _paymentMethods = [];
-  Map<String, dynamic>? _selectedPaymentMethod;
-
-  // APIのベースURL
+  
   static const String baseUrl = 'http://localhost:8080/api/payments';
+  List<Map<String, dynamic>> _myCards = [];
 
   @override
   void initState() {
     super.initState();
-    _initData();
+    _fetchStatusFromServer();
   }
 
-  // 初期データ読み込み（サブスク状態 & カード情報）
-  Future<void> _initData() async {
-    setState(() => _isLoading = true);
-    await Future.wait([
-      _checkSubscriptionStatus(),
-      _loadPaymentMethods(),
-    ]);
-    if (mounted) setState(() => _isLoading = false);
-  }
-
-  // サブスク状態の確認
-  Future<void> _checkSubscriptionStatus() async {
+  Future<void> _fetchStatusFromServer() async {
     try {
-      final token = await _tokenStorage.getAccessToken();
-      if (token == null) return;
+      final tokenStorage = TokenStorageService();
+      final token = await tokenStorage.getAccessToken();
+      
+      if (token == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
 
       final response = await http.get(
         Uri.parse('$baseUrl/subscription-status'),
@@ -52,348 +44,276 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final int status = data['status'] ?? 0;
+        final String? expiresAtStr = data['expiresAt'];
+
+        DateTime? parsedDate;
+        if (expiresAtStr != null && expiresAtStr.isNotEmpty) {
+          parsedDate = DateTime.tryParse(expiresAtStr);
+        }
+        
         if (mounted) {
           setState(() {
-            isSubscribed = data['isSubscribed'] ?? false;
+            subscriptionStatus = status;
+            expiryDate = parsedDate;
+            _mockRefreshCards();
+            _isLoading = false;
           });
         }
-      }
-    } catch (e) {
-      debugPrint('Status check error: $e');
-    }
-  }
-
-  // カード情報の取得
-  Future<void> _loadPaymentMethods() async {
-    try {
-      final methods = await PaymentApiService.getPaymentMethods();
-      if (mounted) {
-        setState(() {
-          _paymentMethods = methods;
-          if (_paymentMethods.isNotEmpty && _selectedPaymentMethod == null) {
-            _selectedPaymentMethod = _paymentMethods.first;
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint('Payment load error: $e');
-    }
-  }
-
-  // サブスク登録処理
-  Future<void> _subscribe() async {
-    try {
-      setState(() => _isLoading = true);
-      final token = await _tokenStorage.getAccessToken();
-      
-      final response = await http.post(
-        Uri.parse('$baseUrl/subscribe'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (response.statusCode == 200) {
-        await _checkSubscriptionStatus(); // 状態更新
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ConnectPlusに登録しました！'), backgroundColor: Colors.blue),
-          );
-        }
       } else {
-        final error = jsonDecode(utf8.decode(response.bodyBytes));
-        throw Exception(error['error'] ?? '登録に失敗しました');
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('エラー: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // 解約処理
-  Future<void> _unsubscribe() async {
-    try {
-      setState(() => _isLoading = true);
-      final token = await _tokenStorage.getAccessToken();
-      
-      final response = await http.post(
-        Uri.parse('$baseUrl/unsubscribe'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (response.statusCode == 200) {
-        await _checkSubscriptionStatus(); // 状態更新
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('解約しました'), backgroundColor: Colors.orange),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Unsubscribe error: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+  // 残り日数を計算
+  int _getRemainingDays() {
+    if (expiryDate == null) return 0;
+    final now = DateTime.now();
+    final difference = expiryDate!.difference(now);
+    return difference.inDays >= 0 ? difference.inDays : 0;
   }
-  
-  bool get _hasPaymentMethod => _paymentMethods.isNotEmpty;
-  Map<String, dynamic>? get _primaryPaymentMethod => _selectedPaymentMethod;
+
+  void _mockRefreshCards() {
+    setState(() {
+      if (_myCards.isEmpty) _myCards = [{'brand': 'VISA', 'last4': '1234'}];
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    bool isSubscribed = (subscriptionStatus == 2);
+    bool isCanceledButActive = (subscriptionStatus == 1);
+    
+    final primaryCard = _myCards.isNotEmpty ? _myCards.first : null;
+    final remainingDays = _getRemainingDays();
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
+        title: const Text('ConnectPlus', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'ConnectPlus',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
         ),
         centerTitle: true,
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
-        : SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ヘッダー部分
-            Center(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: isSubscribed ? Colors.amber[50] : Colors.grey[100],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.workspace_premium,
-                      size: 80,
-                      color: isSubscribed ? Colors.amber[700] : Colors.grey[400],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'ConnectPlus',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (!isSubscribed)
-                    const Text(
-                      '¥500/月',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
+                  _buildHeader(isSubscribed || isCanceledButActive, isSubscribed, remainingDays),
+                  const SizedBox(height: 32),
+
+                  if (isSubscribed) 
+                    _buildSubscribedView()
+                  else if (isCanceledButActive)
+                    _buildCanceledView(remainingDays)
+                  else 
+                    _buildUnsubscribedView(primaryCard),
+                  
+                  const SizedBox(height: 24),
+                  _buildBenefitsList(),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+       bottomNavigationBar: BottomNavBar(currentIndex: 0, onTap: (index) {}),
+    );
+  }
 
-            // 登録済みの場合の表示
-            if (isSubscribed) ...[
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle, color: Colors.blue[700], size: 28),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'あなたはサブスクに登録中です',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                  ],
+  Widget _buildHeader(bool isActive, bool isAutoRenewal, int days) {
+    return Center(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isActive ? Colors.amber[50] : Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.workspace_premium,
+              size: 80,
+              color: isActive ? Colors.amber[700] : Colors.grey[400],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text('ConnectPlus', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          
+          if (!isActive)
+            const Text('¥500/月', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
+          
+          // ▼▼▼ 残り日数の表示 ▼▼▼
+          if (isActive) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isAutoRenewal ? Colors.green[50] : Colors.orange[50],
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isAutoRenewal ? Colors.green : Colors.orange,
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // 登録情報カード
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[300]!),
+              child: Text(
+                isAutoRenewal 
+                    ? 'あと $days 日で更新' 
+                    : 'あと $days 日で終了',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isAutoRenewal ? Colors.green[800] : Colors.orange[800],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '登録情報',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildInfoRow('プラン', 'ConnectPlus 月間プラン'),
-                    const Divider(height: 24),
-                    _buildInfoRow('金額', '¥500/月'),
-                    // お支払い方法の表示（適宜APIから取得したものを表示）
-                    if (_primaryPaymentMethod != null) ...[
-                      const Divider(height: 24),
-                      _buildInfoRow(
-                        'お支払い方法',
-                        '${_primaryPaymentMethod!['brand']} •••• ${_primaryPaymentMethod!['last4']}',
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-
-            // 特典内容
-            const Text(
-              '特典内容',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 16),
-            _buildBenefitItem('ライフの上限が5から10に増加', Icons.favorite),
-            _buildBenefitItem('ライフ回復アイテム付与', Icons.card_giftcard),
-            _buildBenefitItem('単語帳の全権閲覧可能', Icons.menu_book),
-            _buildBenefitItem('単語帳の並び替え機能解放', Icons.sort),
-            const SizedBox(height: 40),
-
-            // ボタン
-            if (!isSubscribed) ...[
-              // 登録済みカード情報表示
-              if (_hasPaymentMethod && _primaryPaymentMethod != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.credit_card, color: Colors.blue),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '${_primaryPaymentMethod!['brand']} •••• ${_primaryPaymentMethod!['last4']}',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => _showPaymentMethodSelector(),
-                        child: const Text('変更', style: TextStyle(color: Colors.blue)),
-                      ),
-                    ],
-                  ),
-                ),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _handleSubscribeAction(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: Text(
-                    _hasPaymentMethod ? '¥500/月で登録する' : '支払い方法を登録して購入',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ] else
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => _showCancelDialog(),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: const BorderSide(color: Colors.red),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'サブスクリプションを解約',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red,
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: 0,
-        onTap: (index) {},
+          ]
+        ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildSubscribedView() {
+    return Column(
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 15,
-            color: Colors.grey[600],
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue[200]!),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.blue[700], size: 28),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'あなたはサブスクに登録中です\n(自動更新あり)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
         ),
-        Flexible(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: _showCancelDialog,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: const BorderSide(color: Colors.red),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            textAlign: TextAlign.end,
+            child: const Text('解約する', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red)),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildCanceledView(int days) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '解約手続き済みです。\nあと $days 日間は特典をご利用いただけます。',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnsubscribedView(Map<String, dynamic>? primaryCard) {
+    // (以前と同じなので省略可ですが、念のため全文記載)
+    if (primaryCard != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("お支払い方法", style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.credit_card, color: Colors.blueGrey, size: 30),
+                const SizedBox(width: 16),
+                Text('${primaryCard['brand']} •••• ${primaryCard['last4']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _goToCardManagement,
+              child: const Text('カードの確認・変更はこちら', style: TextStyle(color: Colors.blue)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => _showSubscribeDialog(primaryCard),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('¥500/月で登録する', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+          ),
+        ],
+      );
+    } else {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: _goToCardManagement,
+          icon: const Icon(Icons.add_card, color: Colors.white),
+          label: const Text('支払い方法を登録して購入', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      );
+    }
+  }
+
+  // 特典リストなどは変更なし
+  Widget _buildBenefitsList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('特典内容', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        _buildBenefitItem('ライフの上限が5から10に増加', Icons.favorite),
+        _buildBenefitItem('ライフ回復アイテム付与', Icons.card_giftcard),
+        _buildBenefitItem('単語帳の全権閲覧可能', Icons.menu_book),
+        _buildBenefitItem('単語帳の並び替え機能解放', Icons.sort),
       ],
     );
   }
@@ -409,150 +329,33 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: Colors.blue, size: 24),
-          ),
+          Icon(icon, color: Colors.blue),
           const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const Icon(Icons.check_circle, color: Colors.blue, size: 24),
+          Expanded(child: Text(text)),
+          const Icon(Icons.check_circle, color: Colors.blue),
         ],
       ),
     );
   }
 
-  void _handleSubscribeAction() async {
-    if (_hasPaymentMethod) {
-      _showSubscribeDialog();
-    } else {
-      final result = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(builder: (context) => const AddPaymentMethodScreen()),
-      );
-      if (result == true) {
-        await _loadPaymentMethods();
-        if (mounted && _paymentMethods.isNotEmpty) {
-          setState(() {
-            _selectedPaymentMethod = _paymentMethods.last;
-          });
-          _showSubscribeDialog();
-        }
-      }
-    }
-  }
-  
-  void _showPaymentMethodSelector() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('支払い方法を選択', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 16),
-            ..._paymentMethods.map((method) {
-              final isSelected = _selectedPaymentMethod != null && _selectedPaymentMethod!['id'] == method['id'];
-              return ListTile(
-                leading: const Icon(Icons.credit_card, color: Colors.blue),
-                title: Text('${method['brand']} •••• ${method['last4']}'),
-                trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : null,
-                onTap: () {
-                  setState(() {
-                    _selectedPaymentMethod = method;
-                  });
-                  Navigator.pop(context);
-                },
-              );
-            }),
-            const SizedBox(height: 8),
-            Divider(color: Colors.grey[300]),
-            ListTile(
-              leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
-              title: const Text('新しい支払い方法を追加', style: TextStyle(color: Colors.blue)),
-              onTap: () async {
-                Navigator.pop(context);
-                final result = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AddPaymentMethodScreen()),
-                );
-                if (result == true) {
-                  await _loadPaymentMethods();
-                  if (mounted && _paymentMethods.isNotEmpty) {
-                    setState(() {
-                      _selectedPaymentMethod = _paymentMethods.last;
-                    });
-                  }
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+  Future<void> _goToCardManagement() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (context) => const PaymentManagementScreen()));
+    _mockRefreshCards();
   }
 
-  void _showSubscribeDialog() {
-    final pm = _primaryPaymentMethod;
+  void _showSubscribeDialog(Map<String, dynamic> card) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('購入確認'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('ConnectPlusを¥500/月で購入しますか?'),
-            const SizedBox(height: 12),
-            if (pm != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.credit_card, size: 20, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${pm['brand']} •••• ${pm['last4']}',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+        content: const Text('ConnectPlusを¥500/月で購入しますか？'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('キャンセル'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _subscribe(); // API呼び出し
+              _processSubscribe();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             child: const Text('購入する'),
           ),
         ],
@@ -560,30 +363,68 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
+  Future<void> _processSubscribe() async {
+    setState(() => _isLoading = true);
+    try {
+      final token = await TokenStorageService().getAccessToken();
+      final response = await http.post(
+        Uri.parse('$baseUrl/subscribe'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      
+      if (response.statusCode == 200) {
+        // 成功したらリロードして最新状態(日数など)を取得
+        await _fetchStatusFromServer();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('登録完了！'), backgroundColor: Colors.green));
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('登録に失敗しました'), backgroundColor: Colors.red));
+    }
+  }
+
   void _showCancelDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('解約確認'),
-        content: const Text(
-          'ConnectPlusを解約しますか?\n\n解約すると特典が利用できなくなります。',
-        ),
+        content: const Text('本当に解約しますか？\n次回更新日まで特典は利用可能です。'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('キャンセル'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               Navigator.pop(context);
-              _unsubscribe(); // API呼び出し
+              _processUnsubscribe();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('解約する'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _processUnsubscribe() async {
+    setState(() => _isLoading = true);
+    try {
+      final token = await TokenStorageService().getAccessToken();
+      final response = await http.post(
+        Uri.parse('$baseUrl/unsubscribe'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      
+      if (response.statusCode == 200) {
+        // 解約成功 -> ステータス1になるはずなのでリロード
+        await _fetchStatusFromServer();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('解約しました'), backgroundColor: Colors.orange));
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('解約に失敗しました'), backgroundColor: Colors.red));
+    }
   }
 }

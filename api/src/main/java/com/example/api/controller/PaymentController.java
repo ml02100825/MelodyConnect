@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -20,17 +21,15 @@ public class PaymentController {
     private UserPaymentMethodRepository paymentRepository;
 
     @Autowired
-    private UserRepository userRepository; // 追加: ユーザー情報更新用
+    private UserRepository userRepository;
 
     // === クレジットカード関連 ===
 
-    // 一覧取得
     @GetMapping
     public List<UserPaymentMethod> getMethods(@AuthenticationPrincipal Long userId) {
         return paymentRepository.findByUserId(userId);
     }
 
-    // 追加
     @PostMapping
     public ResponseEntity<?> addMethod(@RequestBody Map<String, String> request, 
                                        @AuthenticationPrincipal Long userId) {
@@ -38,7 +37,6 @@ public class PaymentController {
         return ResponseEntity.ok(Map.of("message", "カードを追加しました"));
     }
 
-    // 更新
     @PutMapping("/{id}")
     public ResponseEntity<?> updateMethod(@PathVariable Long id,
                                           @RequestBody Map<String, String> request,
@@ -52,7 +50,6 @@ public class PaymentController {
             .orElse(ResponseEntity.notFound().build());
     }
 
-    // 削除
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteMethod(@PathVariable Long id, @AuthenticationPrincipal Long userId) {
         return paymentRepository.findById(id)
@@ -64,43 +61,78 @@ public class PaymentController {
             .orElse(ResponseEntity.notFound().build());
     }
 
-    // === サブスクリプション関連 (新規追加) ===
+    // === サブスクリプション関連 ===
 
-    // ステータス確認
+    /**
+     * ステータス確認
+     * 0: 未契約 / 解約済み
+     * 1: 解約予約中
+     * 2: 契約中
+     */
     @GetMapping("/subscription-status")
     public ResponseEntity<?> getSubscriptionStatus(@AuthenticationPrincipal Long userId) {
         return userRepository.findById(userId)
-            .map(user -> ResponseEntity.ok(Map.of("isSubscribed", user.isSubscribeFlag())))
+            .map(user -> {
+                // 有効期限切れのチェック (ステータスが1または2の場合)
+                if (user.getSubscribeFlag() > 0 && 
+                    user.getExpiresAt() != null && 
+                    user.getExpiresAt().isBefore(LocalDateTime.now())) {
+                    
+                    // 期限が切れていたら 0 (未契約) に戻して保存
+                    user.setSubscribeFlag(0);
+                    userRepository.save(user);
+                }
+                
+                return ResponseEntity.ok(Map.of(
+                    "status", user.getSubscribeFlag(),
+                    "expiresAt", user.getExpiresAt() != null ? user.getExpiresAt().toString() : ""
+                ));
+            })
             .orElse(ResponseEntity.notFound().build());
     }
 
-    // 登録 (カードがあればOK)
+    /**
+     * 登録 (ステータスを 2 に設定)
+     */
     @PostMapping("/subscribe")
     public ResponseEntity<?> subscribe(@AuthenticationPrincipal Long userId) {
-        // 1. カードが登録されているかチェック
         List<UserPaymentMethod> methods = paymentRepository.findByUserId(userId);
         if (methods.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "支払い方法が登録されていません"));
         }
 
-        // 2. ユーザーのサブスクフラグをONにする
         return userRepository.findById(userId)
             .map(user -> {
-                user.setSubscribeFlag(true);
+                user.setSubscribeFlag(2); // 2: 契約中
+                // 31日後を有効期限に設定
+                user.setExpiresAt(LocalDateTime.now().plusDays(31));
+                
                 userRepository.save(user);
-                return ResponseEntity.ok(Map.of("message", "ConnectPlusに登録しました"));
+                return ResponseEntity.ok(Map.of(
+                    "message", "ConnectPlusに登録しました",
+                    "status", 2,
+                    "expiresAt", user.getExpiresAt().toString()
+                ));
             })
             .orElse(ResponseEntity.notFound().build());
     }
 
-    // 解約
+    /**
+     * 解約 (ステータスを 1 に設定)
+     */
     @PostMapping("/unsubscribe")
     public ResponseEntity<?> unsubscribe(@AuthenticationPrincipal Long userId) {
         return userRepository.findById(userId)
             .map(user -> {
-                user.setSubscribeFlag(false);
-                userRepository.save(user);
-                return ResponseEntity.ok(Map.of("message", "解約しました"));
+                if (user.getSubscribeFlag() == 2) {
+                    user.setSubscribeFlag(1); // 1: 解約予約中
+                    userRepository.save(user);
+                    return ResponseEntity.ok(Map.of("message", "自動更新を停止しました", "status", 1));
+                } else if (user.getSubscribeFlag() == 1) {
+                    return ResponseEntity.ok(Map.of("message", "既に解約予約済みです", "status", 1));
+                } else {
+                    return ResponseEntity.badRequest().body(Map.of("error", "契約していません"));
+                }
             })
             .orElse(ResponseEntity.notFound().build());
     }

@@ -54,8 +54,6 @@ public class AuthService {
     /**
      * SHA-256でハッシュ化
      * リフレッシュトークンのハッシュ化に使用（BCryptの72バイト制限を回避）
-     * @param input ハッシュ化する文字列
-     * @return SHA-256ハッシュ（16進数文字列）
      */
     private String hashWithSHA256(String input) {
         try {
@@ -75,12 +73,6 @@ public class AuthService {
 
     /**
      * ユーザー登録（ステップ1: メールアドレスとパスワードのみ）
-     * 登録後、プロフィール設定画面でユーザー名とアイコンを設定
-     * @param request 登録リクエスト
-     * @param userAgent ユーザーエージェント
-     * @param ip IPアドレス
-     * @return 認証レスポンス
-     * @throws IllegalArgumentException メールアドレスが既に登録されている場合
      */
     @Transactional
     public AuthResponse register(RegisterRequest request, String userAgent, String ip) {
@@ -98,21 +90,25 @@ public class AuthService {
         // パスワードをハッシュ化
         String passwordHash = passwordEncoder.encode(request.getPassword());
 
-        // ユーザーを作成（ユーザー名は仮で"user_<timestamp>"を設定）
+        // ユーザーを作成
         User user = new User();
         user.setMailaddress(request.getEmail());
         user.setPassword(passwordHash);
-        user.setUsername("user_" + System.currentTimeMillis()); // 仮ユーザー名（後でプロフィール設定画面で変更）
+        user.setUsername("user_" + System.currentTimeMillis()); 
+
+        // [修正箇所] 明示的に未契約(0)をセットする
+        user.setSubscribeFlag(0);
+
         user = userRepository.save(user);
 
         // 現在のシーズンを取得
         Integer currentSeason = seasonCalculator.getCurrentSeason();
 
-        // Rate初期レコードを作成（現在のシーズン、レート1500）
+        // Rate初期レコードを作成
         Rate rate = new Rate(user, currentSeason);
         rateRepository.save(rate);
 
-        // WeeklyLessons初期レコードを作成（学習回数0）
+        // WeeklyLessons初期レコードを作成
         WeeklyLessons weeklyLessons = new WeeklyLessons(user);
         weeklyLessonsRepository.save(weeklyLessons);
 
@@ -120,7 +116,7 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
-        // セッションを作成（refreshTokenはSHA-256でハッシュ化）
+        // セッションを作成
         String refreshHash = hashWithSHA256(refreshToken);
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(30);
         Session session = new Session(user, refreshHash, expiresAt, userAgent, ip);
@@ -139,11 +135,6 @@ public class AuthService {
 
     /**
      * ログイン
-     * @param request ログインリクエスト
-     * @param userAgent ユーザーエージェント
-     * @param ip IPアドレス
-     * @return 認証レスポンス
-     * @throws IllegalArgumentException メールアドレスまたはパスワードが正しくない場合
      */
     @Transactional
     public AuthResponse login(LoginRequest request, String userAgent, String ip) {
@@ -179,7 +170,7 @@ public class AuthService {
         // 現在のシーズンを取得
         Integer currentSeason = seasonCalculator.getCurrentSeason();
 
-        // 現在のシーズンのRateレコードが存在しない場合、初期レート1500で作成
+        // Rateレコードが存在しない場合作成
         if (!rateRepository.existsByUserAndSeason(user, currentSeason)) {
             Rate rate = new Rate(user, currentSeason);
             rateRepository.save(rate);
@@ -189,7 +180,7 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
-        // セッションを作成（refreshTokenはSHA-256でハッシュ化）
+        // セッションを作成
         String refreshHash = hashWithSHA256(refreshToken);
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(30);
         Session session = new Session(user, refreshHash, expiresAt, userAgent, ip);
@@ -208,34 +199,23 @@ public class AuthService {
 
     /**
      * リフレッシュトークンを使用して新しいアクセストークンを生成
-     * @param refreshToken リフレッシュトークン
-     * @return 認証レスポンス
-     * @throws IllegalArgumentException リフレッシュトークンが無効な場合
      */
     @Transactional
     public AuthResponse refreshAccessToken(String refreshToken) {
-        // トークンを検証
         if (!jwtUtil.validateToken(refreshToken)) {
             throw new IllegalArgumentException("無効なリフレッシュトークンです");
         }
-
-        // トークンタイプを確認
         if (!"refresh".equals(jwtUtil.getTokenType(refreshToken))) {
             throw new IllegalArgumentException("リフレッシュトークンではありません");
         }
 
-        // ユーザーIDを取得
         Long userId = jwtUtil.getUserIdFromToken(refreshToken);
-
-        // ユーザーを検索
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isEmpty()) {
             throw new IllegalArgumentException("ユーザーが見つかりません");
         }
 
         User user = userOpt.get();
-
-        // セッションを検証（リフレッシュトークンのSHA-256ハッシュで検索）
         String refreshHash = hashWithSHA256(refreshToken);
         boolean sessionValid = sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())
                 .stream()
@@ -245,10 +225,8 @@ public class AuthService {
             throw new IllegalArgumentException("セッションが無効です");
         }
 
-        // 新しいアクセストークンを生成
         String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
 
-        // セッションの有効期限を延長
         sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())
                 .stream()
                 .filter(session -> refreshHash.equals(session.getRefreshHash()))
@@ -258,7 +236,6 @@ public class AuthService {
                     sessionRepository.save(session);
                 });
 
-        // レスポンスを返す
         return new AuthResponse(
                 user.getId(),
                 user.getUsername(),
@@ -269,18 +246,8 @@ public class AuthService {
         );
     }
 
-    // /**
-    //  * MARK:ログアウト（セッションを無効化）
-    //  * @param userId ユーザーID
-    //  */
-    // @Transactional
-    // public void logout(Long userId) {
-    //     sessionRepository.revokeAllUserSessionsById(userId);
-    // }
-
     /**
-     * ログアウト（セッションを無効化）
-     * @param user ユーザー
+     * ログアウト
      */
     @Transactional
     public void logout(User user) {
@@ -290,26 +257,19 @@ public class AuthService {
         sessionRepository.revokeAllUserSessions(user);
     }
 
-
     /**
-     * 退会（セッションを無効化→退会）
-     * @param user ユーザー
+     * 退会
      */
     @Transactional
     public void withdraw(User user) {
-        // 論理削除フラグを立てる
         user.setDeleteFlag(true);
-        // 退会日時を記録(offlineAtを退会日時として使用)
         user.setOfflineAt(LocalDateTime.now());
-        // リフレッシュトークンの削除
-        // refreshTokenRepository.deleteByUser(user);
         sessionRepository.revokeAllUserSessions(user);
-        // ユーザー情報を保存
         userRepository.save(user);
     }
 
     /**
-     * 期限切れセッションのクリーンアップ
+     * セッションクリーンアップ
      */
     @Transactional
     public void cleanupExpiredSessions() {

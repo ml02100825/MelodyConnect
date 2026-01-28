@@ -39,7 +39,8 @@ public class LifeService {
      * @return ライフ上限（通常:5, サブスク:10）
      */
     public int getMaxLife(User user) {
-        return user.isSubscribeFlag() ? MAX_LIFE_SUBSCRIBER : MAX_LIFE_NORMAL;
+        // [修正] int型の判定に変更 (2:契約中)
+        return (user.getSubscribeFlag() == 2) ? MAX_LIFE_SUBSCRIBER : MAX_LIFE_NORMAL;
     }
 
     /**
@@ -58,11 +59,12 @@ public class LifeService {
         int maxLife = getMaxLife(user);
         long nextRecoveryInSeconds = calculateNextRecoveryInSeconds(user, maxLife);
 
+        // [修正] int型の判定に変更 (DTOにはbooleanで渡す)
         return new LifeStatusResponse(
                 user.getLife(),
                 maxLife,
                 nextRecoveryInSeconds,
-                user.isSubscribeFlag()
+                user.getSubscribeFlag() == 2
         );
     }
 
@@ -89,7 +91,7 @@ public class LifeService {
         }
 
         // 原子的にライフを消費
-        LocalDateTime now = LocalDateTime.now();
+        // LocalDateTime now = LocalDateTime.now(); // 未使用のためコメントアウト
         int updatedRows = userRepository.consumeLife(userId, user.getLifeLastRecoveredAt());
 
         if (updatedRows == 0) {
@@ -115,11 +117,12 @@ public class LifeService {
         int maxLife = getMaxLife(user);
         long nextRecoveryInSeconds = calculateNextRecoveryInSeconds(user, maxLife);
 
+        // [修正] int型の判定に変更
         return new LifeStatusResponse(
                 user.getLife(),
                 maxLife,
                 nextRecoveryInSeconds,
-                user.isSubscribeFlag()
+                user.getSubscribeFlag() == 2
         );
     }
 
@@ -184,9 +187,9 @@ public class LifeService {
 
         LocalDateTime now = LocalDateTime.now();
         long elapsedSeconds = Duration.between(lastRecoveredAt, now).getSeconds();
-        long remainingSeconds = RECOVERY_INTERVAL_SECONDS - (elapsedSeconds % RECOVERY_INTERVAL_SECONDS);
-
-        return remainingSeconds;
+        // long remainingSeconds = RECOVERY_INTERVAL_SECONDS - (elapsedSeconds % RECOVERY_INTERVAL_SECONDS);
+        // return remainingSeconds;
+        return RECOVERY_INTERVAL_SECONDS - (elapsedSeconds % RECOVERY_INTERVAL_SECONDS);
     }
 
     /**
