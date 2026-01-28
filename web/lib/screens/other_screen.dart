@@ -1,12 +1,5 @@
 import 'package:flutter/material.dart';
 import '../bottom_nav.dart';
-// import 'my_profile.dart';
-// import 'volume_settings_screen.dart';
-// import 'contact_screen.dart';
-// import 'language_settings_screen.dart';
-// import 'privacy_settings_screen.dart';
-// import 'subscription_screen.dart';
-// import 'payment_management_screen.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
@@ -25,11 +18,13 @@ class _OtherScreenState extends State<OtherScreen> {
   // ログアウト処理
   Future<void> _handleLogout() async {
     try {
-      final userId = await _tokenStorage.getUserId();
+      // ★修正: userIdではなくrefreshTokenを取得
+      final refreshToken = await _tokenStorage.getRefreshToken();
       final accessToken = await _tokenStorage.getAccessToken();
 
-      if (userId != null && accessToken != null) {
-        await _authApiService.logout(userId, accessToken);
+      if (refreshToken != null && accessToken != null) {
+        // ★修正: refreshTokenを渡す
+        await _authApiService.logout(refreshToken, accessToken);
       }
 
       // ローカルの認証情報を削除
@@ -86,13 +81,13 @@ class _OtherScreenState extends State<OtherScreen> {
   // 退会処理（アカウント削除またはログアウト）
   Future<void> _performWithdraw() async {
     try {
-      final userId = await _tokenStorage.getUserId();
+      // ★修正: userIdではなくrefreshTokenを取得
+      final refreshToken = await _tokenStorage.getRefreshToken();
       final accessToken = await _tokenStorage.getAccessToken();
 
-      if (userId != null && accessToken != null) {
-        // バックエンドに専用の削除 API があればそちらを実装してください。
-        // 現状は logout を呼んでセッションを切断します。
-        await _authApiService.logout(userId, accessToken);
+      if (refreshToken != null && accessToken != null) {
+        // ★修正: refreshTokenを渡す
+        await _authApiService.logout(refreshToken, accessToken);
       }
 
       await _tokenStorage.clearAuthData();

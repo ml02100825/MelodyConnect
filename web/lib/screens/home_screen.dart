@@ -200,11 +200,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// ログアウト処理
   Future<void> _handleLogout() async {
     try {
-      final userId = await _tokenStorage.getUserId();
+      // ★修正: userIdではなくrefreshTokenを取得
+      final refreshToken = await _tokenStorage.getRefreshToken();
       final accessToken = await _tokenStorage.getAccessToken();
 
-      if (userId != null && accessToken != null) {
-        await _authApiService.logout(userId, accessToken);
+      if (refreshToken != null && accessToken != null) {
+        // ★修正: refreshTokenを渡す
+        await _authApiService.logout(refreshToken, accessToken);
       }
 
       // ローカルの認証情報を削除
