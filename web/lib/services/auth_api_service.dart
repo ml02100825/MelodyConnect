@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 
 /// セッション無効例外
 /// セッションが失効・revoke済みの場合にスローされます
@@ -14,8 +15,8 @@ class SessionInvalidException implements Exception {
 /// 認証APIサービス
 /// バックエンドの認証エンドポイントとの通信を行います
 class AuthApiService {
-  // 開発環境のAPIベースURL（本番環境では適切なURLに変更してください）
-  static const String baseUrl = 'http://localhost:8080/api/auth';
+  // APIベースURL（assets/config.jsonから読み込み）
+  String get baseUrl => '${AppConfig.apiBaseUrl}/api/auth';
 
   /// ユーザー登録
   ///

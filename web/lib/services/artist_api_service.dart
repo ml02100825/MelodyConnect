@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 
 /// アーティスト検索結果
 class SpotifyArtist {
@@ -44,7 +45,7 @@ class SpotifyArtist {
 class ArtistApiService {
   final String baseUrl;
 
-  ArtistApiService({this.baseUrl = 'http://localhost:8080'});
+  ArtistApiService({String? baseUrl}) : baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
 
   /// アーティストを検索
   Future<List<SpotifyArtist>> searchArtists(

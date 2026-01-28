@@ -2,13 +2,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'admin_token_storage_service.dart';
 import 'admin_auth_service.dart';
+import '../../config/app_config.dart';
 
 /// 管理者API共通サービス
 class AdminApiService {
-  static const String _baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
-  );
+  static String get _baseUrl => AppConfig.apiBaseUrl;
 
   /// 認証ヘッダー付きでGETリクエスト
   static Future<http.Response> get(String path, {Map<String, String>? queryParams}) async {

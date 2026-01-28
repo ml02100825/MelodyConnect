@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
+import 'package:flutter_webapp/config/app_config.dart';
 import 'token_storage_service.dart';
 import 'friend_api_service.dart';
 
@@ -60,7 +61,7 @@ class FriendNotificationService {
 
     _stompClient = StompClient(
       config: StompConfig(
-        url: 'ws://localhost:8080/ws',
+        url: '${AppConfig.wsBaseUrl}/ws',
         stompConnectHeaders: {
           if (userId != null) 'userId': userId.toString(),
           'clientType': 'friend',

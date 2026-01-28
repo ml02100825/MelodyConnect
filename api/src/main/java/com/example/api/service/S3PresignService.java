@@ -44,6 +44,9 @@ public class S3PresignService {
     @Value("${aws.s3.presign-expiration-minutes:15}")
     private int presignExpirationMinutes;
 
+    @Value("${aws.s3.audio-folder:uploads/audio}")
+    private String audioFolder;
+
     private S3Presigner s3Presigner;
 
     @PostConstruct
@@ -127,7 +130,7 @@ public class S3PresignService {
 
     /**
      * audioUrlがS3キー形式かどうかを判定
-     * S3キーは "uploads/" で始まる（URLではない）
+     * S3キーは設定されたフォルダプレフィックスで始まる（URLではない）
      *
      * @param audioUrl 判定対象の文字列
      * @return S3キーの場合はtrue
@@ -136,8 +139,16 @@ public class S3PresignService {
         if (audioUrl == null || audioUrl.isEmpty()) {
             return false;
         }
-        // S3キーは "uploads/" で始まり、"http" で始まらない
-        return audioUrl.startsWith("uploads/") && !audioUrl.startsWith("http");
+
+        // URLの場合は明確にfalse
+        if (audioUrl.startsWith("http://") || audioUrl.startsWith("https://")) {
+            return false;
+        }
+
+        // S3キー形式の判定: audioFolderのルートプレフィックス（例: "uploads/"）で始まるか
+        // aws.s3.audio-folder = "uploads/audio" の場合、"uploads/" で始まるかチェック
+        String rootPrefix = audioFolder.split("/")[0] + "/";
+        return audioUrl.startsWith(rootPrefix);
     }
 
     /**
