@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_webapp/config/app_config.dart';
 import '../bottom_nav.dart';
 import '../services/token_storage_service.dart';
 
@@ -34,8 +35,8 @@ class _RankingScreenState extends State<RankingScreen>
   final Map<String, List<Map<String, dynamic>>> _rankings = {};
   List<Map<String, dynamic>> _weeklyRankings = [];
 
-  // サーバーのURL（環境に合わせて変更してください）
-  final String _baseUrl = 'http://localhost:8080';
+  // サーバーのURL（assets/config.jsonから読み込み）
+  String get _baseUrl => AppConfig.apiBaseUrl;
   final TokenStorageService _tokenStorage = TokenStorageService();
   int? _currentUserId;
 

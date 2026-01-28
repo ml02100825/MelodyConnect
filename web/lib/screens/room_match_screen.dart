@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
+import 'package:flutter_webapp/config/app_config.dart';
 import '../services/token_storage_service.dart';
 import '../services/room_api_service.dart';
 
@@ -296,7 +297,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
     _stompClient?.deactivate();
     _stompClient = StompClient(
       config: StompConfig(
-        url: 'ws://localhost:8080/ws',
+        url: '${AppConfig.wsBaseUrl}/ws',
         stompConnectHeaders: {
           if (_userId != null) 'userId': _userId.toString(),
           'clientType': 'room',
@@ -1432,8 +1433,8 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                               ? (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
                                   ? imageUrl
                                   : imageUrl.startsWith('/')
-                                      ? 'http://localhost:8080$imageUrl'
-                                      : 'http://localhost:8080/uploads/$imageUrl')
+                                      ? '${AppConfig.apiBaseUrl}$imageUrl'
+                                      : '${AppConfig.apiBaseUrl}/uploads/$imageUrl')
                               : null;
 
                           return ListTile(

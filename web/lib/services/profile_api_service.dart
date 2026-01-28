@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 
 /// プロフィールAPIサービス
 /// バックエンドのプロフィールエンドポイントとの通信を行います
 class ProfileApiService {
-  // 開発環境のAPIベースURL（本番環境では適切なURLに変更してください）
-  static const String baseUrl = 'http://localhost:8080/api/profile';
+  String get baseUrl => '${AppConfig.apiBaseUrl}/api/profile';
 
   /// プロフィール更新（ステップ2: ユーザー名、ユーザーID、アイコン設定）
   ///
