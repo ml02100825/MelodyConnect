@@ -77,11 +77,11 @@ public class QuizService {
      * aritst_idを使ってArtistエンティティから取得
      */
     private String getArtistNameFromSong(Song song) {
-        if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
+        if (song.getArtistId() == null || song.getArtistId() == 0L) {
             return null;
         }
         
-        return artistRepository.findById(song.getAritst_id())
+        return artistRepository.findById(song.getArtistId())
             .map(Artist::getArtistName)
             .orElse(null);
     }
@@ -105,8 +105,8 @@ public class QuizService {
 
             if (selectedSong != null) {
                 // 2. 曲が選択された場合、50問チェック
-                // ★ selectedSong.getSong_id()がnullの場合（新規Song）は0問として扱う
-                Long songId = selectedSong.getSong_id();
+                // ★ selectedSong.getSongId()がnullの場合（新規Song）は0問として扱う
+                Long songId = selectedSong.getSongId();
                 long questionCount = (songId != null) ? questionRepository.countBySongId(songId) : 0;
                 logger.info("既存の問題数: songId={}, count={}", songId, questionCount);
 
@@ -122,7 +122,7 @@ public class QuizService {
                     // ★ 新規生成後、問題リストからSong情報を取得（保存後のIDを持つ）
                     if (!questions.isEmpty() && questions.get(0).getSong() != null) {
                         actualSong = questions.get(0).getSong();
-                        logger.debug("新規生成後のSong情報を更新: songId={}", actualSong.getSong_id());
+                        logger.debug("新規生成後のSong情報を更新: songId={}", actualSong.getSongId());
                     }
                 }
             } else {
@@ -145,11 +145,11 @@ public class QuizService {
                 .collect(Collectors.toList());
 
             QuizStartResponse.SongInfo songInfo = null;
-            if (actualSong != null && actualSong.getSong_id() != null) {
+            if (actualSong != null && actualSong.getSongId() != null) {
                 String artistName = getArtistNameFromSong(actualSong);
   
                 songInfo = QuizStartResponse.SongInfo.builder()
-                    .songId(actualSong.getSong_id())
+                    .songId(actualSong.getSongId())
                     .songName(actualSong.getSongname())
                     .artistName(artistName)
                     .build();
@@ -386,11 +386,11 @@ public class QuizService {
         // ★ 修正: ResponseからsongIdを取得（新規Songの場合、selectedSongのIDはnullのため）
         Long songId = (response.getSongInfo() != null && response.getSongInfo().getSongId() != null)
             ? response.getSongInfo().getSongId()
-            : selectedSong.getSong_id();
+            : selectedSong.getSongId();
         
-        logger.debug("問題取得用songId: {} (selectedSong.getSong_id()={}, response.songId={})",
+        logger.debug("問題取得用songId: {} (selectedSong.getSongId()={}, response.songId={})",
             songId, 
-            selectedSong.getSong_id(),
+            selectedSong.getSongId(),
             response.getSongInfo() != null ? response.getSongInfo().getSongId() : "null");
 
         // 生成された問題を取得

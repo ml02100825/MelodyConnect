@@ -132,6 +132,58 @@ public class JwtUtil {
     }
 
     /**
+     * 管理者用アクセストークンを生成
+     * @param adminId 管理者ID
+     * @return JWTアクセストークン（role=ADMINクレーム付き）
+     */
+    public String generateAdminAccessToken(Long adminId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
+
+        return Jwts.builder()
+                .subject(adminId.toString())
+                .claim("role", "ADMIN")
+                .claim("type", "access")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    /**
+     * 管理者用リフレッシュトークンを生成
+     * @param adminId 管理者ID
+     * @return JWTリフレッシュトークン（role=ADMINクレーム付き）
+     */
+    public String generateAdminRefreshToken(Long adminId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + refreshTokenExpiration);
+
+        return Jwts.builder()
+                .subject(adminId.toString())
+                .claim("role", "ADMIN")
+                .claim("type", "refresh")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    /**
+     * トークンからロールを取得
+     * @param token JWTトークン
+     * @return ロール（"ADMIN" or "USER" or null）
+     */
+    public String getRoleFromToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.get("role", String.class);
+    }
+
+    /**
      * アクセストークンの有効期限を取得（ミリ秒）
      * @return 有効期限
      */

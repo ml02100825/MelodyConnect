@@ -61,14 +61,14 @@ public class ArtistSyncService {
             int newSongsCount = 0;
             for (Song song : allSongs) {
                 // Spotify Track IDで重複チェック
-                boolean exists = songRepository.existsBySpotifyTrackId(song.getSpotify_track_id());
+                boolean exists = songRepository.existsBySpotifyTrackId(song.getSpotifyTrackId());
                 
                 if (!exists) {
                     // artist_idを設定（IntegerからLongへの変換）
-                    song.setAritst_id(artistId.longValue());
+                    song.setArtistId(artistId.longValue());
                     
                     // genius_song_idはnull（仕様通り）
-                    song.setGenius_song_id(null);
+                    song.setGeniusSongId(null);
                     
                     songRepository.save(song);
                     newSongsCount++;

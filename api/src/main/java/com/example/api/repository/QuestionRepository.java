@@ -4,6 +4,7 @@ import com.example.api.entity.Artist;
 import com.example.api.entity.Question;
 import com.example.api.entity.Song;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -13,7 +14,7 @@ import java.util.List;
  * Question Repository
  */
 @Repository
-public interface QuestionRepository extends JpaRepository<Question, Integer> {
+public interface QuestionRepository extends JpaRepository<Question, Integer>, JpaSpecificationExecutor<Question> {
 
     /**
      * 楽曲で問題を検索
@@ -38,19 +39,19 @@ public interface QuestionRepository extends JpaRepository<Question, Integer> {
     /**
      * 楽曲IDで問題数をカウント
      */
-    @Query("SELECT COUNT(q) FROM Question q WHERE q.song.song_id = ?1")
+    @Query("SELECT COUNT(q) FROM Question q WHERE q.song.songId = ?1")
     long countBySongId(Long songId);
 
     /**
      * 楽曲IDで問題を検索
      */
-    @Query("SELECT q FROM Question q WHERE q.song.song_id = ?1")
+    @Query("SELECT q FROM Question q WHERE q.song.songId = ?1")
     List<Question> findBySongId(Long songId);
 
     /**
      * 楽曲IDと問題形式で検索
      */
-    @Query("SELECT q FROM Question q WHERE q.song.song_id = ?1 AND q.questionFormat = ?2")
+    @Query("SELECT q FROM Question q WHERE q.song.songId = ?1 AND q.questionFormat = ?2")
     List<Question> findBySongIdAndQuestionFormat(Long songId, com.example.api.enums.QuestionFormat questionFormat);
 
     /**

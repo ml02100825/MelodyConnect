@@ -75,6 +75,14 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @Modifying
     @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user = :user")
     void revokeAllUserSessions(@Param("user") User user);
+
+    /**
+     * 期限切れセッションを持つユーザーを取得
+     * @param now 現在時刻
+     * @return 期限切れセッションを持つユーザーのリスト（重複なし）
+     */
+    @Query("SELECT DISTINCT s.user FROM Session s WHERE s.expiresAt < :now")
+    List<User> findUsersWithExpiredSessions(@Param("now") LocalDateTime now);
 }
 
 

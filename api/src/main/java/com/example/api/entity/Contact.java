@@ -1,12 +1,14 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
     name = "contact",
     indexes = {
-        @Index(name = "idx_contact_user_id", columnList = "user_id")
+        @Index(name = "idx_contact_user_id", columnList = "user_id"),
+        @Index(name = "idx_contact_status", columnList = "status")
     }
 )
 public class Contact {
@@ -14,7 +16,7 @@ public class Contact {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "contact_id")
-    private Long contact_id;
+    private Long contactId;
 
     @Column(name = "contact_detail", length = 500)
     private String contact_detail;
@@ -29,12 +31,31 @@ public class Contact {
     @Column(name = "title", nullable = false, length = 50)
     private String title;
 
-    // ====== getters / setters ======
-    public Long getContact_id() {
-        return contact_id;
+    @Column(name = "status", length = 20)
+    private String status = "未対応";
+
+    @Column(name = "admin_memo", columnDefinition = "TEXT")
+    private String adminMemo;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (status == null) {
+            status = "未対応";
+        }
     }
-    public void setContact_id(Long contact_id) {
-        this.contact_id = contact_id;
+
+    // ====== getters / setters ======
+    public Long getContactId() {
+        return contactId;
+    }
+    public void setContactId(Long contactId) {
+        this.contactId = contactId;
     }
 
     public String getContact_detail() {
@@ -63,5 +84,26 @@ public class Contact {
     }
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getAdminMemo() {
+        return adminMemo;
+    }
+    public void setAdminMemo(String adminMemo) {
+        this.adminMemo = adminMemo;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

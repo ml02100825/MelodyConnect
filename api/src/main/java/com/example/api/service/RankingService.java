@@ -6,6 +6,7 @@ import com.example.api.entity.User;
 import com.example.api.repository.FriendRepository;
 import com.example.api.repository.RateRepository;
 import com.example.api.repository.WeeklyLessonsRepository;
+import com.example.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +27,8 @@ public class RankingService {
     private final RateRepository rateRepository;
     private final WeeklyLessonsRepository weeklyLessonsRepository;
     private final FriendRepository friendRepository;
+    private final UserRepository userRepository;
+    private final BadgeGrantService badgeGrantService;
 
     // Rateテーブルの実データに基づいてシーズンリストを作成
     @Transactional(readOnly = true)
@@ -111,6 +114,36 @@ public class RankingService {
         return RankingDto.WeeklyResponse.builder()
                 .entries(entries)
                 .build();
+    }
+
+    /**
+     * ランキング画面が開かれたときのバッジ一括チェック処理
+     */
+    @Transactional
+    public void processRankingAccess(Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return;
+
+        // 1. 【テスト用】ランキング画面を見ただけで即ゲット
+        badgeGrantService.grantBadgeByName(userId, "【テスト】ランク確認");
+        badgeGrantService.grantBadgeByName(userId, "ランク入り"); // サンプルとして付与
+
+        // 2. ログイン回数による判定 (Userエンティティの値を使用)
+        int loginCount = user.getLoginCount() != null ? user.getLoginCount() : 0;
+        
+        badgeGrantService.grantBadgeByName(userId, "【テスト】継続ログイン"); // テスト用
+        
+        if (loginCount >= 10) badgeGrantService.grantBadgeByName(userId, "継続者Ⅰ");
+        if (loginCount >= 30) badgeGrantService.grantBadgeByName(userId, "継続者Ⅱ");
+        if (loginCount >= 30) badgeGrantService.grantBadgeByName(userId, "毎日コツコツ"); // 簡易判定
+
+        // 3. プレイ回数による判定
+        int totalPlay = user.getTotalPlay();
+        if (totalPlay >= 1) {
+            badgeGrantService.grantBadgeByName(userId, "【テスト】バトル参加");
+            badgeGrantService.grantBadgeByName(userId, "バトル初心者");
+        }
+        if (totalPlay >= 100) badgeGrantService.grantBadgeByName(userId, "バトルマスター");
     }
 
     private Integer parseSeason(String seasonName) {

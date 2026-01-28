@@ -15,16 +15,50 @@ import 'screens/learning_history_screen.dart';
 import 'screens/learning_history_detail_screen.dart';
 import 'widgets/room_invitation_overlay.dart';
 
-void main() => runApp(const MyApp());
+// 管理者画面
+import 'admin/admin_login_screen.dart';
+import 'admin/admin_route_guard.dart';
+import 'admin/user_list_admin.dart';
+import 'admin/vocabulary_admin.dart';
+import 'admin/mondai_admin.dart';
+import 'admin/music_admin.dart';
+import 'admin/artist_admin.dart';
+import 'admin/genre_admin.dart';
+import 'admin/badge_admin.dart';
+import 'admin/contact_admin.dart';
+
+/// 初期ルートを取得（管理者ルート対応）
+String _getInitialRoute() {
+  try {
+    final uri = Uri.base;
+    final path = uri.path;
+    // 管理者ルートの場合はそのパスを返す
+    if (path.startsWith('/admin')) {
+      return path;
+    }
+  } catch (e) {
+    // Web以外の環境では例外が発生する可能性がある
+  }
+  return '/';
+}
+
+void main() {
+  final initialRoute = _getInitialRoute();
+  runApp(MyApp(initialRoute: initialRoute));
+}
 
 /// ナビゲーターキー（オーバーレイからのナビゲーション用）
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialRoute;
+
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
+    final isAdminRoute = initialRoute.startsWith('/admin');
+
     return MaterialApp(
       title: 'MelodyConnect',
       navigatorKey: navigatorKey,
@@ -33,13 +67,19 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       builder: (context, child) {
+        // 管理者ルートの場合はオーバーレイを表示しない
+        if (isAdminRoute) {
+          return child ?? const SizedBox.shrink();
+        }
         // アプリ全体で招待通知を表示
         return RoomInvitationOverlay(
           navigatorKey: navigatorKey,
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const SplashScreen(),  // セッション検証を行うスプラッシュ画面
+      // 管理者ルートの場合は直接ルーティング、それ以外はスプラッシュ画面
+      initialRoute: isAdminRoute ? initialRoute : null,
+      home: isAdminRoute ? null : const SplashScreen(),  // セッション検証を行うスプラッシュ画面
       routes: {
         '/battle-mode': (context) => const BattleModeSelectionScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),
@@ -47,6 +87,16 @@ class MyApp extends StatelessWidget {
         '/learning-menu': (context) => const LearningMenuScreen(),
         '/room-invitations': (context) => const RoomInvitationsScreen(),
         '/battle-history': (context) => const BattleHistoryScreen(),
+        // 管理者画面
+        '/admin/login': (context) => const AdminLoginScreen(),
+        '/admin/users': (context) => AdminRouteGuard(child: UserListAdmin()),
+        '/admin/vocabularies': (context) => AdminRouteGuard(child: VocabularyAdmin()),
+        '/admin/questions': (context) => AdminRouteGuard(child: MondaiAdmin()),
+        '/admin/music': (context) => AdminRouteGuard(child: MusicAdmin()),
+        '/admin/artists': (context) => AdminRouteGuard(child: ArtistAdmin()),
+        '/admin/genres': (context) => AdminRouteGuard(child: GenreAdmin()),
+        '/admin/badges': (context) => AdminRouteGuard(child: BadgeAdmin()),
+        '/admin/contacts': (context) => AdminRouteGuard(child: ContactAdmin()),
       },
       onGenerateRoute: (settings) {
         // /room-match?roomId=123&isGuest=true&isReturning=true のようなクエリパラメータ付きルートを処理

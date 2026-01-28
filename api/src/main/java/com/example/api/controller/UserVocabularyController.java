@@ -149,7 +149,7 @@ public class UserVocabularyController {
         
         return UserVocabularyResponse.VocabularyItem.builder()
             .userVocabId(uv.getUserVocabId())
-            .vocabId(vocab.getVocab_id())
+            .vocabId(vocab.getVocabId())
             .word(vocab.getWord())
             .baseForm(vocab.getBase_form())           // ★追加: 原形
             .translationJa(vocab.getTranslation_ja()) // ★追加: 簡潔訳
