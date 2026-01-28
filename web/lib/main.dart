@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'config/app_config.dart';
 import 'screens/splash_screen.dart';
 import 'screens/battle_mode_selection_screen.dart';
 import 'screens/language_selection_screen.dart';
@@ -42,7 +43,10 @@ String _getInitialRoute() {
   return '/';
 }
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppConfig.load();  // 設定ファイルを読み込む
+
   final initialRoute = _getInitialRoute();
   runApp(MyApp(initialRoute: initialRoute));
 }

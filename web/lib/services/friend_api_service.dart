@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 
 /// フレンドAPIサービス
 /// バックエンドのフレンドエンドポイントとの通信を行います
 class FriendApiService {
-  static const String baseUrl = 'http://localhost:8080/api/friend';
+  String get baseUrl => '${AppConfig.apiBaseUrl}/api/friend';
 
   /// UUIDでユーザーを検索
   Future<Map<String, dynamic>> searchUser(

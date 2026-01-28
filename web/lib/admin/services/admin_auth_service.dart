@@ -1,13 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'admin_token_storage_service.dart';
+import '../../config/app_config.dart';
 
 /// 管理者認証サービス
 class AdminAuthService {
-  static const String _baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
-  );
+  static String get _baseUrl => AppConfig.apiBaseUrl;
 
   /// 管理者ログイン（メールアドレスで認証）
   static Future<Map<String, dynamic>> login(String email, String password) async {

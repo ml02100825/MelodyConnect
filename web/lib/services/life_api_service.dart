@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 
 /// ライフ状態モデル
 class LifeStatus {
@@ -28,7 +29,7 @@ class LifeStatus {
 /// ライフAPIサービス
 /// バックエンドのライフエンドポイントとの通信を行います
 class LifeApiService {
-  static const String baseUrl = 'http://localhost:8080/api/life';
+  String get baseUrl => '${AppConfig.apiBaseUrl}/api/life';
 
   /// ライフ状態を取得
   ///

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_webapp/config/app_config.dart';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'home_screen.dart';
@@ -117,7 +118,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://localhost:8080/api/upload/image'),
+        Uri.parse('${AppConfig.apiBaseUrl}/api/upload/image'),
       );
 
       // Web環境ではバイト配列から直接アップロード
@@ -139,7 +140,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         // S3のURLか相対パスかを判定
         if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
           // 相対パスの場合、絶対URLに変換
-          imageUrl = 'http://localhost:8080$imageUrl';
+          imageUrl = '${AppConfig.apiBaseUrl}$imageUrl';
         }
 
         setState(() {
@@ -205,13 +206,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       }
 
       // プロフィール更新API呼び出し
-      final response = await _profileApiService.updateProfile(
-        userId: userId,
-        username: _usernameController.text.trim(),
-        userUuid: _userUuidController.text.trim(),
-        imageUrl: _uploadedImageUrl!,
-        accessToken: accessToken,
-      );
+     final response = await _profileApiService.updateProfileMultipart(
+      userId: userId,
+      username: _usernameController.text.trim(),
+      userUuid: _userUuidController.text.trim(),
+      imageBytes: _imageBytes,
+      filename: _selectedImageFile?.name,
+      accessToken: accessToken,
+    );
+
 
       // ユーザー名を保存
       await _tokenStorage.saveUsername(response['username']);

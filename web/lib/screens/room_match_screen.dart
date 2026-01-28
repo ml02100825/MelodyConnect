@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
+import 'package:flutter_webapp/config/app_config.dart';
 import '../services/token_storage_service.dart';
 import '../services/room_api_service.dart';
 
@@ -296,7 +297,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen>
     _stompClient?.deactivate();
     _stompClient = StompClient(
       config: StompConfig(
-        url: 'ws://localhost:8080/ws',
+        url: '${AppConfig.wsBaseUrl}/ws',
         stompConnectHeaders: {
           if (_userId != null) 'userId': _userId.toString(),
           'clientType': 'room',
@@ -1428,14 +1429,21 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                             statusLabel = 'オンライン';
                             statusColor = Colors.green;
                           }
+                          final resolvedImageUrl = (imageUrl != null && imageUrl.isNotEmpty)
+                              ? (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
+                                  ? imageUrl
+                                  : imageUrl.startsWith('/')
+                                      ? '${AppConfig.apiBaseUrl}$imageUrl'
+                                      : '${AppConfig.apiBaseUrl}/uploads/$imageUrl')
+                              : null;
 
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: isOffline ? Colors.grey[300] : null,
-                              backgroundImage: imageUrl != null && !isOffline
-                                  ? NetworkImage('http://localhost:8080/images/$imageUrl')
+                            backgroundImage: resolvedImageUrl != null 
+                                  ? NetworkImage(resolvedImageUrl)
                                   : null,
-                              child: imageUrl == null || isOffline
+                            child: resolvedImageUrl == null 
                                   ? Icon(Icons.person, color: isOffline ? Colors.grey[400] : null)
                                   : null,
                             ),
