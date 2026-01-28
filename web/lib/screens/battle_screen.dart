@@ -916,18 +916,24 @@ class _BattleScreenState extends State<BattleScreen>
     required int wins,
     required bool hasAnswered,
     required bool isMe,
+    
   }) {
+    final iconUrl = player?.iconUrl;
     return Column(
       children: [
         // アイコン（回答済みなら✓マーク）
         Stack(
           children: [
+            
             CircleAvatar(
               radius: 28,
               backgroundColor: isMe ? Colors.blue[100] : Colors.orange[100],
-              backgroundImage: player?.iconUrl != null
-                  ? NetworkImage('$_apiBaseUrl/images/${player!.iconUrl}')
-                  : null,
+              
+      
+            backgroundImage: (iconUrl != null && iconUrl.isNotEmpty)
+                ? NetworkImage(iconUrl)
+                : null,
+
               child: player?.iconUrl == null
                   ? Icon(
                       Icons.person,

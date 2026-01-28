@@ -71,6 +71,9 @@ public class QuizService {
     private UserVocabularyService userVocabularyService;
 
     @Autowired
+    private S3PresignService s3PresignService;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
@@ -499,12 +502,14 @@ public class QuizService {
 
     /**
      * questionエンティティをQuizQuestionDTOに変換
-     * 
+     *
      * リスニング問題の場合:
      *   - answer に completeSentence を設定（ユーザーが入力すべき完全な文）
-     * 
+     *
      * 虫食い問題の場合:
      *   - answer に answer を設定（空欄に入る単語）
+     *
+     * 音声URLはS3キーの場合、署名付きURLに変換する
      */
     private QuizStartResponse.QuizQuestion convertToQuizQuestion(Question q) {
         // ★ リスニング問題の場合はanswerにcompleteSentenceを設定
@@ -517,6 +522,8 @@ public class QuizService {
             answerValue = q.getAnswer();
         }
 
+        // ★ S3キーの場合は署名付きURLに変換（毎回新しいURLを生成、有効期限15分）
+        String audioUrl = s3PresignService.convertToPresignedUrl(q.getAudioUrl());
         final Song song = q.getSong();
         final Long songId = song != null ? song.getSongId() : null;
         final String songName = song != null ? song.getSongname() : null;
@@ -530,7 +537,7 @@ public class QuizService {
             .text(q.getText())
             .questionFormat(q.getQuestionFormat().getValue())
             .difficultyLevel(q.getDifficultyLevel())
-            .audioUrl(q.getAudioUrl())
+            .audioUrl(audioUrl)
             .language(q.getLanguage())
             .answer(answerValue)
             .completeSentence(q.getCompleteSentence())  // ★ 追加

@@ -1,8 +1,10 @@
 package com.example.api.client.impl;
 
 import com.example.api.client.TextToSpeechClient;
+import com.example.api.service.S3AudioService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,6 +21,7 @@ import java.util.UUID;
 
 /**
  * Google Cloud Text-to-Speech API実装
+ * 音声はS3にアップロードし、S3キーを返す（署名付きURLはクエリ時に生成）
  */
 @Component
 public class GoogleTextToSpeechClientImpl implements TextToSpeechClient {
@@ -27,6 +30,9 @@ public class GoogleTextToSpeechClientImpl implements TextToSpeechClient {
     private static final String TTS_API_URL = "https://texttospeech.googleapis.com/v1/text:synthesize";
 
     private final WebClient webClient;
+
+    @Autowired
+    private S3AudioService s3AudioService;
 
     @Value("${google.cloud.api.key:}")
     private String apiKey;
@@ -156,11 +162,22 @@ public class GoogleTextToSpeechClientImpl implements TextToSpeechClient {
     }
 
     /**
-     * 音声ファイルを保存してURLを返す
-     * TODO: 本番環境ではS3などのクラウドストレージに保存
+     * 音声ファイルをS3またはローカルに保存してキー/パスを返す
+     * S3が有効な場合はS3キーを返す（署名付きURLはクエリ時に生成）
+     * S3が無効な場合はローカルファイルパスを返す
      */
     private String saveAudioFile(byte[] audioBytes, String languageCode) throws Exception {
-        // 出力ディレクトリを作成
+        // S3が有効な場合はS3にアップロード
+        if (s3AudioService != null && s3AudioService.isS3Enabled()) {
+            String s3Key = s3AudioService.uploadAudio(audioBytes, languageCode);
+            if (s3Key != null) {
+                logger.info("音声ファイルをS3にアップロード: key={}", s3Key);
+                return s3Key; // S3キーを返す（署名付きURLはクエリ時に生成）
+            }
+            logger.warn("S3アップロードに失敗、ローカルにフォールバック");
+        }
+
+        // フォールバック: ローカルファイルシステムに保存
         Path outputPath = Paths.get(outputDir);
         if (!Files.exists(outputPath)) {
             Files.createDirectories(outputPath);
@@ -173,8 +190,7 @@ public class GoogleTextToSpeechClientImpl implements TextToSpeechClient {
         // ファイルに書き込み
         Files.write(filePath, audioBytes);
 
-        // URLを返す（本番環境ではS3などのURLを返す）
-        // TODO: S3にアップロードしてそのURLを返す
+        logger.info("音声ファイルをローカルに保存: path={}", filePath);
         return filePath.toString();
     }
 }

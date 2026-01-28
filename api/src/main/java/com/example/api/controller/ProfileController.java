@@ -7,9 +7,12 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
+
 
 /**
  * プロフィールコントローラー
@@ -29,28 +32,31 @@ public class ProfileController {
      * @param request プロフィール更新リクエスト
      * @return 更新されたユーザー情報
      */
-    @PutMapping("/{userId}")
-    public ResponseEntity<?> updateProfile(@PathVariable Long userId,
-                                          @Valid @RequestBody ProfileUpdateRequest request) {
-        try {
-            User user = profileService.updateProfile(userId, request);
+    @PutMapping(value = "/{userId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+public ResponseEntity<?> updateProfile(
+    @PathVariable Long userId,
+    @RequestPart("username") String username,
+    @RequestPart("userUuid") String userUuid,
+    @RequestPart(value = "icon", required = false) MultipartFile icon
+) {
+    try {
+        User user = profileService.updateProfileMultipart(userId, username, userUuid, icon);
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("userId", user.getId());
-            response.put("username", user.getUsername());
-            response.put("email", user.getMailaddress());
-            response.put("imageUrl", user.getImageUrl());
-            response.put("message", "プロフィールを更新しました");
+        Map<String, Object> response = new HashMap<>();
+        response.put("userId", user.getId());
+        response.put("username", user.getUsername());
+        response.put("email", user.getMailaddress());
+        response.put("imageUrl", user.getImageUrl());
+        response.put("message", "プロフィールを更新しました");
 
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body(createErrorResponse("プロフィール更新中にエラーが発生しました"));
-        }
+        return ResponseEntity.ok(response);
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+    } catch (Exception e) {
+        return ResponseEntity.status(500)
+                .body(createErrorResponse("プロフィール更新中にエラーが発生しました"));
     }
-
+}
     /**
      * プロフィール取得エンドポイント
      * @param userId ユーザーID

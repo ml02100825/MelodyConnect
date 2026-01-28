@@ -1428,14 +1428,21 @@ class _FriendInviteDialogState extends State<_FriendInviteDialog> {
                             statusLabel = 'オンライン';
                             statusColor = Colors.green;
                           }
+                          final resolvedImageUrl = (imageUrl != null && imageUrl.isNotEmpty)
+                              ? (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
+                                  ? imageUrl
+                                  : imageUrl.startsWith('/')
+                                      ? 'http://localhost:8080$imageUrl'
+                                      : 'http://localhost:8080/uploads/$imageUrl')
+                              : null;
 
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: isOffline ? Colors.grey[300] : null,
-                              backgroundImage: imageUrl != null && !isOffline
-                                  ? NetworkImage('http://localhost:8080/images/$imageUrl')
+                            backgroundImage: resolvedImageUrl != null 
+                                  ? NetworkImage(resolvedImageUrl)
                                   : null,
-                              child: imageUrl == null || isOffline
+                            child: resolvedImageUrl == null 
                                   ? Icon(Icons.person, color: isOffline ? Colors.grey[400] : null)
                                   : null,
                             ),
