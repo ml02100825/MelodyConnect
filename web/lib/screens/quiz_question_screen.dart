@@ -3,13 +3,8 @@ import 'package:audioplayers/audioplayers.dart';
 import '../models/quiz_models.dart';
 import '../services/quiz_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../config/app_config.dart';
 import 'quiz_result_screen.dart';
-
-/// ★ 追加: APIのベースURL
-const String _apiBaseUrl = String.fromEnvironment(
-  "API_BASE_URL",
-  defaultValue: "http://localhost:8080",
-);
 
 class QuizQuestionScreen extends StatefulWidget {
   final int sessionId;
@@ -624,7 +619,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         if (!audioUrl.startsWith('/')) {
           audioUrl = '/$audioUrl';
         }
-        audioUrl = '$_apiBaseUrl$audioUrl';
+        audioUrl = '${AppConfig.apiBaseUrl}$audioUrl';
       }
       
       debugPrint('Playing audio: $audioUrl (speed: $_playbackSpeed)');
