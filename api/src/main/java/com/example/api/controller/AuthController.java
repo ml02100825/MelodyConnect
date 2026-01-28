@@ -1,6 +1,8 @@
 package com.example.api.controller;
 
 import com.example.api.dto.*;
+import com.example.api.entity.User;
+import com.example.api.repository.UserRepository;
 import com.example.api.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -9,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -118,16 +121,19 @@ public class AuthController {
      * @param request リフレッシュトークンを含むリクエスト
      * @return 成功メッセージ
      */
-    @PostMapping("/logout")
-    public ResponseEntity<?> logout(@Valid @RequestBody LogoutRequest request) {
+    @PostMapping("/logout/{userId}")
+    public ResponseEntity<?> logout(@PathVariable Long userId) {
         try {
-            authService.logout(request.getRefreshToken());
-            
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+            authService.logout(user);
             Map<String, String> response = new HashMap<>();
             response.put("message", "ログアウトしました");
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
-            logger.error("ログアウト処理エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("ログアウト処理中にエラーが発生しました"));
         }

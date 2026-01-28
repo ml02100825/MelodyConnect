@@ -36,7 +36,6 @@ import java.util.regex.Pattern;
  */
 @Service
 public class AuthService {
-    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
@@ -252,35 +251,13 @@ public class AuthService {
      * ログアウト（指定されたリフレッシュトークンに紐づくセッションを削除）
      */
     @Transactional
-    public void logout(String refreshToken) {
-        if (refreshToken == null || refreshToken.isEmpty()) return;
-
-        try {
-            String refreshHash = hashWithSHA256(refreshToken);
-            Long userId = jwtUtil.getUserIdFromToken(refreshToken);
-            User user = userRepository.getReferenceById(userId);
-            
-            // DBから該当セッションを検索して物理削除
-            sessionRepository.findValidSessionsByUser(user, LocalDateTime.now().plusYears(1))
-                    .stream()
-                    .filter(s -> refreshHash.equals(s.getRefreshHash()))
-                    .findFirst()
-                    .ifPresent(session -> {
-                        sessionRepository.delete(session);
-                        logger.info("ログアウト(セッション削除): UserID {}", userId);
-                    });
-            
-        } catch (Exception e) {
-            logger.warn("ログアウト処理中にエラー（無視します）: {}", e.getMessage());
+    public void logout(User user) {
+        if (user == null || user.getId() == null || !userRepository.existsById(user.getId())) {
+            throw new IllegalArgumentException("ユーザーが見つかりません");
         }
-    }
-
-    /**
-     * 期限切れセッションのクリーンアップ（DB）
         sessionRepository.revokeAllUserSessions(user);
         updateOfflineAtIfNoActiveSessions(user);
     }
-
     /**
      * 期限切れセッションのクリーンアップ（1時間ごとに自動実行）
      * セッションがすべて削除されたユーザーの offlineAt を更新
@@ -288,8 +265,19 @@ public class AuthService {
     @Transactional
     @Scheduled(fixedRate = 3600000) // 1時間 = 3,600,000ミリ秒
     public void cleanupExpiredSessions() {
-        sessionRepository.deleteExpiredSessions(LocalDateTime.now());
-        logger.info("期限切れセッションを削除しました");
+        LocalDateTime now = LocalDateTime.now();
+
+        // 期限切れセッションを持つユーザーを事前に取得（効率化）
+        List<User> affectedUsers = sessionRepository.findUsersWithExpiredSessions(now);
+
+        // 期限切れセッションを削除
+        sessionRepository.deleteExpiredSessions(now);
+        logger.info("期限切れセッションを削除しました: 影響を受けたユーザー数={}", affectedUsers.size());
+
+        // 影響を受けたユーザーの offlineAt を更新
+        for (User user : affectedUsers) {
+            updateOfflineAtIfNoActiveSessions(user);
+        }
     }
 
     // ==========================================
@@ -412,6 +400,7 @@ public class AuthService {
             updateOfflineAtIfNoActiveSessions(user);
         }
     }
+}
 
     /**
      * ユーザーの offlineAt を更新（有効なセッションが存在しない場合のみ）

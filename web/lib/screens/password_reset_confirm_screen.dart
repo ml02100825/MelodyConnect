@@ -124,7 +124,7 @@ class _PasswordResetConfirmScreenState extends State<PasswordResetConfirmScreen>
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) return 'パスワードを入力してください';
-                      if (value.length < 6) return '6文字以上で入力してください';
+                      if (value.length < 8) return '8文字以上で入力してください';
                       return null;
                     },
                   ),
