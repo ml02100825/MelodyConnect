@@ -11,15 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.MailException; // ★追加
+import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -63,7 +61,6 @@ public class AuthService {
     @Autowired
     private JavaMailSender mailSender;
 
-    // application.propertiesから取得 (設定がない場合はデフォルト値)
     @Value("${spring.mail.username:noreply@example.com}")
     private String fromEmail;
 
@@ -89,21 +86,18 @@ public class AuthService {
     }
 
     /**
-     * パスワードポリシーの検証 (共通メソッド)
+     * パスワードポリシーの検証
      */
     private void validatePasswordPolicy(String password) {
         if (password == null || password.isBlank()) {
             throw new IllegalArgumentException("パスワードを入力してください");
         }
-        // 1. バイト長チェック (Bcryptの制限 72byte)
         if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
         }
-        // 2. 文字数チェック (8文字以上)
         if (password.length() < 8) {
             throw new IllegalArgumentException("パスワードは8文字以上である必要があります");
         }
-        // 3. 複雑性チェック (半角英数字記号のみ許可)
         if (!Pattern.matches("^[a-zA-Z0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?]+$", password)) {
             throw new IllegalArgumentException("パスワードに使用できない文字が含まれています");
         }
@@ -140,7 +134,6 @@ public class AuthService {
             throw new IllegalArgumentException("このメールアドレスは既に登録されています");
         }
 
-        // パスワードポリシー検証
         validatePasswordPolicy(request.getPassword());
 
         String passwordHash = passwordEncoder.encode(request.getPassword());
@@ -200,12 +193,9 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse refreshAccessToken(String refreshToken) {
-        // 1. 基本的なJWT検証
         if (!jwtUtil.validateToken(refreshToken)) {
             throw new IllegalArgumentException("無効なリフレッシュトークンです");
         }
-        
-        // 2. トークンタイプが "refresh" であることを確認
         if (!"refresh".equals(jwtUtil.getTokenType(refreshToken))) {
             throw new IllegalArgumentException("リフレッシュトークンではありません");
         }
@@ -218,7 +208,6 @@ public class AuthService {
             throw new IllegalArgumentException("アカウントが利用できません");
         }
 
-        // 3. DB上のセッション有効性チェック
         String refreshHash = hashWithSHA256(refreshToken);
         Optional<Session> sessionOpt = sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())
                 .stream()
@@ -230,10 +219,8 @@ public class AuthService {
             return new IllegalArgumentException("セッションが無効です");
         });
 
-        // 新しいアクセストークン生成
         String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
 
-        // 有効期限延長
         session.extendExpiration();
         sessionRepository.save(session);
 
@@ -249,21 +236,52 @@ public class AuthService {
 
     /**
      * ログアウト（指定されたリフレッシュトークンに紐づくセッションを削除）
+     * 通常のログアウト用
+     */
+    @Transactional
+    public void logout(String refreshToken) {
+        if (refreshToken == null || refreshToken.isEmpty()) return;
+
+        try {
+            String refreshHash = hashWithSHA256(refreshToken);
+            Long userId = jwtUtil.getUserIdFromToken(refreshToken);
+            User user = userRepository.getReferenceById(userId);
+
+            sessionRepository.findValidSessionsByUser(user, LocalDateTime.now().plusYears(1))
+                    .stream()
+                    .filter(s -> refreshHash.equals(s.getRefreshHash()))
+                    .findFirst()
+                    .ifPresent(session -> {
+                        sessionRepository.delete(session);
+                        logger.info("ログアウト(セッション削除): UserID {}", userId);
+                    });
+
+            updateOfflineAtIfNoActiveSessions(user);
+
+        } catch (Exception e) {
+            logger.warn("ログアウト処理中にエラー（無視します）: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * ログアウト（ユーザーの全セッションを削除）
+     * パスワードリセット時や強制ログアウトで使用
      */
     @Transactional
     public void logout(User user) {
         if (user == null || user.getId() == null || !userRepository.existsById(user.getId())) {
             throw new IllegalArgumentException("ユーザーが見つかりません");
         }
-        sessionRepository.revokeAllUserSessions(user);
+        // ★ご指定の実装を使用（SessionRepositoryへのメソッド追加が必要）
+        sessionRepository.revokeAllUserSessions(user); 
         updateOfflineAtIfNoActiveSessions(user);
     }
+
     /**
      * 期限切れセッションのクリーンアップ（1時間ごとに自動実行）
-     * セッションがすべて削除されたユーザーの offlineAt を更新
      */
     @Transactional
-    @Scheduled(fixedRate = 3600000) // 1時間 = 3,600,000ミリ秒
+    @Scheduled(fixedRate = 3600000)
     public void cleanupExpiredSessions() {
         LocalDateTime now = LocalDateTime.now();
 
@@ -280,13 +298,29 @@ public class AuthService {
         }
     }
 
+    /**
+     * ユーザーの offlineAt を更新（有効なセッションが存在しない場合のみ）
+     */
+    private void updateOfflineAtIfNoActiveSessions(User user) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Session> validSessions = sessionRepository.findValidSessionsByUser(user, now);
+
+        if (validSessions.isEmpty()) {
+            user.setOfflineAt(now);
+            userRepository.save(user);
+            logger.info("ユーザーの offlineAt を更新: userId={}, offlineAt={}", user.getId(), now);
+        } else {
+            logger.debug("有効なセッションが存在するため、offlineAt は更新しません: userId={}, activeSessions={}",
+                    user.getId(), validSessions.size());
+        }
+    }
+
     // ==========================================
     // パスワードリセット (DB管理版)
     // ==========================================
 
     /**
      * DB上の期限切れリセットトークンを定期削除
-     * 1時間(3600000ms)ごとに実行
      */
     @Scheduled(fixedRate = 3600000)
     @Transactional
@@ -308,10 +342,8 @@ public class AuthService {
 
         User user = userOpt.get();
 
-        // 既存のトークンがあれば削除（常に最新のみ有効にする）
         passwordResetTokenRepository.deleteByUser(user);
 
-        // 新しいトークンを生成してDBに保存
         String tokenStr = UUID.randomUUID().toString();
         PasswordResetToken resetToken = new PasswordResetToken(
                 tokenStr, 
@@ -336,7 +368,7 @@ public class AuthService {
             mailSender.send(message);
             logger.info("リセットメール送信完了: {}", email);
             
-        } catch (MailException e) { // ★修正: 具体的な例外(MailException)をキャッチ
+        } catch (MailException e) {
             logger.error("メール送信失敗: {}", e.getMessage(), e);
             throw new RuntimeException("メールの送信に失敗しました。しばらく待ってから再試行してください。");
         }
@@ -347,7 +379,6 @@ public class AuthService {
      */
     @Transactional
     public void resetPassword(String tokenStr, String newPassword) {
-        // DBからトークンを検索
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(tokenStr)
                 .orElseThrow(() -> new IllegalArgumentException("無効なリセットコードです"));
 
@@ -358,65 +389,16 @@ public class AuthService {
 
         User user = resetToken.getUser();
 
-        // パスワードポリシーの検証
         validatePasswordPolicy(newPassword);
 
-        // パスワード更新
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        // 既存セッションの無効化（強制ログアウト）
-        revokeAllUserSessions(user);
+        // ★修正: ユーザー指定のlogoutメソッド（全セッション削除）を使用
+        logout(user);
 
-        // 使用済みトークンを削除
         passwordResetTokenRepository.delete(resetToken);
         
         logger.info("パスワードリセット完了: UserID {}", user.getId());
-    }
-
-    /**
-     * 指定ユーザーの全アクティブセッションを無効化（削除）
-     */
-    private void revokeAllUserSessions(User user) {
-        try {
-            List<Session> sessions = sessionRepository.findValidSessionsByUser(user, LocalDateTime.now());
-            if (!sessions.isEmpty()) {
-                sessionRepository.deleteAll(sessions);
-                logger.info("パスワード変更に伴い全セッションを破棄: UserID {}", user.getId());
-            }
-        } catch (Exception e) {
-            logger.error("セッション破棄中にエラー（処理は続行）", e);
-        LocalDateTime now = LocalDateTime.now();
-
-        // 期限切れセッションを持つユーザーを事前に取得（効率化）
-        List<User> affectedUsers = sessionRepository.findUsersWithExpiredSessions(now);
-
-        // 期限切れセッションを削除
-        sessionRepository.deleteExpiredSessions(now);
-        logger.info("期限切れセッションを削除しました: 影響を受けたユーザー数={}", affectedUsers.size());
-
-        // 影響を受けたユーザーの offlineAt を更新
-        for (User user : affectedUsers) {
-            updateOfflineAtIfNoActiveSessions(user);
-        }
-    }
-}
-
-    /**
-     * ユーザーの offlineAt を更新（有効なセッションが存在しない場合のみ）
-     * @param user ユーザー
-     */
-    private void updateOfflineAtIfNoActiveSessions(User user) {
-        LocalDateTime now = LocalDateTime.now();
-        List<Session> validSessions = sessionRepository.findValidSessionsByUser(user, now);
-
-        if (validSessions.isEmpty()) {
-            user.setOfflineAt(now);
-            userRepository.save(user);
-            logger.info("ユーザーの offlineAt を更新: userId={}, offlineAt={}", user.getId(), now);
-        } else {
-            logger.debug("有効なセッションが存在するため、offlineAt は更新しません: userId={}, activeSessions={}",
-                         user.getId(), validSessions.size());
-        }
     }
 }

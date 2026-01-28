@@ -121,19 +121,17 @@ public class AuthController {
      * @param request リフレッシュトークンを含むリクエスト
      * @return 成功メッセージ
      */
-    @PostMapping("/logout/{userId}")
-    public ResponseEntity<?> logout(@PathVariable Long userId) {
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@Valid @RequestBody LogoutRequest request) {
         try {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
-            authService.logout(user);
+            // AuthServiceの logout(String refreshToken) を呼び出す
+            authService.logout(request.getRefreshToken());
+            
             Map<String, String> response = new HashMap<>();
             response.put("message", "ログアウトしました");
             return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
+            logger.error("ログアウト処理エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("ログアウト処理中にエラーが発生しました"));
         }
