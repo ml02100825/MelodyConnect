@@ -59,9 +59,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
       await _presenceService.connect();
 
-      // ===== 状態伝播のため短い遅延 =====
-      await Future.delayed(const Duration(milliseconds: 100));
-
+      // ValueNotifierは同期的に通知するため遅延は不要
       _navigateToHome();
     } on SessionInvalidException {
       // セッションが無効な場合、ローカルデータをクリアしてログイン画面へ

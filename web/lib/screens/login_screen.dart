@@ -98,10 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      // ===== 状態伝播のため短い遅延 =====
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // ホーム画面へ遷移
+      // ホーム画面へ遷移（ValueNotifierは同期的に通知するため遅延は不要）
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),

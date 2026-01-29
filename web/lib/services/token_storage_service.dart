@@ -132,18 +132,23 @@ class TokenStorageService {
 
 /// ValueNotifierをStreamに変換する拡張メソッド
 extension ValueNotifierStream<T> on ValueNotifier<T> {
-  Stream<T> toStream() async* {
-    // 現在値を即座に配信（重要！）
-    yield value;
+  Stream<T> toStream() {
+    final controller = StreamController<T>.broadcast();
 
-    T? lastValue = value;
-    // 値の変更を監視
-    while (true) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (value != lastValue) {
-        yield value;
-        lastValue = value;
-      }
+    // 現在値を即座に配信
+    controller.add(value);
+
+    // リスナーで変更を監視（効率的なリアクティブ通知）
+    void listener() {
+      controller.add(value);
     }
+    addListener(listener);
+
+    // ストリームがキャンセルされたらリスナーを削除
+    controller.onCancel = () {
+      removeListener(listener);
+    };
+
+    return controller.stream;
   }
 }
