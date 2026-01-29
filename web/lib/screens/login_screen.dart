@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import '../services/presence_websocket_service.dart';
+import '../services/authentication_state_manager.dart';
 import 'register_screen.dart';
 import 'password_reset_screen.dart';
 import 'home_screen.dart';
@@ -21,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _authApiService = AuthApiService();
   final _tokenStorage = TokenStorageService();
   final PresenceWebSocketService _presenceService = PresenceWebSocketService();
+  final _authStateManager = AuthenticationStateManager();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -64,6 +66,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
+    _authStateManager.startAuthentication(); // 認証開始通知
+
     try {
       final response = await _authApiService.login(
         _emailController.text.trim(),
@@ -79,6 +83,9 @@ class _LoginScreenState extends State<LoginScreen> {
         username: response['username'],
       );
 
+      // ===== CRITICAL: 認証完了を通知 =====
+      await _authStateManager.completeAuthentication(response['userId']);
+
       if (!mounted) return;
 
       await _presenceService.connect();
@@ -91,12 +98,17 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
+      // ===== 状態伝播のため短い遅延 =====
+      await Future.delayed(const Duration(milliseconds: 100));
+
       // ホーム画面へ遷移
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     } catch (e) {
+      _authStateManager.logout(); // エラー時はリセット
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(

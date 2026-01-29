@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import '../services/presence_websocket_service.dart';
+import '../services/authentication_state_manager.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
 
@@ -19,6 +20,7 @@ class _SplashScreenState extends State<SplashScreen> {
   final AuthApiService _authService = AuthApiService();
   final PresenceWebSocketService _presenceService =
       PresenceWebSocketService();
+  final _authStateManager = AuthenticationStateManager();
 
   @override
   void initState() {
@@ -28,6 +30,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// セッションの有効性を確認
   Future<void> _checkSession() async {
+    await _authStateManager.initialize(); // 初期化
+
     try {
       // 保存されているリフレッシュトークンを取得
       final refreshToken = await _tokenStorage.getRefreshToken();
@@ -50,17 +54,25 @@ class _SplashScreenState extends State<SplashScreen> {
         username: response['username'],
       );
 
+      // ===== CRITICAL: 認証完了を通知 =====
+      await _authStateManager.completeAuthentication(response['userId']);
+
       await _presenceService.connect();
+
+      // ===== 状態伝播のため短い遅延 =====
+      await Future.delayed(const Duration(milliseconds: 100));
 
       _navigateToHome();
     } on SessionInvalidException {
       // セッションが無効な場合、ローカルデータをクリアしてログイン画面へ
       await _tokenStorage.clearAuthData();
+      await _authStateManager.logout();
       _navigateToLogin();
     } catch (e) {
       // ネットワークエラー等の場合もログイン画面へ
       // (オフライン時は再ログインが必要)
       await _tokenStorage.clearAuthData();
+      await _authStateManager.logout();
       _navigateToLogin();
     }
   }

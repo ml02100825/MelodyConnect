@@ -5,6 +5,7 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:flutter_webapp/config/app_config.dart';
 import '../services/token_storage_service.dart';
 import '../services/presence_websocket_service.dart';
+import '../services/authentication_state_manager.dart';
 
 /// ルーム招待通知オーバーレイ
 /// アプリ全体で招待通知を表示します
@@ -27,6 +28,8 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
   final TokenStorageService _tokenStorage = TokenStorageService();
   final PresenceWebSocketService _presenceService =
       PresenceWebSocketService();
+  final AuthenticationStateManager _authStateManager =
+      AuthenticationStateManager();
   StompClient? _stompClient;
   int? _userId;
   Timer? _reconnectTimer;
@@ -45,8 +48,14 @@ class _RoomInvitationOverlayState extends State<RoomInvitationOverlay>
 void initState() {
   super.initState();
   WidgetsBinding.instance.addObserver(this);
-  _initialize();
 
+  // AuthenticationStateManagerのuserIdを監視
+  _authStateManager.userIdListenable.addListener(_onUserIdChanged);
+
+  // 初期化（安全版）
+  _initializeSafely();
+
+  // 後方互換性のため、既存のStreamリスナーも保持
   _userIdSubscription = _tokenStorage.userIdStream.listen((userId) async {
     if (!mounted) return;
     if (userId == null) {
@@ -56,8 +65,30 @@ void initState() {
     }
     _userId = userId;
     await _presenceService.connect();
-    _connectWebSocket();
+    _connectWebSocketSafely();
   });
+}
+
+void _onUserIdChanged() {
+  if (!mounted) return;
+
+  final newUserId = _authStateManager.userId;
+
+  if (newUserId == null) {
+    // ログアウト時
+    _userId = null;
+    _stompClient?.deactivate();
+    _stompClient = null;
+    debugPrint('RoomInvitationOverlay: User logged out, disconnected');
+    return;
+  }
+
+  if (_userId != newUserId) {
+    // userIdが変更された（ログイン完了）
+    _userId = newUserId;
+    debugPrint('RoomInvitationOverlay: userId updated to $_userId');
+    _connectWebSocketSafely();
+  }
 }
 
 
@@ -69,7 +100,8 @@ void initState() {
 
   @override
 void dispose() {
-  _userIdSubscription?.cancel(); // これを追加
+  _authStateManager.userIdListenable.removeListener(_onUserIdChanged);
+  _userIdSubscription?.cancel();
   _stompClient?.deactivate();
   _hideTimer?.cancel();
   _reconnectTimer?.cancel();
@@ -87,20 +119,22 @@ void dispose() {
     } else if (state == AppLifecycleState.resumed) {
       // 接続が切れている場合のみ再接続
       if (_stompClient == null || !_stompClient!.connected) {
-        _connectWebSocket();
+        _connectWebSocketSafely();
       }
     }
     _presenceService.handleLifecycle(state);
   }
 
-  Future<void> _initialize() async {
-    
-    _userId = await _tokenStorage.getUserId();
-    debugPrint('RoomInvitationOverlay userId=$_userId');
+  Future<void> _initializeSafely() async {
+    _userId = _authStateManager.userId;
 
-    if (_userId != null) {
+    debugPrint('RoomInvitationOverlay initialized with userId=$_userId');
+
+    if (_userId != null && _authStateManager.isAuthenticatedWithUserId) {
       await _presenceService.connect();
-      _connectWebSocket();
+      _connectWebSocketSafely();
+    } else {
+      debugPrint('RoomInvitationOverlay: Waiting for authentication...');
     }
   }
 
@@ -112,36 +146,66 @@ void dispose() {
       _userId = userId;
     });
     await _presenceService.connect();
-    _connectWebSocket();
+    _connectWebSocketSafely();
   }
 
-  void _connectWebSocket() {
+  void _connectWebSocketSafely() {
+    // ===== CRITICAL: userIdのnullチェック =====
+    if (_userId == null) {
+      debugPrint('RoomInvitationOverlay: Cannot connect - userId is null');
+      return;
+    }
+
+    // 認証状態の二重チェック
+    if (!_authStateManager.isAuthenticatedWithUserId) {
+      debugPrint('RoomInvitationOverlay: Cannot connect - not authenticated');
+      return;
+    }
+
     if (_stompClient != null && _stompClient!.connected) {
       return;
     }
     if (_isConnecting) {
       return;
     }
+
+    // ===== 最終安全チェック（ローカル変数に固定） =====
+    final safeUserId = _userId;
+    if (safeUserId == null) {
+      debugPrint('RoomInvitationOverlay: CRITICAL - userId became null');
+      return;
+    }
+
     _isConnecting = true;
     _stompClient?.deactivate();
     _stompClient = StompClient(
       config: StompConfig(
         url: '${AppConfig.wsBaseUrl}/ws',
         stompConnectHeaders: {
-          if (_userId != null) 'userId': _userId.toString(),
+          'userId': safeUserId.toString(), // null安全な変数を使用
           'clientType': 'overlay',
         },
         onConnect: (frame) {
           _reconnectAttempts = 0;
           _isConnecting = false;
+
+          // ===== サブスクライブ時も安全チェック =====
+          final currentUserId = _userId;
+          if (currentUserId == null) {
+            debugPrint('RoomInvitationOverlay: userId null at subscribe');
+            _stompClient?.deactivate();
+            return;
+          }
+
           _stompClient!.subscribe(
-            destination: '/topic/room-invitation/$_userId',
+            destination: '/topic/room-invitation/$currentUserId',
             callback: (StompFrame frame) {
               if (frame.body != null) {
                 _handleInvitation(frame.body!);
               }
             },
           );
+          debugPrint('RoomInvitationOverlay: Connected and subscribed with userId=$currentUserId');
         },
         onWebSocketError: (error) {
           debugPrint('RoomInvitationOverlay WebSocket Error: $error');
@@ -255,7 +319,7 @@ void dispose() {
     _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
       if (!mounted) return;
       if (_stompClient?.connected ?? false) return;
-      _connectWebSocket();
+      _connectWebSocketSafely();
     });
   }
 }

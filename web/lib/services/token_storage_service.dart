@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// トークンストレージサービス
@@ -11,10 +12,26 @@ class TokenStorageService {
   static const String _emailKey = 'email';
   static const String _usernameKey = 'username';
 
-  final StreamController<int?> _userIdController =
-  StreamController<int?>.broadcast();
+  final ValueNotifier<int?> _userIdNotifier = ValueNotifier<int?>(null);
 
-  Stream<int?> get userIdStream => _userIdController.stream;
+  // 後方互換性のためStreamも提供
+  Stream<int?> get userIdStream => _userIdNotifier.toStream();
+
+  // 同期的アクセス
+  int? get currentUserId => _userIdNotifier.value;
+
+  // ValueListenableアクセス
+  ValueListenable<int?> get userIdListenable => _userIdNotifier;
+
+  // コンストラクタで初期化
+  TokenStorageService() {
+    _initializeUserId();
+  }
+
+  Future<void> _initializeUserId() async {
+    final userId = await getUserId();
+    _userIdNotifier.value = userId;
+  }
 
   /// アクセストークンを保存
   Future<void> saveAccessToken(String token) async {
@@ -32,7 +49,7 @@ class TokenStorageService {
   Future<void> saveUserId(int userId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_userIdKey, userId);
-    _userIdController.add(userId);
+    _userIdNotifier.value = userId;
   }
 
   /// メールアドレスを保存
@@ -109,6 +126,24 @@ class TokenStorageService {
     await prefs.remove(_userIdKey);
     await prefs.remove(_emailKey);
     await prefs.remove(_usernameKey);
-    _userIdController.add(null); 
+    _userIdNotifier.value = null;
+  }
+}
+
+/// ValueNotifierをStreamに変換する拡張メソッド
+extension ValueNotifierStream<T> on ValueNotifier<T> {
+  Stream<T> toStream() async* {
+    // 現在値を即座に配信（重要！）
+    yield value;
+
+    T? lastValue = value;
+    // 値の変更を監視
+    while (true) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (value != lastValue) {
+        yield value;
+        lastValue = value;
+      }
+    }
   }
 }
