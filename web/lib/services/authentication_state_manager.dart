@@ -66,9 +66,13 @@ class AuthenticationStateManager {
 
   /// ログアウト
   Future<void> logout() async {
+    // 永続化データをクリア（CRITICAL）
+    await _tokenStorage.clearAuthData();
+
+    // 内部状態を更新
     _userIdNotifier.value = null;
     _statusNotifier.value = AuthenticationStatus.unauthenticated;
-    debugPrint('AuthenticationStateManager: Logged out');
+    debugPrint('AuthenticationStateManager: Logged out and cleared auth data');
   }
 
   /// TokenStorageServiceの変更を監視して同期
