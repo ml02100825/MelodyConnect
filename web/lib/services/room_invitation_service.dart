@@ -52,7 +52,10 @@ class RoomInvitationService {
     _isConnecting = true;
 
     final userId = await _tokenStorage.getUserId();
+
+    // ===== nullチェック強化 =====
     if (userId == null) {
+      debugPrint('RoomInvitationService: Cannot connect - userId is null');
       _isConnecting = false;
       return;
     }

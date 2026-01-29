@@ -30,7 +30,10 @@ class PresenceWebSocketService {
     _isConnecting = true;
     final userId = await _tokenStorage.getUserId();
     _userId = userId;
+
+    // ===== nullチェック強化 =====
     if (userId == null) {
+      debugPrint('PresenceWebSocketService: Cannot connect - userId is null');
       _isConnecting = false;
       return;
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'config/app_config.dart';
+import 'services/authentication_state_manager.dart';
 import 'screens/splash_screen.dart';
 import 'screens/battle_mode_selection_screen.dart';
 import 'screens/language_selection_screen.dart';
@@ -46,6 +47,11 @@ String _getInitialRoute() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppConfig.load();  // 設定ファイルを読み込む
+
+  // ===== AuthenticationStateManager初期化と同期開始 =====
+  final authStateManager = AuthenticationStateManager();
+  await authStateManager.initialize();
+  authStateManager.syncWithTokenStorage();
 
   final initialRoute = _getInitialRoute();
   runApp(MyApp(initialRoute: initialRoute));
