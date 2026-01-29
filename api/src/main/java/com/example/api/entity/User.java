@@ -18,8 +18,6 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
-    // ... (他のフィールドは省略) ...
-
     @NotBlank
     @Size(max = 20)
     @Column(name = "username", nullable = false, length = 20)
@@ -50,16 +48,16 @@ public class User {
     @Column(name = "privacy")
     private Integer privacy = 0;
 
-    // ▼▼▼ ここを int に変更 ▼▼▼
+    // ▼▼▼ 定義を変更 ▼▼▼
     /**
      * サブスクリプションステータス
      * 0: 未契約 / 解約済み (期限切れ)
-     * 1: 解約予約中 (期限までは利用可能)
-     * 2: 契約中 (自動更新あり)
+     * 1: 契約中 (自動更新あり)
+     * 2: 解約予約中 (期限までは利用可能)
      */
     @Column(name = "subscribe_flag", nullable = false)
     private int subscribeFlag = 0;
-    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
@@ -126,10 +124,8 @@ public class User {
     public int getPrivacy() { return privacy; }
     public void setPrivacy(int privacy) { this.privacy = privacy; }
 
-    // ▼▼▼ int に変更 ▼▼▼
     public int getSubscribeFlag() { return subscribeFlag; }
     public void setSubscribeFlag(int subscribeFlag) { this.subscribeFlag = subscribeFlag; }
-    // ▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     public LocalDateTime getAcceptedAt() { return acceptedAt; }
     public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }

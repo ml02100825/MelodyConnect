@@ -5,7 +5,7 @@ public class ContactRequest {
     private String contactDetail;
     private String imageUrl;
 
-    // Getters and Setters
+    // --- Getters and Setters ---
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
 

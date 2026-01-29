@@ -1,43 +1,59 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "contact")
+@Table(name = "contacts") // ★もしDBのテーブル名が "contact" ならここを "contact" に変更してください
 public class Contact {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "contact_id")
-    private Long contactId;
+    private Long id;
 
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
-
-    @Column(name = "title", nullable = false)
+    @NotBlank
+    @Size(max = 100)
+    @Column(name = "title", nullable = false, length = 100)
     private String title;
 
+    @NotBlank
     @Column(name = "contact_detail", nullable = false, columnDefinition = "TEXT")
     private String contactDetail;
 
     @Column(name = "image_url")
     private String imageUrl;
 
-    @Column(name = "created_at")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
-    public void onCreate() {
-        this.createdAt = LocalDateTime.now();
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
-    // Getters and Setters
-    public Long getContactId() { return contactId; }
-    public void setContactId(Long contactId) { this.contactId = contactId; }
+    // デフォルトコンストラクタ
+    public Contact() {}
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
+    // データをセットするためのコンストラクタ
+    public Contact(User user, String title, String contactDetail, String imageUrl) {
+        this.user = user;
+        this.title = title;
+        this.contactDetail = contactDetail;
+        this.imageUrl = imageUrl;
+    }
+
+    // Getters / Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
@@ -47,6 +63,9 @@ public class Contact {
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

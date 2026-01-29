@@ -1,6 +1,9 @@
+import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../bottom_nav.dart';
+import 'package:http/http.dart' as http;
 import '../services/contact_api_service.dart';
 import '../services/token_storage_service.dart';
 
@@ -12,297 +15,234 @@ class ContactScreen extends StatefulWidget {
 }
 
 class _ContactScreenState extends State<ContactScreen> {
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _bodyController = TextEditingController();
-  final ImagePicker _imagePicker = ImagePicker();
-
-  // 複数画像を保持するリスト
-  List<XFile?> _attachedImages = [];
-
-  bool _showConfirmation = false;
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _detailController = TextEditingController();
+  final ContactApiService _apiService = ContactApiService();
+  
   bool _isLoading = false;
+  XFile? _selectedImage;
+  String? _uploadedImageUrl; // サーバーにアップロード後のURL
 
-  Future<void> _attachImage() async {
+  // 画像を選択する
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image != null) {
+      setState(() {
+        _selectedImage = image;
+      });
+    }
+  }
+
+  // 画像をサーバーにアップロードする処理
+  Future<String?> _uploadImage(XFile image) async {
     try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 80,
+      final token = await TokenStorageService().getAccessToken();
+      // 環境に合わせてURLを変更 (Androidエミュレータなら10.0.2.2, 実機/WebならローカルIP)
+      final uri = Uri.parse('http://localhost:8080/api/upload/image');
+      
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['Authorization'] = 'Bearer $token';
+      
+      // Web対応
+      if (kIsWeb) {
+        final bytes = await image.readAsBytes();
+        request.files.add(http.MultipartFile.fromBytes(
+          'file', 
+          bytes, 
+          filename: image.name
+        ));
+      } else {
+        request.files.add(await http.MultipartFile.fromPath(
+          'file', 
+          image.path
+        ));
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['imageUrl'];
+      } else {
+        throw Exception('画像のアップロードに失敗: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Upload error: $e');
+      return null;
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      String? finalImageUrl;
+
+      // 1. 画像が選択されていれば先にアップロード
+      if (_selectedImage != null) {
+        finalImageUrl = await _uploadImage(_selectedImage!);
+        if (finalImageUrl == null) {
+          throw Exception('画像のアップロードに失敗しました。再試行してください。');
+        }
+      }
+
+      // 2. お問い合わせ内容を送信 (画像のURLを含む)
+      await _apiService.submitContact(
+        title: _titleController.text,
+        detail: _detailController.text,
+        imageUrl: finalImageUrl,
+      );
+
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('お問い合わせを送信しました'), backgroundColor: Colors.green),
       );
       
-      if (image != null) {
-        setState(() {
-          _attachedImages.add(image);
-        });
-      }
+      Navigator.pop(context);
+      
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('画像の選択に失敗しました: $e')),
-      );
-    }
-  }
-
-  void _removeImage(int index) {
-    setState(() {
-      _attachedImages.removeAt(index);
-    });
-  }
-
-  Future<void> _send() async {
-    if (_titleController.text.trim().isEmpty || _bodyController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('件名と本文を入力してください')));
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // 修正: TokenStorageServiceをインスタンス化して呼び出す
-      final accessToken = await TokenStorageService().getAccessToken();
-      if (accessToken == null) {
-        throw Exception('ログインが必要です');
-      }
-
-      // 画像アップロード処理 (今回はスキップ)
-      String? uploadedImageUrl;
-      if (_attachedImages.isNotEmpty) {
-        // uploadedImageUrl = await ImageUploadService().upload(_attachedImages.first);
-      }
-
-      final contactService = ContactApiService();
-      await contactService.createContact(
-        title: _titleController.text,
-        content: _bodyController.text,
-        imageUrl: uploadedImageUrl,
-        accessToken: accessToken,
-      );
-
-      setState(() {
-        _showConfirmation = true;
-        _titleController.clear();
-        _bodyController.clear();
-        _attachedImages.clear();
-      });
-
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('送信に失敗しました: $e')),
+        SnackBar(content: Text('エラー: $e'), backgroundColor: Colors.red),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _closeConfirmation() {
-    setState(() {
-      _showConfirmation = false;
-    });
-    Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('お問い合わせ', style: TextStyle(color: Colors.black)),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
-      body: Stack(
-        children: [
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                children: [
-                  const Divider(height: 1, thickness: 1),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: _titleController,
-                    decoration: InputDecoration(
-                      labelText: '件名',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  Expanded(
-                    child: TextField(
-                      controller: _bodyController,
-                      maxLines: null,
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      decoration: InputDecoration(
-                        hintText: 'お問い合わせ内容を入力してください',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '画像があれば添付してください (${_attachedImages.length}枚)',
-                          style: TextStyle(color: Colors.grey[700]),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _attachImage,
-                        icon: const Icon(Icons.photo_library_outlined),
-                        tooltip: 'ギャラリーから選択',
-                      ),
-                    ],
-                  ),
-
-                  if (_attachedImages.isNotEmpty)
-                    SizedBox(
-                      height: 100,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _attachedImages.length,
-                        itemBuilder: (context, index) {
-                          return Stack(
-                            children: [
-                              Container(
-                                width: 100,
-                                height: 100,
-                                margin: const EdgeInsets.only(right: 8),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey.shade300),
-                                ),
-                                child: FutureBuilder(
-                                  future: _attachedImages[index]!.readAsBytes(),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.hasData) {
-                                      return ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.memory(
-                                          snapshot.data!,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      );
-                                    } else {
-                                      return const Center(
-                                        child: CircularProgressIndicator(),
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                              Positioned(
-                                top: 4,
-                                right: 12,
-                                child: GestureDetector(
-                                  onTap: () => _removeImage(index),
-                                  child: Container(
-                                    decoration: const BoxDecoration(
-                                      color: Colors.black54,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.close,
-                                      size: 20,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-
-                  const SizedBox(height: 12),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _send,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        elevation: 4,
-                      ),
-                      child: _isLoading 
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('送信', style: TextStyle(fontSize: 16, color: Colors.white)),
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-
-          if (_showConfirmation)
-            Center(
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.8,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: GestureDetector(
-                        onTap: _closeConfirmation,
-                        child: Container(
-                          decoration: BoxDecoration(color: Colors.grey[200], shape: BoxShape.circle),
-                          child: const Icon(Icons.close, size: 20),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.blueAccent, width: 4)),
-                      child: const Icon(Icons.check, color: Colors.blueAccent, size: 48),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text('お問い合わせを\n受け付けました', textAlign: TextAlign.center),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: 4,
-        onTap: (index) {},
-      ),
-    );
   }
 
   @override
   void dispose() {
     _titleController.dispose();
-    _bodyController.dispose();
+    _detailController.dispose();
     super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('お問い合わせ'),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '不具合の報告やご意見・ご要望はこちらからお送りください。',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              
+              // タイトル入力
+              const Text('タイトル', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  hintText: '例: ログインできない、機能の要望など',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+                validator: (value) => value!.isEmpty ? 'タイトルを入力してください' : null,
+              ),
+              const SizedBox(height: 24),
+
+              // 詳細入力
+              const Text('お問い合わせ内容', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _detailController,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  hintText: '詳細をご記入ください',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value!.isEmpty ? '内容を入力してください' : null,
+              ),
+              const SizedBox(height: 24),
+
+              // ▼▼▼ ここが復活した「写真送信枠」です ▼▼▼
+              const Text('スクリーンショット（任意）', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.grey[100],
+                  ),
+                  child: _selectedImage != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: kIsWeb 
+                              ? Image.network(_selectedImage!.path, fit: BoxFit.cover)
+                              : Image.file(File(_selectedImage!.path), fit: BoxFit.cover),
+                        )
+                      : const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_a_photo, color: Colors.grey, size: 40),
+                            SizedBox(height: 8),
+                            Text('タップして画像を選択', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                ),
+              ),
+              if (_selectedImage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: TextButton(
+                    onPressed: () => setState(() => _selectedImage = null),
+                    child: const Text('画像を削除', style: TextStyle(color: Colors.red)),
+                  ),
+                ),
+              // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+              const SizedBox(height: 32),
+
+              // 送信ボタン
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          '送信する',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
