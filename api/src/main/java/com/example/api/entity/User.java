@@ -48,16 +48,13 @@ public class User {
     @Column(name = "privacy")
     private Integer privacy = 0;
 
-    // ▼▼▼ 定義を変更 ▼▼▼
-    /**
-     * サブスクリプションステータス
-     * 0: 未契約 / 解約済み (期限切れ)
-     * 1: 契約中 (自動更新あり)
-     * 2: 解約予約中 (期限までは利用可能)
-     */
+    // ▼▼▼ DBに合わせて2つのフラグを定義 ▼▼▼
     @Column(name = "subscribe_flag", nullable = false)
-    private int subscribeFlag = 0;
-    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+    private int subscribeFlag = 0; // 0:未契約, 1:契約中
+
+    @Column(name = "cancellation_flag", nullable = false)
+    private int cancellationFlag = 0; // 0:未解約, 1:解約済み
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
@@ -99,7 +96,7 @@ public class User {
         }
     }
 
-    // ====== getters / setters ======
+    // Getters / Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -124,8 +121,12 @@ public class User {
     public int getPrivacy() { return privacy; }
     public void setPrivacy(int privacy) { this.privacy = privacy; }
 
+    // Flags
     public int getSubscribeFlag() { return subscribeFlag; }
     public void setSubscribeFlag(int subscribeFlag) { this.subscribeFlag = subscribeFlag; }
+
+    public int getCancellationFlag() { return cancellationFlag; }
+    public void setCancellationFlag(int cancellationFlag) { this.cancellationFlag = cancellationFlag; }
 
     public LocalDateTime getAcceptedAt() { return acceptedAt; }
     public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }

@@ -72,7 +72,7 @@ public class AuthService {
     }
 
     /**
-     * ユーザー登録（ステップ1: メールアドレスとパスワードのみ）
+     * ユーザー登録
      */
     @Transactional
     public AuthResponse register(RegisterRequest request, String userAgent, String ip) {
@@ -96,8 +96,9 @@ public class AuthService {
         user.setPassword(passwordHash);
         user.setUsername("user_" + System.currentTimeMillis()); 
 
-        // [修正箇所] 明示的に未契約(0)をセットする
-        user.setSubscribeFlag(0);
+        // [修正] サブスク初期状態設定
+        user.setSubscribeFlag(0);    // 未契約
+        user.setCancellationFlag(0); // 未解約
 
         user = userRepository.save(user);
 

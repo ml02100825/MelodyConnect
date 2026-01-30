@@ -13,8 +13,9 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  // 0: 未契約, 1: 解約予約, 2: 契約中
-  int subscriptionStatus = 0;
+  // フラグ管理
+  int subscribeFlag = 0;
+  int cancellationFlag = 0;
   DateTime? expiryDate;
   bool _isLoading = true;
   
@@ -44,7 +45,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final int status = data['status'] ?? 0;
+        
+        // ▼▼▼ 2つのフラグを取得 ▼▼▼
+        final int sFlag = data['subscribeFlag'] ?? 0;
+        final int cFlag = data['cancellationFlag'] ?? 0;
         final String? expiresAtStr = data['expiresAt'];
 
         DateTime? parsedDate;
@@ -54,7 +58,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         
         if (mounted) {
           setState(() {
-            subscriptionStatus = status;
+            subscribeFlag = sFlag;
+            cancellationFlag = cFlag;
             expiryDate = parsedDate;
             _mockRefreshCards();
             _isLoading = false;
@@ -68,7 +73,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  // 残り日数を計算
   int _getRemainingDays() {
     if (expiryDate == null) return 0;
     final now = DateTime.now();
@@ -84,9 +88,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool isSubscribed = (subscriptionStatus == 2);
-    bool isCanceledButActive = (subscriptionStatus == 1);
+    // ▼▼▼ 2つのフラグで状態を判定 ▼▼▼
     
+    // 契約中 (自動更新あり): Sub=1, Cancel=0
+    bool isSubscribed = (subscribeFlag == 1 && cancellationFlag == 0);
+    
+    // 解約予約中 (期限まで有効): Sub=1, Cancel=1
+    bool isCanceledButActive = (subscribeFlag == 1 && cancellationFlag == 1);
+    
+    // 未契約: Sub=0
+    bool isUnsubscribed = (subscribeFlag == 0);
+
     final primaryCard = _myCards.isNotEmpty ? _myCards.first : null;
     final remainingDays = _getRemainingDays();
 
@@ -108,9 +120,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
-                  _buildHeader(isSubscribed || isCanceledButActive, isSubscribed, remainingDays),
+                  // ヘッダー表示
+                  _buildHeader(!isUnsubscribed, isSubscribed, remainingDays),
                   const SizedBox(height: 32),
 
+                  // 状態に応じたビューの切り替え
                   if (isSubscribed) 
                     _buildSubscribedView()
                   else if (isCanceledButActive)
@@ -150,7 +164,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           if (!isActive)
             const Text('¥500/月', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
           
-          // ▼▼▼ 残り日数の表示 ▼▼▼
           if (isActive) ...[
             const SizedBox(height: 8),
             Container(
@@ -178,6 +191,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
+  // 以下、_buildSubscribedView などのUIパーツは前回と同じです
+  // ボタン押下時にAPIを呼び出し、完了後に _fetchStatusFromServer() を呼ぶことで画面が更新されます
+  
   Widget _buildSubscribedView() {
     return Column(
       children: [
@@ -242,7 +258,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Widget _buildUnsubscribedView(Map<String, dynamic>? primaryCard) {
-    // (以前と同じなので省略可ですが、念のため全文記載)
     if (primaryCard != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +318,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  // 特典リストなどは変更なし
   Widget _buildBenefitsList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,7 +387,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
       
       if (response.statusCode == 200) {
-        // 成功したらリロードして最新状態(日数など)を取得
         await _fetchStatusFromServer();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('登録完了！'), backgroundColor: Colors.green));
       } else {
@@ -416,7 +429,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
       
       if (response.statusCode == 200) {
-        // 解約成功 -> ステータス1になるはずなのでリロード
         await _fetchStatusFromServer();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('解約しました'), backgroundColor: Colors.orange));
       } else {

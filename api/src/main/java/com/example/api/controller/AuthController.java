@@ -40,20 +40,17 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request, userAgent, ip));
     }
 
-    // トークンリフレッシュ
     @PostMapping("/refresh-token")
     public ResponseEntity<AuthResponse> refreshToken(@RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(authService.refreshAccessToken(request.getRefreshToken()));
     }
 
-    // ログアウト
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@AuthenticationPrincipal User user) {
         authService.logout(user);
         return ResponseEntity.ok(Map.of("message", "ログアウトしました"));
     }
 
-    // 退会
     @PostMapping("/withdraw")
     public ResponseEntity<?> withdraw(@AuthenticationPrincipal User user) {
         authService.withdraw(user);
