@@ -9,6 +9,7 @@ import com.example.api.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -28,7 +29,8 @@ public class AuthController {
                                                  HttpServletRequest servletRequest) {
         String userAgent = servletRequest.getHeader("User-Agent");
         String ip = servletRequest.getRemoteAddr();
-        return ResponseEntity.ok(authService.register(request, userAgent, ip));
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(authService.register(request, userAgent, ip));
     }
 
     // ログイン
@@ -40,7 +42,7 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request, userAgent, ip));
     }
 
-    @PostMapping("/refresh-token")
+    @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refreshToken(@RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(authService.refreshAccessToken(request.getRefreshToken()));
     }
