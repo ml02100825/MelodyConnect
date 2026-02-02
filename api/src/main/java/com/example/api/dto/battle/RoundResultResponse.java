@@ -29,6 +29,12 @@ public class RoundResultResponse {
 
     // 試合継続フラグ
     private boolean matchContinues;
+    // 問題文
+    private String questionText;
+
+    public String getQuestionText() { return questionText; }
+    public void setQuestionText(String questionText) { this.questionText = questionText; }
+
 
     public RoundResultResponse() {}
 

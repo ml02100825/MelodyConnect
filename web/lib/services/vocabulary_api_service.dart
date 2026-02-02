@@ -1,14 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../../models/vocabulary_model.dart';
+import 'package:flutter_webapp/config/app_config.dart';
+import '../models/vocabulary_model.dart';
 
 /// 単語帳APIサービス
 class VocabularyApiService {
-  // ベースURL（環境に応じて変更）
-  static const String _baseUrl = kDebugMode
-      ? 'http://localhost:8080'
-      : 'http://localhost:8080';
+  // ベースURL（assets/config.jsonから読み込み）
+  String get _baseUrl => AppConfig.apiBaseUrl;
 
   /// ユーザーの単語一覧を取得
   Future<VocabularyResponse> getUserVocabularies(Long userId, String accessToken) async {

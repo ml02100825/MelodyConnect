@@ -10,6 +10,10 @@ import com.example.api.repository.LikeArtistRepository;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.SongRepository;
 import com.example.api.repository.ArtistRepository;
+import com.example.api.repository.UserRepository;
+import com.example.api.repository.WeeklyLessonsRepository;
+import com.example.api.entity.User;
+import com.example.api.entity.WeeklyLessons;
 import com.example.api.client.SpotifyApiClient;
 
 import com.example.api.entity.LikeArtist;
@@ -67,18 +71,27 @@ public class QuizService {
     private UserVocabularyService userVocabularyService;
 
     @Autowired
+    private S3PresignService s3PresignService;
+
+    @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private WeeklyLessonsRepository weeklyLessonsRepository;
 
         /**
      * Songからアーティスト名を取得するヘルパーメソッド
      * aritst_idを使ってArtistエンティティから取得
      */
     private String getArtistNameFromSong(Song song) {
-        if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
+        if (song.getArtistId() == null || song.getArtistId() == 0L) {
             return null;
         }
         
-        return artistRepository.findById(song.getAritst_id())
+        return artistRepository.findById(song.getArtistId())
             .map(Artist::getArtistName)
             .orElse(null);
     }
@@ -102,8 +115,8 @@ public class QuizService {
 
             if (selectedSong != null) {
                 // 2. 曲が選択された場合、50問チェック
-                // ★ selectedSong.getSong_id()がnullの場合（新規Song）は0問として扱う
-                Long songId = selectedSong.getSong_id();
+                // ★ selectedSong.getSongId()がnullの場合（新規Song）は0問として扱う
+                Long songId = selectedSong.getSongId();
                 long questionCount = (songId != null) ? questionRepository.countBySongId(songId) : 0;
                 logger.info("既存の問題数: songId={}, count={}", songId, questionCount);
 
@@ -119,7 +132,7 @@ public class QuizService {
                     // ★ 新規生成後、問題リストからSong情報を取得（保存後のIDを持つ）
                     if (!questions.isEmpty() && questions.get(0).getSong() != null) {
                         actualSong = questions.get(0).getSong();
-                        logger.debug("新規生成後のSong情報を更新: songId={}", actualSong.getSong_id());
+                        logger.debug("新規生成後のSong情報を更新: songId={}", actualSong.getSongId());
                     }
                 }
             } else {
@@ -142,11 +155,15 @@ public class QuizService {
                 .collect(Collectors.toList());
 
             QuizStartResponse.SongInfo songInfo = null;
-            if (actualSong != null && actualSong.getSong_id() != null) {
+            if (actualSong != null && actualSong.getSongId() != null) {
                 String artistName = getArtistNameFromSong(actualSong);
-  
+                // アーティスト名がnullの場合はフォールバック
+                if (artistName == null || artistName.isEmpty()) {
+                    artistName = "Unknown Artist";
+                }
+
                 songInfo = QuizStartResponse.SongInfo.builder()
-                    .songId(actualSong.getSong_id())
+                    .songId(actualSong.getSongId())
                     .songName(actualSong.getSongname())
                     .artistName(artistName)
                     .build();
@@ -198,22 +215,17 @@ public class QuizService {
                     boolean isCorrect = correctAnswer.trim().equalsIgnoreCase(answer.getUserAnswer().trim());
                     if (isCorrect) correctCount++;
 
-                    // ★ UserVocabularyに登録
-                    try {
-                        if (com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK.equals(q.getQuestionFormat())) {
-                            // FILL_IN_BLANK: 全ての問題のanswerを登録
-                            userVocabularyService.registerFillInBlankAnswer(request.getUserId(), q.getAnswer());
-                        } else if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat()) && !isCorrect) {
-                            // LISTENING: 不正解の場合、間違えた単語を登録
-                            userVocabularyService.registerListeningMistakes(
-                                request.getUserId(), 
-                                answer.getUserAnswer(), 
-                                correctAnswer
-                            );
-                        }
-                    } catch (Exception e) {
-                        // UserVocabulary登録に失敗してもクイズ完了処理は続行
-                        logger.warn("UserVocabulary登録中にエラーが発生しましたが、処理を続行します: {}", e.getMessage());
+                    // ★ UserVocabularyに非同期で登録（レスポンスを高速化）
+                    if (com.example.api.enums.QuestionFormat.FILL_IN_THE_BLANK.equals(q.getQuestionFormat())) {
+                        // FILL_IN_BLANK: 全ての問題のanswerを登録
+                        userVocabularyService.registerFillInBlankAnswerAsync(request.getUserId(), q.getAnswer());
+                    } else if (com.example.api.enums.QuestionFormat.LISTENING.equals(q.getQuestionFormat()) && !isCorrect) {
+                        // LISTENING: 不正解の場合、間違えた単語を登録
+                        userVocabularyService.registerListeningMistakesAsync(
+                            request.getUserId(),
+                            answer.getUserAnswer(),
+                            correctAnswer
+                        );
                     }
 
                     questionResults.add(QuizCompleteResponse.QuestionResult.builder()
@@ -231,7 +243,32 @@ public class QuizService {
             // 3. 結果をl_historyに更新
             updateQuizResult(history, request.getAnswers(), correctCount);
 
-            // 4. 正解率を計算
+            // 4. リタイアでない場合、カウントを増加
+            if (request.getRetired() == null || !request.getRetired()) {
+                // User.totalPlay を +1
+                User user = userRepository.findById(request.getUserId())
+                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: " + request.getUserId()));
+                user.setTotalPlay(user.getTotalPlay() + 1);
+                userRepository.save(user);
+                logger.info("User.totalPlay を更新: userId={}, newTotalPlay={}", user.getId(), user.getTotalPlay());
+
+                // WeeklyLessons.lessonsNum を +1
+                WeeklyLessons weeklyLessons = weeklyLessonsRepository
+                    .findByUserAndWeekFlag(user, true)
+                    .stream()
+                    .findFirst()
+                    .orElseGet(() -> {
+                        WeeklyLessons newWl = new WeeklyLessons(user);
+                        return weeklyLessonsRepository.save(newWl);
+                    });
+                weeklyLessons.setLessonsNum(weeklyLessons.getLessonsNum() + 1);
+                weeklyLessonsRepository.save(weeklyLessons);
+                logger.info("WeeklyLessons.lessonsNum を更新: userId={}, newLessonsNum={}", user.getId(), weeklyLessons.getLessonsNum());
+            } else {
+                logger.info("リタイアのためカウント増加をスキップ: userId={}", request.getUserId());
+            }
+
+            // 5. 正解率を計算
             double accuracy = request.getAnswers().isEmpty() ? 0 :
                 (double) correctCount / request.getAnswers().size();
 
@@ -388,11 +425,11 @@ public class QuizService {
         // ★ 修正: ResponseからsongIdを取得（新規Songの場合、selectedSongのIDはnullのため）
         Long songId = (response.getSongInfo() != null && response.getSongInfo().getSongId() != null)
             ? response.getSongInfo().getSongId()
-            : selectedSong.getSong_id();
+            : selectedSong.getSongId();
         
-        logger.debug("問題取得用songId: {} (selectedSong.getSong_id()={}, response.songId={})",
+        logger.debug("問題取得用songId: {} (selectedSong.getSongId()={}, response.songId={})",
             songId, 
-            selectedSong.getSong_id(),
+            selectedSong.getSongId(),
             response.getSongInfo() != null ? response.getSongInfo().getSongId() : "null");
 
         // 生成された問題を取得
@@ -465,12 +502,14 @@ public class QuizService {
 
     /**
      * questionエンティティをQuizQuestionDTOに変換
-     * 
+     *
      * リスニング問題の場合:
      *   - answer に completeSentence を設定（ユーザーが入力すべき完全な文）
-     * 
+     *
      * 虫食い問題の場合:
      *   - answer に answer を設定（空欄に入る単語）
+     *
+     * 音声URLはS3キーの場合、署名付きURLに変換する
      */
     private QuizStartResponse.QuizQuestion convertToQuizQuestion(Question q) {
         // ★ リスニング問題の場合はanswerにcompleteSentenceを設定
@@ -483,12 +522,22 @@ public class QuizService {
             answerValue = q.getAnswer();
         }
 
+        // ★ S3キーの場合は署名付きURLに変換（毎回新しいURLを生成、有効期限15分）
+        String audioUrl = s3PresignService.convertToPresignedUrl(q.getAudioUrl());
+        final Song song = q.getSong();
+        final Long songId = song != null ? song.getSongId() : null;
+        final String songName = song != null ? song.getSongname() : null;
+        final String artistName = q.getArtist() != null ? q.getArtist().getArtistName() : null;
+
         return QuizStartResponse.QuizQuestion.builder()
             .questionId(q.getQuestionId())
+            .songId(songId)
+            .songName(songName)
+            .artistName(artistName)
             .text(q.getText())
             .questionFormat(q.getQuestionFormat().getValue())
             .difficultyLevel(q.getDifficultyLevel())
-            .audioUrl(q.getAudioUrl())
+            .audioUrl(audioUrl)
             .language(q.getLanguage())
             .answer(answerValue)
             .completeSentence(q.getCompleteSentence())  // ★ 追加

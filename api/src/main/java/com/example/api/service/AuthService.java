@@ -3,17 +3,18 @@ package com.example.api.service;
 import com.example.api.dto.AuthResponse;
 import com.example.api.dto.LoginRequest;
 import com.example.api.dto.RegisterRequest;
-import com.example.api.entity.Rate;
-import com.example.api.entity.Session;
-import com.example.api.entity.User;
-import com.example.api.entity.WeeklyLessons;
-import com.example.api.repository.RateRepository;
-import com.example.api.repository.SessionRepository;
-import com.example.api.repository.UserRepository;
-import com.example.api.repository.WeeklyLessonsRepository;
+import com.example.api.entity.*;
+import com.example.api.repository.*;
 import com.example.api.util.JwtUtil;
 import com.example.api.util.SeasonCalculator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,14 +23,19 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * 認証サービスクラス
- * ユーザー登録、ログイン、セッション管理のビジネスロジックを提供します
+ * ユーザー登録、ログイン、セッション管理、パスワードリセットのビジネスロジックを提供します
  */
 @Service
 public class AuthService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -44,16 +50,24 @@ public class AuthService {
     private WeeklyLessonsRepository weeklyLessonsRepository;
 
     @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     @Autowired
     private SeasonCalculator seasonCalculator;
 
+    @Autowired
+    private JavaMailSender mailSender;
+
+    @Value("${spring.mail.username:noreply@example.com}")
+    private String fromEmail;
+
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
      * SHA-256でハッシュ化
-     * リフレッシュトークンのハッシュ化に使用（BCryptの72バイト制限を回避）
      */
     private String hashWithSHA256(String input) {
         try {
@@ -72,6 +86,11 @@ public class AuthService {
     }
 
     /**
+     * パスワードポリシーの検証
+     */
+    private void validatePasswordPolicy(String password) {
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("パスワードを入力してください");
      * ユーザー登録
      */
     @Transactional
@@ -80,12 +99,21 @@ public class AuthService {
         if (userRepository.existsByMailaddress(request.getEmail())) {
             throw new IllegalArgumentException("このメールアドレスは既に登録されています");
         }
-
-        // BCryptの72バイト制限チェック
-        byte[] passwordBytes = request.getPassword().getBytes(StandardCharsets.UTF_8);
-        if (passwordBytes.length > 72) {
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
         }
+        if (password.length() < 8) {
+            throw new IllegalArgumentException("パスワードは8文字以上である必要があります");
+        }
+        if (!Pattern.matches("^[a-zA-Z0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?]+$", password)) {
+            throw new IllegalArgumentException("パスワードに使用できない文字が含まれています");
+        }
+    }
+
+    /**
+     * 共通処理: セッション作成とレスポンス生成
+     */
+    private AuthResponse createSessionAndResponse(User user, String userAgent, String ip) {
 
         // パスワードをハッシュ化
         String passwordHash = passwordEncoder.encode(request.getPassword());
@@ -123,7 +151,6 @@ public class AuthService {
         Session session = new Session(user, refreshHash, expiresAt, userAgent, ip);
         sessionRepository.save(session);
 
-        // レスポンスを返す
         return new AuthResponse(
                 user.getId(),
                 user.getUsername(),
@@ -135,11 +162,41 @@ public class AuthService {
     }
 
     /**
+     * ユーザー登録
+     */
+    @Transactional
+    public AuthResponse register(RegisterRequest request, String userAgent, String ip) {
+        if (userRepository.existsByMailaddress(request.getEmail())) {
+            throw new IllegalArgumentException("このメールアドレスは既に登録されています");
+        }
+
+        validatePasswordPolicy(request.getPassword());
+
+        String passwordHash = passwordEncoder.encode(request.getPassword());
+
+        User user = new User();
+        user.setMailaddress(request.getEmail());
+        user.setPassword(passwordHash);
+        user.setUsername("user_" + System.currentTimeMillis());
+        user = userRepository.save(user);
+
+        Integer currentSeason = seasonCalculator.getCurrentSeason();
+        Rate rate = new Rate(user, currentSeason);
+        rateRepository.save(rate);
+
+        WeeklyLessons weeklyLessons = new WeeklyLessons(user);
+        weeklyLessonsRepository.save(weeklyLessons);
+
+        logger.info("新規ユーザー登録: ID {}", user.getId());
+
+        return createSessionAndResponse(user, userAgent, ip);
+    }
+
+    /**
      * ログイン
      */
     @Transactional
     public AuthResponse login(LoginRequest request, String userAgent, String ip) {
-        // BCryptの72バイト制限チェック
         byte[] passwordBytes = request.getPassword().getBytes(StandardCharsets.UTF_8);
         if (passwordBytes.length > 72) {
             throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
@@ -153,19 +210,8 @@ public class AuthService {
 
         User user = userOpt.get();
 
-        // パスワードを検証
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
-        }
-
-        // 退会済みユーザーのチェック
-        if (user.isDeleteFlag()) {
-            throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
-        }
- 
-        // BANユーザーのチェック
-        if (user.isBanFlag()) {
-            throw new IllegalArgumentException("このアカウントは利用停止されています");
         }
 
         // 現在のシーズンを取得
@@ -177,6 +223,13 @@ public class AuthService {
             rateRepository.save(rate);
         }
 
+        int loginCount = user.getLoginCount() == null ? 0 : user.getLoginCount();
+        user.setLoginCount(loginCount + 1);
+        userRepository.save(user);
+
+        logger.info("ログイン成功: ID {}", user.getId());
+
+        return createSessionAndResponse(user, userAgent, ip);
         // トークンを生成
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
@@ -199,7 +252,7 @@ public class AuthService {
     }
 
     /**
-     * リフレッシュトークンを使用して新しいアクセストークンを生成
+     * トークンリフレッシュ
      */
     @Transactional
     public AuthResponse refreshAccessToken(String refreshToken) {
@@ -211,31 +264,28 @@ public class AuthService {
         }
 
         Long userId = jwtUtil.getUserIdFromToken(refreshToken);
-        Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isEmpty()) {
-            throw new IllegalArgumentException("ユーザーが見つかりません");
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+
+        if (user.isDeleteFlag() || user.isBanFlag()) {
+            throw new IllegalArgumentException("アカウントが利用できません");
         }
 
-        User user = userOpt.get();
         String refreshHash = hashWithSHA256(refreshToken);
-        boolean sessionValid = sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())
+        Optional<Session> sessionOpt = sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())
                 .stream()
-                .anyMatch(session -> refreshHash.equals(session.getRefreshHash()));
+                .filter(session -> refreshHash.equals(session.getRefreshHash()))
+                .findFirst();
 
-        if (!sessionValid) {
-            throw new IllegalArgumentException("セッションが無効です");
-        }
+        Session session = sessionOpt.orElseThrow(() -> {
+            logger.warn("リフレッシュ失敗: セッションが無効または存在しません UserID {}", userId);
+            return new IllegalArgumentException("セッションが無効です");
+        });
 
         String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
 
-        sessionRepository.findValidSessionsByUser(user, LocalDateTime.now())
-                .stream()
-                .filter(session -> refreshHash.equals(session.getRefreshHash()))
-                .findFirst()
-                .ifPresent(session -> {
-                    session.extendExpiration();
-                    sessionRepository.save(session);
-                });
+        session.extendExpiration();
+        sessionRepository.save(session);
 
         return new AuthResponse(
                 user.getId(),
@@ -248,18 +298,37 @@ public class AuthService {
     }
 
     /**
-     * ログアウト
+     * ログアウト（指定されたリフレッシュトークンに紐づくセッションを削除）
+     * 通常のログアウト用
      */
     @Transactional
-    public void logout(User user) {
-        if (user == null || user.getId() == null || !userRepository.existsById(user.getId())) {
-            throw new IllegalArgumentException("ユーザーが見つかりません");
+    public void logout(String refreshToken) {
+        if (refreshToken == null || refreshToken.isEmpty()) return;
+
+        try {
+            String refreshHash = hashWithSHA256(refreshToken);
+            Long userId = jwtUtil.getUserIdFromToken(refreshToken);
+            User user = userRepository.getReferenceById(userId);
+
+            sessionRepository.findValidSessionsByUser(user, LocalDateTime.now().plusYears(1))
+                    .stream()
+                    .filter(s -> refreshHash.equals(s.getRefreshHash()))
+                    .findFirst()
+                    .ifPresent(session -> {
+                        sessionRepository.delete(session);
+                        logger.info("ログアウト(セッション削除): UserID {}", userId);
+                    });
+
+            updateOfflineAtIfNoActiveSessions(user);
+
+        } catch (Exception e) {
+            logger.warn("ログアウト処理中にエラー（無視します）: {}", e.getMessage());
         }
-        sessionRepository.revokeAllUserSessions(user);
     }
 
     /**
-     * 退会
+     * ログアウト（ユーザーの全セッションを削除）
+     * パスワードリセット時や強制ログアウトで使用
      */
     @Transactional
     public void withdraw(User user) {
@@ -270,10 +339,127 @@ public class AuthService {
     }
 
     /**
-     * セッションクリーンアップ
+     * 期限切れセッションのクリーンアップ（1時間ごとに自動実行）
      */
     @Transactional
+    @Scheduled(fixedRate = 3600000)
     public void cleanupExpiredSessions() {
-        sessionRepository.deleteExpiredSessions(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+
+        // 期限切れセッションを持つユーザーを事前に取得（効率化）
+        List<User> affectedUsers = sessionRepository.findUsersWithExpiredSessions(now);
+
+        // 期限切れセッションを削除
+        sessionRepository.deleteExpiredSessions(now);
+        logger.info("期限切れセッションを削除しました: 影響を受けたユーザー数={}", affectedUsers.size());
+
+        // 影響を受けたユーザーの offlineAt を更新
+        for (User user : affectedUsers) {
+            updateOfflineAtIfNoActiveSessions(user);
+        }
+    }
+
+    /**
+     * ユーザーの offlineAt を更新（有効なセッションが存在しない場合のみ）
+     */
+    private void updateOfflineAtIfNoActiveSessions(User user) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Session> validSessions = sessionRepository.findValidSessionsByUser(user, now);
+
+        if (validSessions.isEmpty()) {
+            user.setOfflineAt(now);
+            userRepository.save(user);
+            logger.info("ユーザーの offlineAt を更新: userId={}, offlineAt={}", user.getId(), now);
+        } else {
+            logger.debug("有効なセッションが存在するため、offlineAt は更新しません: userId={}, activeSessions={}",
+                    user.getId(), validSessions.size());
+        }
+    }
+
+    // ==========================================
+    // パスワードリセット (DB管理版)
+    // ==========================================
+
+    /**
+     * DB上の期限切れリセットトークンを定期削除
+     */
+    @Scheduled(fixedRate = 3600000)
+    @Transactional
+    public void cleanupExpiredResetTokens() {
+        passwordResetTokenRepository.deleteAllExpiredSince(LocalDateTime.now());
+        logger.debug("期限切れリセットトークンのDBクリーンアップ完了");
+    }
+
+    /**
+     * パスワードリセット要求
+     */
+    @Transactional
+    public void requestPasswordReset(String email) {
+        Optional<User> userOpt = userRepository.findByMailaddress(email);
+        if (userOpt.isEmpty()) {
+            logger.info("パスワードリセット要求: 存在しないメールアドレス {}", email);
+            return;
+        }
+
+        User user = userOpt.get();
+
+        passwordResetTokenRepository.deleteByUser(user);
+
+        String tokenStr = UUID.randomUUID().toString();
+        PasswordResetToken resetToken = new PasswordResetToken(
+                tokenStr, 
+                user, 
+                LocalDateTime.now().plusHours(1)
+        );
+        passwordResetTokenRepository.save(resetToken);
+
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(email);
+            message.setSubject("【MelodyConnect】パスワードリセット");
+            message.setText(
+                    "パスワードリセットのリクエストを受け付けました。\n" +
+                    "以下のコードをアプリに入力して、新しいパスワードを設定してください。\n\n" +
+                    "リセットコード: " + tokenStr + "\n\n" +
+                    "※このコードの有効期限は1時間です。\n" +
+                    "※心当たりがない場合はこのメールを無視してください。"
+            );
+            
+            mailSender.send(message);
+            logger.info("リセットメール送信完了: {}", email);
+            
+        } catch (MailException e) {
+            logger.error("メール送信失敗: {}", e.getMessage(), e);
+            throw new RuntimeException("メールの送信に失敗しました。しばらく待ってから再試行してください。");
+        }
+    }
+
+    /**
+     * パスワード更新実行
+     */
+    @Transactional
+    public void resetPassword(String tokenStr, String newPassword) {
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(tokenStr)
+                .orElseThrow(() -> new IllegalArgumentException("無効なリセットコードです"));
+
+        if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            passwordResetTokenRepository.delete(resetToken);
+            throw new IllegalArgumentException("リセットコードの有効期限が切れています");
+        }
+
+        User user = resetToken.getUser();
+
+        validatePasswordPolicy(newPassword);
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        // ★修正: ユーザー指定のlogoutメソッド（全セッション削除）を使用
+        logout(user);
+
+        passwordResetTokenRepository.delete(resetToken);
+        
+        logger.info("パスワードリセット完了: UserID {}", user.getId());
     }
 }

@@ -1,17 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../../models/quiz_models.dart';
-
-const baseUrl = String.fromEnvironment(
-  "API_BASE_URL",
-  defaultValue: "http://localhost:8080",
-);
+import '../models/quiz_models.dart';
+import '../config/app_config.dart';
 
 class QuizApiService {
   /// クイズを開始
   Future<QuizStartResponse> startQuiz(QuizStartRequest request, String accessToken) async {
     final response = await http.post(
-      Uri.parse("$baseUrl/api/quiz/start"),
+      Uri.parse("${AppConfig.apiBaseUrl}/api/quiz/start"),
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer $accessToken",
@@ -29,7 +25,7 @@ class QuizApiService {
   /// クイズを完了
   Future<QuizCompleteResponse> completeQuiz(QuizCompleteRequest request, String accessToken) async {
     final response = await http.post(
-      Uri.parse("$baseUrl/api/quiz/complete"),
+      Uri.parse("${AppConfig.apiBaseUrl}/api/quiz/complete"),
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer $accessToken",

@@ -27,14 +27,6 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @Query("SELECT s FROM Session s WHERE s.user = :user AND s.revokedFlag = false AND s.expiresAt > :now")
     List<Session> findValidSessionsByUser(@Param("user") User user, @Param("now") LocalDateTime now);
 
-    /**
-     * ユーザーIDで有効なセッションを検索（後方互換性のため）
-     * @param userId ユーザーID
-     * @param now 現在時刻
-     * @return 有効なセッションのリスト
-     */
-    @Query("SELECT s FROM Session s WHERE s.user.id = :userId AND s.revokedFlag = false AND s.expiresAt > :now")
-    List<Session> findValidSessionsByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
     /**
      * リフレッシュトークンハッシュで有効なセッションを検索
@@ -52,13 +44,21 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
      */
     List<Session> findByUser(User user);
 
+
+
     /**
-     * ユーザーIDで全てのセッションを取得（後方互換性のため）
-     * @param userId ユーザーID
+     * ユーザーIDで最新のセッションを取得
+     * @param user
+     * @return 最新セッション
+     */
+    Optional<Session> findTopByUserOrderByCreatedAtDesc(User user);
+
+    /**
+     * clientTypeでセッションを検索
+     * @param clientType クライアント種別
      * @return セッションのリスト
      */
-    @Query("SELECT s FROM Session s WHERE s.user.id = :userId")
-    List<Session> findByUserId(@Param("userId") Long userId);
+    List<Session> findByClientType(String clientType);
 
     /**
      * 期限切れのセッションを削除
@@ -77,10 +77,12 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     void revokeAllUserSessions(@Param("user") User user);
 
     /**
-     * ユーザーIDで全セッションを無効化（後方互換性のため）
-     * @param userId ユーザーID
+     * 期限切れセッションを持つユーザーを取得
+     * @param now 現在時刻
+     * @return 期限切れセッションを持つユーザーのリスト（重複なし）
      */
-    @Modifying
-    @Query("UPDATE Session s SET s.revokedFlag = true WHERE s.user.id = :userId")
-    void revokeAllUserSessionsById(@Param("userId") Long userId);
+    @Query("SELECT DISTINCT s.user FROM Session s WHERE s.expiresAt < :now")
+    List<User> findUsersWithExpiredSessions(@Param("now") LocalDateTime now);
 }
+
+

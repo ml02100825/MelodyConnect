@@ -8,10 +8,17 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * プロフィールコントローラー
+ * ユーザープロフィール設定のエンドポイントを提供します
+ * CORS設定はWebConfigで一括管理
+ */
 @RestController
 @RequestMapping("/api/profile")
 public class ProfileController {

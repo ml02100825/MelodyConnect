@@ -1,8 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'home_screen.dart';
@@ -24,10 +22,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final ImagePicker _imagePicker = ImagePicker();
 
   bool _isLoading = false;
-  bool _isUploading = false;
   XFile? _selectedImageFile;
   Uint8List? _imageBytes;
-  String? _uploadedImageUrl;
 
   @override
   void dispose() {
@@ -92,8 +88,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           _imageBytes = bytes;
         });
 
-        // すぐにアップロード
-        await _uploadImage();
       }
     } catch (e) {
       if (!mounted) return;
@@ -106,82 +100,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
   }
 
-  /// 画像をアップロード
-  Future<void> _uploadImage() async {
-    if (_selectedImageFile == null || _imageBytes == null) return;
-
-    setState(() {
-      _isUploading = true;
-    });
-
-    try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('http://localhost:8080/api/upload/image'),
-      );
-
-      // Web環境ではバイト配列から直接アップロード
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          _imageBytes!,
-          filename: _selectedImageFile!.name,
-        ),
-      );
-
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        String imageUrl = data['imageUrl'];
-
-        // S3のURLか相対パスかを判定
-        if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
-          // 相対パスの場合、絶対URLに変換
-          imageUrl = 'http://localhost:8080$imageUrl';
-        }
-
-        setState(() {
-          _uploadedImageUrl = imageUrl;
-          _isUploading = false;
-        });
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('画像をアップロードしました'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        final Map<String, dynamic> errorData = jsonDecode(response.body);
-        throw Exception(errorData['error'] ?? 'アップロードに失敗しました');
-      }
-    } catch (e) {
-      setState(() {
-        _isUploading = false;
-        _selectedImageFile = null;
-        _imageBytes = null;
-      });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('画像のアップロードに失敗しました: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
   /// プロフィール更新処理
   Future<void> _handleProfileUpdate() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_uploadedImageUrl == null) {
+    if (_imageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('アイコン画像を選択してください'),
@@ -205,13 +130,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       }
 
       // プロフィール更新API呼び出し
-      final response = await _profileApiService.updateProfile(
-        userId: userId,
-        username: _usernameController.text.trim(),
-        userUuid: _userUuidController.text.trim(),
-        imageUrl: _uploadedImageUrl!,
-        accessToken: accessToken,
-      );
+     final response = await _profileApiService.updateProfileMultipart(
+      userId: userId,
+      username: _usernameController.text.trim(),
+      userUuid: _userUuidController.text.trim(),
+      imageBytes: _imageBytes,
+      filename: _selectedImageFile?.name,
+      accessToken: accessToken,
+    );
+
 
       // ユーザー名を保存
       await _tokenStorage.saveUsername(response['username']);
@@ -298,7 +225,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       border: OutlineInputBorder(),
                     ),
                     validator: _validateUsername,
-                    enabled: !_isLoading && !_isUploading,
+                    enabled: !_isLoading,
                   ),
                   const SizedBox(height: 24),
 
@@ -312,7 +239,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       border: OutlineInputBorder(),
                     ),
                     validator: _validateUserUuid,
-                    enabled: !_isLoading && !_isUploading,
+                    enabled: !_isLoading,
                   ),
                   const SizedBox(height: 32),
 
@@ -329,7 +256,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   // 画像プレビューまたは選択ボタン
                   Center(
                     child: GestureDetector(
-                      onTap: _isLoading || _isUploading ? null : _pickImage,
+                      onTap: _isLoading ? null : _pickImage,
                       child: Container(
                         width: 150,
                         height: 150,
@@ -337,43 +264,37 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                           color: Colors.grey[200],
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: _uploadedImageUrl != null
-                                ? Colors.blue
-                                : Colors.grey,
+                            color: _imageBytes != null ? Colors.blue : Colors.grey,
                             width: 3,
                           ),
                         ),
-                        child: _isUploading
-                            ? const Center(
-                                child: CircularProgressIndicator(),
+                        child: _imageBytes != null
+                            ? ClipOval(
+                                child: Image.memory(
+                                  _imageBytes!,
+                                  fit: BoxFit.cover,
+                                  width: 150,
+                                  height: 150,
+                                ),
                               )
-                            : _imageBytes != null
-                                ? ClipOval(
-                                    child: Image.memory(
-                                      _imageBytes!,
-                                      fit: BoxFit.cover,
-                                      width: 150,
-                                      height: 150,
-                                    ),
-                                  )
-                                : const Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.add_a_photo,
-                                        size: 48,
-                                        color: Colors.grey,
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        '画像を選択',
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
+                            : const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.add_a_photo,
+                                    size: 48,
+                                    color: Colors.grey,
                                   ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    '画像を選択',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
                   ),
@@ -390,9 +311,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
                   // 設定完了ボタン
                   ElevatedButton(
-                    onPressed: (_isLoading || _isUploading)
-                        ? null
-                        : _handleProfileUpdate,
+                    onPressed: _isLoading ? null : _handleProfileUpdate,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(

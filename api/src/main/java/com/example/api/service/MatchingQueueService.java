@@ -29,6 +29,13 @@ public class MatchingQueueService {
             this.joinedAt = LocalDateTime.now();
         }
 
+        public QueuedPlayer(Long userId, Integer rating, String language, LocalDateTime joinedAt) {
+            this.userId = userId;
+            this.rating = rating;
+            this.language = language;
+            this.joinedAt = joinedAt;
+        }
+
         public Long getUserId() {
             return userId;
         }
@@ -100,6 +107,40 @@ public class MatchingQueueService {
                 languageQueues.remove(player.getLanguage());
             }
         }
+
+        return true;
+    }
+
+    /**
+     * プレイヤーのキュー情報を更新
+     * @param userId ユーザーID
+     * @param rating レーティング
+     * @param language 言語
+     * @return 更新成功時true、キューに存在しない場合false
+     */
+    public synchronized boolean updateQueue(Long userId, Integer rating, String language) {
+        QueuedPlayer existingPlayer = activeUsers.get(userId);
+        if (existingPlayer == null) {
+            return false;
+        }
+
+        // 既存キューから削除
+        List<QueuedPlayer> existingQueue = languageQueues.get(existingPlayer.getLanguage());
+        if (existingQueue != null) {
+            existingQueue.remove(existingPlayer);
+            if (existingQueue.isEmpty()) {
+                languageQueues.remove(existingPlayer.getLanguage());
+            }
+        }
+
+        QueuedPlayer updatedPlayer = new QueuedPlayer(
+                userId,
+                rating,
+                language,
+                existingPlayer.getJoinedAt()
+        );
+        activeUsers.put(userId, updatedPlayer);
+        languageQueues.computeIfAbsent(language, k -> new ArrayList<>()).add(updatedPlayer);
 
         return true;
     }

@@ -45,7 +45,7 @@ class BattlePlayer {
     return BattlePlayer(
       userId: json['userId'] ?? json['id'] ?? 0,
       username: json['username'] ?? json['userName'] ?? 'Player',
-      iconUrl: json['iconUrl'] ?? json['userUuid'],
+      iconUrl: json['imageUrl'] ?? json['iconUrl'],
       rating: json['rating'] ?? json['rate'],
       hasAnswered: json['hasAnswered'] ?? false,
     );
@@ -59,6 +59,8 @@ class BattleQuestion {
   final String questionFormat;
   final String? audioUrl;
   final String? translationJa;
+  final String? songName;
+  final String? artistName;
   final int roundNumber;
   final int totalRounds;
   final int roundTimeLimitMs;
@@ -70,6 +72,8 @@ class BattleQuestion {
     required this.questionFormat,
     this.audioUrl,
     this.translationJa,
+    this.songName,
+    this.artistName,
     required this.roundNumber,
     required this.totalRounds,
     required this.roundTimeLimitMs,
@@ -83,6 +87,8 @@ class BattleQuestion {
       questionFormat: json['questionFormat'] ?? 'FILL_IN_THE_BLANK',
       audioUrl: json['audioUrl'],
       translationJa: json['translationJa'],
+      songName: json['songName'],
+      artistName: json['artistName'],
       roundNumber: json['roundNumber'] ?? 1,
       totalRounds: json['totalRounds'] ?? 10,
       roundTimeLimitMs: json['roundTimeLimitMs'] ?? 90000,
@@ -133,6 +139,9 @@ class RoundResult {
   // 試合継続フラグ
   final bool matchContinues;
 
+  // 問題文
+  final String? questionText;
+
   RoundResult({
     required this.roundNumber,
     this.questionId,
@@ -151,6 +160,7 @@ class RoundResult {
     required this.player1Wins,
     required this.player2Wins,
     required this.matchContinues,
+    this.questionText,
   });
 
   factory RoundResult.fromJson(Map<String, dynamic> json) {
@@ -172,6 +182,7 @@ class RoundResult {
       player1Wins: json['player1Wins'] ?? 0,
       player2Wins: json['player2Wins'] ?? 0,
       matchContinues: json['matchContinues'] ?? true,
+    questionText: json['questionText'],
     );
   }
 
@@ -205,6 +216,10 @@ class BattleResult {
   final List<RoundResult> rounds;
   final String? opponentSurrendered; // 相手が降参した場合のメッセージ
 
+// ...
+
+
+
   BattleResult({
     required this.matchUuid,
     required this.result,
@@ -215,6 +230,7 @@ class BattleResult {
     required this.newRate,
     required this.rounds,
     this.opponentSurrendered,
+
   });
 
   factory BattleResult.fromJson(Map<String, dynamic> json) {
@@ -276,6 +292,7 @@ class BattleStartInfo {
   final int roundTimeLimitSeconds;
   final int winsRequired;
   final int maxRounds;
+  final int? hostId;
 
   // ユーザー詳細情報
   final BattlePlayer? user1Info;
@@ -290,6 +307,7 @@ class BattleStartInfo {
     required this.roundTimeLimitSeconds,
     required this.winsRequired,
     required this.maxRounds,
+    this.hostId,
     this.user1Info,
     this.user2Info,
   });
@@ -304,6 +322,7 @@ class BattleStartInfo {
       roundTimeLimitSeconds: json['roundTimeLimitSeconds'] ?? 90,
       winsRequired: json['winsRequired'] ?? 3,
       maxRounds: json['maxRounds'] ?? 10,
+      hostId: json['hostId'],
       user1Info: json['user1Info'] != null
           ? BattlePlayer.fromJson(json['user1Info'])
           : null,

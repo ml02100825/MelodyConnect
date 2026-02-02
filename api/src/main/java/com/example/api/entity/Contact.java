@@ -6,18 +6,19 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "contacts") // ★もしDBのテーブル名が "contact" ならここを "contact" に変更してください
+@Table(
+    name = "contact",
+    indexes = {
+        @Index(name = "idx_contact_user_id", columnList = "user_id"),
+        @Index(name = "idx_contact_status", columnList = "status")
+    }
+)
 public class Contact {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "contact_id")
-    private Long id;
-
-    @NotBlank
-    @Size(max = 100)
-    @Column(name = "title", nullable = false, length = 100)
-    private String title;
+    private Long contactId;
 
     @NotBlank
     @Column(name = "contact_detail", nullable = false, columnDefinition = "TEXT")
@@ -30,7 +31,16 @@ public class Contact {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "title", nullable = false, length = 50)
+    private String title;
+
+    @Column(name = "status", length = 20)
+    private String status = "未対応";
+
+    @Column(name = "admin_memo", columnDefinition = "TEXT")
+    private String adminMemo;
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @PrePersist
@@ -38,35 +48,59 @@ public class Contact {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        if (status == null) {
+            status = "未対応";
+        }
     }
 
-    // デフォルトコンストラクタ
-    public Contact() {}
+    // ====== getters / setters ======
+    public Long getContactId() {
+        return contactId;
+    }
+    public void setContactId(Long contactId) {
+        this.contactId = contactId;
+    }
 
-    // データをセットするためのコンストラクタ
-    public Contact(User user, String title, String contactDetail, String imageUrl) {
+    public String getContact_detail() {
+        return contact_detail;
+    }
+    public void setContact_detail(String contact_detail) {
+        this.contact_detail = contact_detail;
+    }
+
+    public String getImage_url() {
+        return image_url;
+    }
+    public void setImage_url(String image_url) {
+        this.image_url = image_url;
+    }
+
+    public User getUser() {
+        return user;
+    }
+    public void setUser(User user) {
         this.user = user;
         this.title = title;
-        this.contactDetail = contactDetail;
-        this.imageUrl = imageUrl;
     }
 
-    // Getters / Setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public String getStatus() {
+        return status;
+    }
+    public void setStatus(String status) {
+        this.status = status;
+    }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public String getAdminMemo() {
+        return adminMemo;
+    }
+    public void setAdminMemo(String adminMemo) {
+        this.adminMemo = adminMemo;
+    }
 
-    public String getContactDetail() { return contactDetail; }
-    public void setContactDetail(String contactDetail) { this.contactDetail = contactDetail; }
-
-    public String getImageUrl() { return imageUrl; }
-    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
-
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 }

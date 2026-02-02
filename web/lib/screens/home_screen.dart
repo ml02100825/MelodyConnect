@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/artist_api_service.dart';
+import '../services/presence_websocket_service.dart';
 import '../services/token_storage_service.dart';
 import '../services/life_api_service.dart';
 import '../widgets/genre_selection_dialog.dart';
@@ -26,6 +27,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _authApiService = AuthApiService();
   final _artistApiService = ArtistApiService();
+  final PresenceWebSocketService _presenceService =
+      PresenceWebSocketService();
   final _tokenStorage = TokenStorageService();
   final _lifeApiService = LifeApiService();
 
@@ -55,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _presenceService.handleLifecycle(state);
     if (state == AppLifecycleState.resumed) {
       // バックグラウンドから戻ったら再取得
       _fetchLifeStatus();
@@ -196,15 +200,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// ログアウト処理
   Future<void> _handleLogout() async {
     try {
-      final userId = await _tokenStorage.getUserId();
+      // ★修正: userIdではなくrefreshTokenを取得
+      final refreshToken = await _tokenStorage.getRefreshToken();
       final accessToken = await _tokenStorage.getAccessToken();
 
-      if (userId != null && accessToken != null) {
-        await _authApiService.logout(userId, accessToken);
+      if (refreshToken != null && accessToken != null) {
+        // ★修正: refreshTokenを渡す
+        await _authApiService.logout(refreshToken, accessToken);
       }
 
       // ローカルの認証情報を削除
       await _tokenStorage.clearAuthData();
+      _presenceService.disconnect();
 
       if (!mounted) return;
 
@@ -233,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Row(
           children: [
             // ライフ表示

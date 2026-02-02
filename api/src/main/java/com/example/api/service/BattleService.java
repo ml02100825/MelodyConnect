@@ -5,12 +5,15 @@ import com.example.api.dto.battle.PlayerInfoDto;
 import com.example.api.entity.Question;
 import com.example.api.entity.Rate;
 import com.example.api.entity.Result;
+import com.example.api.entity.Room;
 import com.example.api.entity.User;
 import com.example.api.enums.QuestionFormat;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.RateRepository;
 import com.example.api.repository.ResultRepository;
 import com.example.api.repository.UserRepository;
+import com.example.api.service.BattleStateService.BattleState;
+import com.example.api.dto.battle.RoundResultResponse;
 import com.example.api.util.SeasonCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -61,6 +65,9 @@ public class BattleService {
     @Autowired
     private UserVocabularyService userVocabularyService;
 
+    @Autowired
+    private RoomService roomService;
+
     /**
      * 対戦結果DTO（リザルト画面用）
      */
@@ -75,14 +82,16 @@ public class BattleService {
         private final int loserRateChange;
         private final int winnerNewRate;
         private final int loserNewRate;
-        private final List<RoundSummary> rounds;
+        private final List<RoundResultResponse> rounds;
         private final Result.OutcomeReason outcomeReason;
 
-        public BattleResultDto(String matchUuid, Long winnerId, Long loserId, boolean isDraw,
-                              int winnerScore, int loserScore,
-                              int winnerRateChange, int loserRateChange,
-                              int winnerNewRate, int loserNewRate,
-                              List<RoundSummary> rounds, Result.OutcomeReason outcomeReason) {
+        public BattleResultDto(
+        String matchUuid, Long winnerId, Long loserId, boolean isDraw,
+        int winnerScore, int loserScore,
+        int winnerRateChange, int loserRateChange,
+        int winnerNewRate, int loserNewRate,
+        List<RoundResultResponse> rounds, Result.OutcomeReason outcomeReason
+                                                                         ) {                                                                                                                                    {
             this.matchUuid = matchUuid;
             this.winnerId = winnerId;
             this.loserId = loserId;
@@ -95,6 +104,7 @@ public class BattleService {
             this.loserNewRate = loserNewRate;
             this.rounds = rounds;
             this.outcomeReason = outcomeReason;
+                                                                         }
         }
 
         // Getters
@@ -108,7 +118,7 @@ public class BattleService {
         public int getLoserRateChange() { return loserRateChange; }
         public int getWinnerNewRate() { return winnerNewRate; }
         public int getLoserNewRate() { return loserNewRate; }
-        public List<RoundSummary> getRounds() { return rounds; }
+        public List<RoundResultResponse> getRounds() { return rounds; }
         public Result.OutcomeReason getOutcomeReason() { return outcomeReason; }
 
         /**
@@ -227,9 +237,120 @@ public class BattleService {
             selectedQuestions = selectedQuestions.subList(0, QUESTION_COUNT);
         }
 
+        for (Question question : selectedQuestions) {
+            if (question.getSong() != null) {
+                question.getSong().getSongname();
+            }
+            if (question.getArtist() != null) {
+                question.getArtist().getArtistName();
+            }
+        }
+
         logger.info("対戦初期化: matchUuid={}, questions={}", matchUuid, selectedQuestions.size());
 
         return battleStateService.createBattle(matchUuid, player1Id, player2Id, language, selectedQuestions);
+    }
+
+    /**
+     * ルームマッチ用対戦を初期化（問題取得・状態作成）
+     * @param matchUuid マッチID
+     * @param player1Id プレイヤー1のID（ホスト）
+     * @param player2Id プレイヤー2のID（ゲスト）
+     * @param language 言語
+     * @param winsToVictory 勝利に必要な勝ち数（先取数: 5/7/9）
+     * @param roomId ルームID
+     * @return 作成された対戦状態
+     */
+    @Transactional(readOnly = true)
+    public BattleStateService.BattleState initializeRoomBattle(String matchUuid, Long player1Id,
+                                                                Long player2Id, String language,
+                                                                int winsToVictory, Long roomId) {
+        // 既に存在する場合はそれを返す
+        BattleStateService.BattleState existing = battleStateService.getBattle(matchUuid);
+        if (existing != null) {
+            return existing;
+        }
+
+        // 言語コードを変換（マッチング時のコードをDB用に変換）
+        String dbLanguageCode = convertToDbLanguageCode(language);
+
+        // 問題数 = 先取数 + 5
+        int questionCount = winsToVictory + 5;
+
+        // 問題を取得（言語でフィルタしてランダムに選択）
+        List<Question> allQuestions = questionRepository.findByLanguage(dbLanguageCode);
+
+        if (allQuestions.size() < questionCount) {
+            logger.warn("問題数が不足: language={}, available={}, required={}",
+                    language, allQuestions.size(), questionCount);
+            // 問題が足りない場合は全問使用
+            if (allQuestions.isEmpty()) {
+                throw new IllegalStateException("問題がありません: language=" + language);
+            }
+        }
+
+        // シャッフルして必要問題数を選択
+        List<Question> selectedQuestions = new ArrayList<>(allQuestions);
+        Collections.shuffle(selectedQuestions);
+        if (selectedQuestions.size() > questionCount) {
+            selectedQuestions = selectedQuestions.subList(0, questionCount);
+        }
+
+        for (Question question : selectedQuestions) {
+            if (question.getSong() != null) {
+                question.getSong().getSongname();
+            }
+            if (question.getArtist() != null) {
+                question.getArtist().getArtistName();
+            }
+        }
+
+        logger.info("ルームマッチ対戦初期化: matchUuid={}, roomId={}, winsToVictory={}, questions={}",
+                matchUuid, roomId, winsToVictory, selectedQuestions.size());
+
+        return battleStateService.createRoomBattle(matchUuid, player1Id, player2Id, language,
+                selectedQuestions, winsToVictory, roomId);
+    }
+
+    /**
+     * ルームマッチ用の初期Resultレコードを作成
+     * ランクマッチと異なり、matchType = room
+     */
+    @Transactional
+    public void createRoomMatchResult(String matchUuid, Long hostId, Long guestId, String language) {
+        // 既に存在するかチェック
+        if (resultRepository.existsByMatchUuidAndPlayerId(matchUuid, hostId)) {
+            logger.warn("ルームマッチ結果レコードが既に存在: matchUuid={}, hostId={}", matchUuid, hostId);
+            return;
+        }
+
+        User host = userRepository.findById(hostId)
+                .orElseThrow(() -> new IllegalArgumentException("ホストユーザーが見つかりません: " + hostId));
+        User guest = userRepository.findById(guestId)
+                .orElseThrow(() -> new IllegalArgumentException("ゲストユーザーが見つかりません: " + guestId));
+
+        // ホスト用Resultレコード
+        Result hostResult = new Result();
+        hostResult.setPlayer(host);
+        hostResult.setEnemy(guest);
+        hostResult.setUseLanguage(language);
+        hostResult.setMatchUuid(matchUuid);
+        hostResult.setMatchType(Result.MatchType.room);  // ルームマッチ
+        hostResult.setUpdownRate(0);  // レート変動なし
+        resultRepository.save(hostResult);
+
+        // ゲスト用Resultレコード
+        Result guestResult = new Result();
+        guestResult.setPlayer(guest);
+        guestResult.setEnemy(host);
+        guestResult.setUseLanguage(language);
+        guestResult.setMatchUuid(matchUuid);
+        guestResult.setMatchType(Result.MatchType.room);  // ルームマッチ
+        guestResult.setUpdownRate(0);  // レート変動なし
+        resultRepository.save(guestResult);
+
+        logger.info("ルームマッチ結果レコード作成: matchUuid={}, hostId={}, guestId={}",
+                matchUuid, hostId, guestId);
     }
 
     /**
@@ -240,65 +361,81 @@ public class BattleService {
      * @param matchId マッチID
      * @return バトル開始レスポンスDTO
      */
-    @Transactional(readOnly = true)
-    public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
-        // fetch joinでResult + Userを一括取得（LazyInitializationException回避）
-        List<Result> results = resultRepository.findAllByMatchUuidWithUsers(matchId);
+   @Transactional(readOnly = true)
+public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
+    // fetch joinでResult + Userを一括取得
+    List<Result> results = resultRepository.findAllByMatchUuidWithUsers(matchId);
 
-        if (results.isEmpty()) {
-            throw new IllegalArgumentException("マッチ情報が見つかりません: " + matchId);
+    if (results.isEmpty()) {
+        throw new IllegalArgumentException("マッチ情報が見つかりません: " + matchId);
+    }
+    if (results.size() != 2) {
+        throw new IllegalArgumentException("マッチ情報が不正です: expected 2, got " + results.size());
+    }
+
+    Result result1 = results.get(0);
+    User player = result1.getPlayer();
+    User enemy = result1.getEnemy();
+
+    // 既存のBattleStateを優先
+    BattleStateService.BattleState state = battleStateService.getBattle(matchId);
+
+    // ルームマッチなら Rank用のinitializeBattleを絶対に呼ばない
+    if (result1.getMatchType() == Result.MatchType.room) {
+        if (state == null) {
+            // ルームマッチのstateが無いのは異常なので、ここで止める
+            throw new IllegalStateException("ルームマッチの対戦状態が見つかりません: " + matchId);
         }
-
-        if (results.size() != 2) {
-            throw new IllegalArgumentException("マッチ情報が不正です: expected 2, got " + results.size());
-        }
-
-        Result result1 = results.get(0);
-        User player = result1.getPlayer();  // fetch join済みなので安全にアクセス可能
-        User enemy = result1.getEnemy();    // fetch join済みなので安全にアクセス可能
-
-        // 対戦を初期化（問題取得・状態作成）
-        BattleStateService.BattleState state = initializeBattle(
+    } else {
+        // ランクマッチのみ initializeBattle を呼ぶ
+        if (state == null) {
+            state = initializeBattle(
                 matchId,
                 player.getId(),
                 enemy.getId(),
                 result1.getUseLanguage()
-        );
-
-        // トランザクション内でレート情報を取得
-        Integer player1Rate = getPlayerRate(player);
-        Integer player2Rate = getPlayerRate(enemy);
-
-        // トランザクション内でUser情報をDTOに変換
-        PlayerInfoDto user1Info = new PlayerInfoDto(
-                player.getId(),
-                player.getUsername(),
-                player.getImageUrl(),
-                player1Rate
-        );
-
-        PlayerInfoDto user2Info = new PlayerInfoDto(
-                enemy.getId(),
-                enemy.getUsername(),
-                enemy.getImageUrl(),
-                player2Rate
-        );
-
-        return BattleStartResponseDto.builder()
-                .matchId(matchId)
-                .user1Id(state.getPlayer1Id())
-                .user2Id(state.getPlayer2Id())
-                .language(state.getLanguage())
-                .questionCount(state.getQuestions().size())
-                .roundTimeLimitSeconds(BattleStateService.ROUND_TIME_LIMIT_SECONDS)
-                .winsRequired(BattleStateService.WINS_TO_VICTORY)
-                .maxRounds(BattleStateService.MAX_ROUNDS)
-                .status("ready")
-                .message("バトルを開始できます")
-                .user1Info(user1Info)
-                .user2Info(user2Info)
-                .build();
+            );
+        }
     }
+
+    Integer player1Rate = getPlayerRate(player);
+    Integer player2Rate = getPlayerRate(enemy);
+
+    PlayerInfoDto user1Info = new PlayerInfoDto(
+        player.getId(), player.getUsername(), player.getImageUrl(), player1Rate
+    );
+    PlayerInfoDto user2Info = new PlayerInfoDto(
+        enemy.getId(), enemy.getUsername(), enemy.getImageUrl(), player2Rate
+    );
+
+    Long hostId = null;
+    if (result1.getMatchType() == Result.MatchType.room) {
+        Long roomId = state.getRoomId();
+        if (roomId != null) {
+            Optional<Room> room = roomService.getRoom(roomId);
+            if (room.isPresent()) {
+                hostId = room.get().getHost_id();
+            }
+        }
+    }
+
+    return BattleStartResponseDto.builder()
+        .matchId(matchId)
+        .user1Id(state.getPlayer1Id())
+        .user2Id(state.getPlayer2Id())
+        .language(state.getLanguage())
+        .questionCount(state.getQuestions().size())
+        .roundTimeLimitSeconds(BattleStateService.ROUND_TIME_LIMIT_SECONDS)
+        .winsRequired(state.getWinsToVictory())   // ← 既に修正済みならそのまま
+        .maxRounds(state.getMaxRounds())          // ← 同上
+        .hostId(hostId)
+        .status("ready")
+        .message("バトルを開始できます")
+        .user1Info(user1Info)
+        .user2Info(user2Info)
+        .build();
+}
+
 
     /**
      * ユーザーのレート情報を取得（Service層で使用）
@@ -354,6 +491,7 @@ public class BattleService {
     @Transactional
     public BattleResultDto finalizeBattle(String matchUuid, Result.OutcomeReason outcomeReason) {
         BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+        
         if (state == null) {
             throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
         }
@@ -367,6 +505,7 @@ public class BattleService {
 
             if (alreadyFinalized) {
                 logger.warn("対戦は既に終了処理済み: matchUuid={}", matchUuid);
+                battleStateService.removeBattle(matchUuid);
                 // 既存の結果からBattleResultDtoを再構築して返す
                 return reconstructBattleResult(matchUuid, existingResults, state);
             }
@@ -392,11 +531,12 @@ public class BattleService {
         int winnerScore = winnerId.equals(state.getPlayer1Id()) ? state.getPlayer1Wins() : state.getPlayer2Wins();
         int loserScore = loserId.equals(state.getPlayer1Id()) ? state.getPlayer1Wins() : state.getPlayer2Wins();
 
-        // ELOレート計算
+        // ELOレート計算（ルームマッチの場合は変動なし）
         int winnerRateChange = 0;
         int loserRateChange = 0;
         int winnerNewRate = 0;
         int loserNewRate = 0;
+        boolean isRoomMatch = state.isRoomMatch();
 
         User winnerUser = userRepository.findById(winnerId).orElseThrow();
         User loserUser = userRepository.findById(loserId).orElseThrow();
@@ -410,12 +550,17 @@ public class BattleService {
         int winnerOldRate = winnerRate.getRate();
         int loserOldRate = loserRate.getRate();
 
-        if (isDraw) {
+        if (isRoomMatch) {
+            // ルームマッチの場合はレート変動なし
+            winnerNewRate = winnerOldRate;
+            loserNewRate = loserOldRate;
+            logger.info("ルームマッチのためレート変動なし: winner={}, loser={}", winnerId, loserId);
+        } else if (isDraw) {
             // 引き分けの場合はレート変動なし
             winnerNewRate = winnerOldRate;
             loserNewRate = loserOldRate;
         } else {
-            // ELOレーティング計算
+            // ELOレーティング計算（ランクマッチのみ）
             double expectedWinner = calculateExpectedScore(winnerOldRate, loserOldRate);
             double expectedLoser = calculateExpectedScore(loserOldRate, winnerOldRate);
 
@@ -432,29 +577,43 @@ public class BattleService {
             rateRepository.save(loserRate);
         }
 
-        logger.info("レート更新: winner={} ({}→{}), loser={} ({}→{})",
-                winnerId, winnerOldRate, winnerNewRate,
-                loserId, loserOldRate, loserNewRate);
+        if (!isRoomMatch) {
+            logger.info("レート更新: winner={} ({}→{}), loser={} ({}→{})",
+                    winnerId, winnerOldRate, winnerNewRate,
+                    loserId, loserOldRate, loserNewRate);
+        }
 
         // ラウンドサマリー作成
         List<RoundSummary> roundSummaries = createRoundSummaries(state);
+        List<RoundResultResponse> roundResponses =
+        createRoundResultResponses(state, outcomeReason, loserId);
+
+
+        logger.info("finalizeBattle: matchUuid={}, rounds.size={}",
+        matchUuid, roundResponses.size());
+
 
         // Result更新（既存の2レコードを更新）
         updateResultRecords(matchUuid, state, winnerId, loserId, isDraw,
-                winnerRateChange, loserRateChange, roundSummaries, outcomeReason);
+                winnerRateChange, loserRateChange, winnerNewRate, loserNewRate,
+                roundSummaries, outcomeReason);
 
         // 両プレイヤーの単語帳登録（学習と同じルール）
         registerVocabularyForBothPlayers(state);
+
+        if (isRoomMatch && state.getRoomId() != null) {
+            roomService.resetToWaitingAfterMatch(state.getRoomId());
+        }
 
         // メモリから状態削除
         battleStateService.removeBattle(matchUuid);
 
         return new BattleResultDto(
-                matchUuid, winnerId, loserId, isDraw,
+               matchUuid, winnerId, loserId, isDraw,
                 winnerScore, loserScore,
                 winnerRateChange, loserRateChange,
                 winnerNewRate, loserNewRate,
-                roundSummaries, outcomeReason
+                roundResponses, outcomeReason
         );
     }
 
@@ -507,7 +666,94 @@ public class BattleService {
                     );
                 })
                 .collect(Collectors.toList());
+               
     }
+    private List<RoundResultResponse> createRoundResultResponses(
+          BattleStateService.BattleState state,
+        Result.OutcomeReason outcomeReason,
+        Long loserId
+) {
+    Map<Integer, Question> questionMap = state.getQuestions().stream()
+        .collect(Collectors.toMap(Question::getQuestionId, q -> q));
+
+    List<RoundResultResponse> responses = new ArrayList<>();
+
+    // 既存ラウンドがある場合は通常通り
+    if (!state.getRoundResults().isEmpty()) {
+        for (BattleStateService.RoundResult rr : state.getRoundResults()) {
+            Question q = questionMap.get(rr.getQuestionId());
+            String correctAnswer = BattleStateService.getCorrectAnswer(q);
+
+            RoundResultResponse r = new RoundResultResponse();
+            r.setRoundNumber(rr.getRoundNumber());
+            r.setQuestionId(rr.getQuestionId());
+            r.setCorrectAnswer(correctAnswer);
+            r.setRoundWinnerId(rr.getWinnerId());
+            r.setNoCount(rr.isNoCount());
+            r.setNoCountReason(rr.getNoCountReason());
+
+            r.setPlayer1Id(state.getPlayer1Id());
+            if (rr.getPlayer1Answer() != null) {
+                r.setPlayer1Answer(rr.getPlayer1Answer().getAnswer());
+                r.setPlayer1Correct(rr.getPlayer1Answer().isCorrect());
+                r.setPlayer1ResponseTimeMs(rr.getPlayer1Answer().getResponseTimeMs());
+            }
+
+            r.setPlayer2Id(state.getPlayer2Id());
+            if (rr.getPlayer2Answer() != null) {
+                r.setPlayer2Answer(rr.getPlayer2Answer().getAnswer());
+                r.setPlayer2Correct(rr.getPlayer2Answer().isCorrect());
+                r.setPlayer2ResponseTimeMs(rr.getPlayer2Answer().getResponseTimeMs());
+            }
+
+            r.setPlayer1Wins(state.getPlayer1Wins());
+            r.setPlayer2Wins(state.getPlayer2Wins());
+            r.setMatchContinues(false);
+            responses.add(r);
+        }
+        return responses;
+    }
+
+    // ここから降参/切断用のフォールバック
+    if (outcomeReason == Result.OutcomeReason.surrender ||
+    outcomeReason == Result.OutcomeReason.disconnect) {
+
+    String p1Msg = buildFallbackAnswer(outcomeReason, state.getPlayer1Id(), loserId);
+    String p2Msg = buildFallbackAnswer(outcomeReason, state.getPlayer2Id(), loserId);
+
+    int round = 1;
+    for (Question q : state.getQuestions()) {
+        RoundResultResponse r = new RoundResultResponse();
+        r.setQuestionText(q.getText());
+
+        r.setRoundNumber(round++);
+        r.setQuestionId(q.getQuestionId());
+        r.setCorrectAnswer(BattleStateService.getCorrectAnswer(q));
+        r.setRoundWinnerId(null);
+        r.setNoCount(true);
+        r.setNoCountReason(outcomeReason.name());
+
+        r.setPlayer1Id(state.getPlayer1Id());
+        r.setPlayer1Answer(p1Msg);
+        r.setPlayer1Correct(false);
+        r.setPlayer1ResponseTimeMs(0);
+
+        r.setPlayer2Id(state.getPlayer2Id());
+        r.setPlayer2Answer(p2Msg);
+        r.setPlayer2Correct(false);
+        r.setPlayer2ResponseTimeMs(0);
+
+        r.setPlayer1Wins(state.getPlayer1Wins());
+        r.setPlayer2Wins(state.getPlayer2Wins());
+        r.setMatchContinues(false);
+        responses.add(r);
+    }
+}
+
+
+    return responses;
+}
+
 
     /**
      * Resultレコードを更新
@@ -515,6 +761,7 @@ public class BattleService {
     private void updateResultRecords(String matchUuid, BattleStateService.BattleState state,
                                      Long winnerId, Long loserId, boolean isDraw,
                                      int winnerRateChange, int loserRateChange,
+                                     int winnerNewRate, int loserNewRate,
                                      List<RoundSummary> roundSummaries,
                                      Result.OutcomeReason outcomeReason) {
         List<Result> results = resultRepository.findAllByMatchUuid(matchUuid);
@@ -527,6 +774,10 @@ public class BattleService {
                     qMap.put("text", q.getText());
                     qMap.put("answer", q.getAnswer());
                     qMap.put("questionFormat", q.getQuestionFormat().name());
+                    // リスニング問題用にcompleteSentenceも保存
+                    if (q.getCompleteSentence() != null) {
+                        qMap.put("completeSentence", q.getCompleteSentence());
+                    }
                     return qMap;
                 })
                 .collect(Collectors.toList());
@@ -558,11 +809,15 @@ public class BattleService {
                 })
                 .collect(Collectors.toList());
 
-        // BO3形式情報
+        // 対戦形式情報（動的な先取数を使用）
         Map<String, Object> resultFormat = new HashMap<>();
-        resultFormat.put("format", "BO3");
-        resultFormat.put("winsRequired", BattleStateService.WINS_TO_VICTORY);
-        resultFormat.put("maxRounds", BattleStateService.MAX_ROUNDS);
+        resultFormat.put("format", state.isRoomMatch() ? "Room" : "Rank");
+        resultFormat.put("winsRequired", state.getWinsToVictory());
+        resultFormat.put("maxRounds", state.getMaxRounds());
+        resultFormat.put("isRoomMatch", state.isRoomMatch());
+        if (state.isRoomMatch() && state.getRoomId() != null) {
+            resultFormat.put("roomId", state.getRoomId());
+        }
 
         LocalDateTime endedAt = LocalDateTime.now();
 
@@ -572,6 +827,7 @@ public class BattleService {
 
             result.setResult(isDraw ? false : isWinner);
             result.setUpdownRate(isWinner ? winnerRateChange : loserRateChange);
+            result.setRateAfterMatch(isWinner ? winnerNewRate : loserNewRate);
             result.setUseQuestion(useQuestion);
             result.setOutcomeReason(outcomeReason);
             result.setEndedAt(endedAt);
@@ -651,6 +907,15 @@ public class BattleService {
     }
 
     /**
+     * 指定ユーザーがランクマッチの対戦中かどうか
+     */
+    public boolean isUserInRankBattle(Long userId) {
+       
+
+        return battleStateService.isUserInRankBattle(userId);
+    }
+
+    /**
      * ラウンドタイムアウトチェック
      */
     public boolean isRoundTimedOut(String matchUuid) {
@@ -680,14 +945,38 @@ public class BattleService {
     }
 
     /**
+     * 回答フェーズでタイムアウトした対戦のmatchUuidリストを取得
+     */
+    public java.util.List<String> getTimedOutAnswerPhaseMatches() {
+        return battleStateService.getTimedOutAnswerPhaseMatches();
+    }
+
+    /**
      * 降参処理
      */
     @Transactional
     public BattleResultDto surrender(String matchUuid, Long surrenderUserId) {
         BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+
+        // 状態が見つからない場合（既に終了処理済み）、DBから結果を取得して返す
         if (state == null) {
+            List<Result> existingResults = resultRepository.findAllByMatchUuid(matchUuid);
+            if (!existingResults.isEmpty()) {
+                logger.info("降参処理: 対戦は既に終了済み matchUuid={}", matchUuid);
+                return reconstructBattleResult(matchUuid, existingResults, null);
+            }
             throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
         }
+
+        // 既にFINISHED状態の場合も同様に処理
+        if (state.getStatus() == BattleStateService.Status.FINISHED) {
+            List<Result> existingResults = resultRepository.findAllByMatchUuid(matchUuid);
+            if (!existingResults.isEmpty()) {
+                logger.info("降参処理: 対戦は既にFINISHED状態 matchUuid={}", matchUuid);
+                return reconstructBattleResult(matchUuid, existingResults, state);
+            }
+        }
+
         if (!state.isParticipant(surrenderUserId)) {
             throw new IllegalArgumentException("参加者ではありません: " + surrenderUserId);
         }
@@ -713,23 +1002,7 @@ public class BattleService {
      */
     @Transactional
     public BattleResultDto handleDisconnect(String matchUuid, Long disconnectedUserId) {
-        BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
-        if (state == null) {
-            throw new IllegalArgumentException("対戦が見つかりません: " + matchUuid);
-        }
-
-        // 切断したユーザーの負けとして処理
-        Long winnerId = state.isPlayer1(disconnectedUserId) ? state.getPlayer2Id() : state.getPlayer1Id();
-
-        while (!state.isMatchDecided()) {
-            if (state.isPlayer1(winnerId)) {
-                state.incrementPlayer1Wins();
-            } else {
-                state.incrementPlayer2Wins();
-            }
-        }
-
-        return finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
+        return handleDisconnection(matchUuid, disconnectedUserId, null);
     }
 
     /**
@@ -808,7 +1081,7 @@ public class BattleService {
     }
 
     /**
-     * 個別プレイヤーの単語帳登録
+     * 個別プレイヤーの単語帳登録（学習と同じロジック・非同期で実行）
      *
      * @return 登録が行われた場合true
      */
@@ -818,14 +1091,14 @@ public class BattleService {
                                                  String correctAnswer) {
         try {
             if (QuestionFormat.FILL_IN_THE_BLANK.equals(format)) {
-                // FILL_IN_THE_BLANK: 全ての問題のanswerを登録
-                userVocabularyService.registerFillInBlankAnswer(userId, question.getAnswer());
+                // FILL_IN_THE_BLANK: 全ての問題のanswerを登録（非同期）
+                userVocabularyService.registerFillInBlankAnswerAsync(userId, question.getAnswer());
                 return true;
             } else if (QuestionFormat.LISTENING.equals(format) && !playerAnswer.isCorrect()) {
-                // LISTENING: 不正解の場合のみ、間違えた単語を登録
+                // LISTENING: 不正解の場合のみ、間違えた単語を登録（非同期）
                 String userAnswer = playerAnswer.getAnswer();
                 if (userAnswer != null && !userAnswer.isEmpty()) {
-                    userVocabularyService.registerListeningMistakes(userId, userAnswer, correctAnswer);
+                    userVocabularyService.registerListeningMistakesAsync(userId, userAnswer, correctAnswer);
                     return true;
                 }
             }
@@ -834,4 +1107,68 @@ public class BattleService {
         }
         return false;
     }
+
+    /**
+     * 切断による対戦終了処理（切断者を敗北として処理）
+     *
+     * @param matchUuid マッチUUID
+     * @param disconnectedUserId 切断したユーザーID
+     * @param winnerId 勝利者のユーザーID
+     */
+    @Transactional
+    public BattleResultDto handleDisconnection(String matchUuid, Long disconnectedUserId, Long winnerId) {
+        logger.info("切断による対戦終了処理: matchUuid={}, disconnectedUserId={}, winnerId={}",
+                matchUuid, disconnectedUserId, winnerId);
+
+        BattleStateService.BattleState state = battleStateService.getBattle(matchUuid);
+        if (state == null) {
+            logger.warn("対戦状態が見つかりません: matchUuid={}", matchUuid);
+            return null;
+        }
+
+        if (winnerId == null && disconnectedUserId != null) {
+            winnerId = state.isPlayer1(disconnectedUserId) ? state.getPlayer2Id() : state.getPlayer1Id();
+        }
+
+        if (winnerId == null || disconnectedUserId == null) {
+            logger.warn("切断処理に必要な情報が不足しています: matchUuid={}", matchUuid);
+            return null;
+        }
+
+        if (!state.isParticipant(winnerId) || !state.isParticipant(disconnectedUserId)) {
+            logger.warn("切断処理対象が対戦参加者ではありません: matchUuid={}, winnerId={}, disconnectedUserId={}",
+                    matchUuid, winnerId, disconnectedUserId);
+            return null;
+        }
+
+        if (winnerId.equals(disconnectedUserId)) {
+            logger.warn("勝者と切断者が同一です: matchUuid={}, userId={}", matchUuid, winnerId);
+            return null;
+        }
+
+        while (!state.isMatchDecided()) {
+            if (state.isPlayer1(winnerId)) {
+                state.incrementPlayer1Wins();
+            } else {
+                state.incrementPlayer2Wins();
+            }
+        }
+
+        return finalizeBattle(matchUuid, Result.OutcomeReason.disconnect);
+    }
+    private String buildFallbackAnswer(Result.OutcomeReason reason, Long playerId, Long loserId) {
+    boolean isLoser = playerId != null && playerId.equals(loserId);
+    if (reason == Result.OutcomeReason.surrender) {
+        return isLoser
+            ? "あなたが降参したため回答を表示できません"
+            : "相手が降参したため回答を表示できません";
+    }
+    if (reason == Result.OutcomeReason.disconnect) {
+        return isLoser
+            ? "あなたが切断したため回答を表示できません"
+            : "相手が切断したため回答を表示できません";
+    }
+    return "回答を表示できません";
+}
+
 }

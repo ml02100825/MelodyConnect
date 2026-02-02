@@ -89,11 +89,22 @@ public class User {
     @Column(name = "initial_setup_completed", nullable = false)
     private boolean initialSetupCompleted = false;
 
+    @Column(name = "login_count")
+    private Integer loginCount = 0;
+
+
+    /**
+     * エンティティ保存前の処理
+     */
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        if (loginCount == null) {
+            loginCount = 0;
+        }
+        // userUuidは手動で設定する（フレンド申請用のユーザーID）
     }
 
     // Getters / Setters
@@ -160,4 +171,7 @@ public class User {
 
     public boolean isInitialSetupCompleted() { return initialSetupCompleted; }
     public void setInitialSetupCompleted(boolean initialSetupCompleted) { this.initialSetupCompleted = initialSetupCompleted; }
+
+    public Integer getLoginCount() { return loginCount; }
+    public void setLoginCount(Integer loginCount) { this.loginCount = loginCount; }
 }

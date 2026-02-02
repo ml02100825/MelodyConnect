@@ -1,8 +1,12 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 
+@Data
 @Entity
 @Table(
     name = "badge",
@@ -10,12 +14,14 @@ import java.time.LocalDateTime;
         @Index(name = "idx_badge_name", columnList = "badge_name")
     }
 )
+@NoArgsConstructor
+@AllArgsConstructor
 public class Badge {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "badge_id")
-    private Long id;
+    private Long badgeId;
 
     @Column(name = "badge_name", length = 50, nullable = false)
     private String badgeName;
@@ -29,20 +35,30 @@ public class Badge {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "active_flag", nullable = false)
-    private boolean activeFlag = true; // 既定で有効
+    // ★有効フラグ
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
 
-    @Column(name = "mode", length = 20)
-    private String mode; // 「バッジが取得できるモード」想定
+    // ★削除フラグ
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    @Column(name = "active_flag")
+    private Integer activeFlag;
+
+    @Column(name = "mode")
+    private Integer mode;
 
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
+        if (isActive == null) isActive = true;
+        if (isDeleted == null) isDeleted = false;
     }
 
     // ===== getters / setters =====
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() { return badgeId; }
+    public void setId(Long badgeId) { this.badgeId = badgeId; }
 
     public String getBadgeName() { return badgeName; }
     public void setBadgeName(String badgeName) { this.badgeName = badgeName; }
@@ -56,9 +72,12 @@ public class Badge {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public boolean isActiveFlag() { return activeFlag; }
-    public void setActiveFlag(boolean activeFlag) { this.activeFlag = activeFlag; }
+    public boolean isActiveFlag() { return isActive; }
+    public void setActiveFlag(boolean isActive) { this.isActive = isActive; }
 
-    public String getMode() { return mode; }
-    public void setMode(String mode) { this.mode = mode; }
+    public Boolean getIsDeleted() { return isDeleted; }
+    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
+
+    public Integer getMode() { return mode; }
+    public void setMode(Integer mode) { this.mode = mode; }
 }

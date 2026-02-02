@@ -26,6 +26,9 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    @Autowired
+    private AdminIpAllowlistFilter adminIpAllowlistFilter;
+
     /**
      * CORS設定
      * Spring Security用のCORS設定を行います
@@ -91,11 +94,21 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/profile/**").authenticated()
                         // お問い合わせ (POST) を認証済みユーザーに許可
                         .requestMatchers(HttpMethod.POST, "/api/contacts").authenticated()
+                        .requestMatchers("/api/auth/request-password-reset").permitAll() // リクエスト送信を許可
+                        .requestMatchers("/api/auth/reset-password").permitAll()
+                        // 管理者認証エンドポイント（認証不要）
+                        .requestMatchers("/api/admin/auth/login").permitAll()
+                        .requestMatchers("/api/admin/auth/refresh").permitAll()
+                        // 管理者専用エンドポイント（ADMIN権限必要）
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         // その他のエンドポイントは認証が必要
                         .anyRequest().authenticated()
                 )
 
-                // JWTフィルターをUsernamePasswordAuthenticationFilterの前に追加
+                // IP制限フィルターを最初に追加
+                .addFilterBefore(adminIpAllowlistFilter, UsernamePasswordAuthenticationFilter.class)
+                // JWTフィルターをIP制限フィルターの後に追加
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

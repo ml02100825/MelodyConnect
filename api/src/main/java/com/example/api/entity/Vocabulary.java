@@ -3,9 +3,11 @@ package com.example.api.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.*;
+import org.hibernate.annotations.Where;
 
 @Entity
 @Table(name = "vocabulary")
+@Where(clause = "is_active = true AND is_deleted = false")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,7 +18,7 @@ public class Vocabulary {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "vocab_id", nullable = false)
-    private Integer vocab_id;
+    private Integer vocabId;
 
     /**
      * 単語（そのままの形: memories, running等）
@@ -70,10 +72,31 @@ public class Vocabulary {
     @Column(name = "updated_at")
     private LocalDateTime updated_at;
 
+      /**
+     * 有効フラグ
+     */
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    /**
+     * 削除フラグ
+     */
+    
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    /* ===== lifecycle ===== */
+
     @PrePersist
     protected void onCreate() {
         if (created_at == null) {
             created_at = LocalDateTime.now();
+        if (isActive == null) {
+        isActive = true;
+             }
+        if (isDeleted == null) {
+        isDeleted = false;
+              }
         }
     }
 

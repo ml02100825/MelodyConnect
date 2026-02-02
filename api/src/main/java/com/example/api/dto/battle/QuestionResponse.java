@@ -9,6 +9,8 @@ public class QuestionResponse {
     private String questionFormat;
     private String audioUrl;
     private String translationJa;
+    private String songName;
+    private String artistName;
     private int roundNumber;
     private int totalRounds;
     private long roundTimeLimitMs;
@@ -18,6 +20,7 @@ public class QuestionResponse {
 
     public QuestionResponse(Integer questionId, String text, String questionFormat,
                            String audioUrl, String translationJa,
+                           String songName, String artistName,
                            int roundNumber, int totalRounds, long roundTimeLimitMs,
                            long roundStartTimestamp) {
         this.questionId = questionId;
@@ -25,6 +28,8 @@ public class QuestionResponse {
         this.questionFormat = questionFormat;
         this.audioUrl = audioUrl;
         this.translationJa = translationJa;
+        this.songName = songName;
+        this.artistName = artistName;
         this.roundNumber = roundNumber;
         this.totalRounds = totalRounds;
         this.roundTimeLimitMs = roundTimeLimitMs;
@@ -46,6 +51,12 @@ public class QuestionResponse {
 
     public String getTranslationJa() { return translationJa; }
     public void setTranslationJa(String translationJa) { this.translationJa = translationJa; }
+
+    public String getSongName() { return songName; }
+    public void setSongName(String songName) { this.songName = songName; }
+
+    public String getArtistName() { return artistName; }
+    public void setArtistName(String artistName) { this.artistName = artistName; }
 
     public int getRoundNumber() { return roundNumber; }
     public void setRoundNumber(int roundNumber) { this.roundNumber = roundNumber; }

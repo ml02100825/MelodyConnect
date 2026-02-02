@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../services/presence_websocket_service.dart';
 import 'register_screen.dart';
+import 'password_reset_screen.dart';
 import 'home_screen.dart';
 
 /// ログイン画面
@@ -18,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _authApiService = AuthApiService();
   final _tokenStorage = TokenStorageService();
+  final PresenceWebSocketService _presenceService = PresenceWebSocketService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -78,6 +81,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
+      await _presenceService.connect();
+
       // ログイン成功メッセージを表示
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -114,6 +119,14 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const RegisterScreen()),
+    );
+  }
+
+  /// パスワードリセット画面へ遷移
+  void _navigateToPasswordReset() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PasswordResetScreen()),
     );
   }
 
@@ -187,7 +200,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -200,7 +215,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     validator: _validatePassword,
                     enabled: !_isLoading,
                   ),
-                  const SizedBox(height: 32),
+
+                  // パスワードリセットリンク
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isLoading ? null : _navigateToPasswordReset,
+                      child: const Text('パスワードを忘れた場合'),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
                   // ログインボタン
                   ElevatedButton(

@@ -82,15 +82,15 @@ public class QuestionGeneratorService {
     private Question saveQuestion(Song song, ClaudeQuestionResponse.Question claudeQuestion, 
                                    String questionFormat, String targetLanguage, Long userId) {
         // Songがまだ保存されていない場合は先に保存
-        if (song.getSong_id() == null) {
+        if (song.getSongId() == null) {
             // aritst_idが未設定の場合はデフォルト値を使用
-            if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
+            if (song.getArtistId() == null || song.getArtistId() == 0L) {
                 logger.warn("Songにaritst_idが設定されていません。デフォルトのartist_id=1を使用します。");
-                song.setAritst_id(1L);
+                song.setArtistId(1L);
             }
 
             // Artistを取得してお気に入り同期をチェック
-            Artist artist = artistRepository.findById(song.getAritst_id()).orElse(null);
+            Artist artist = artistRepository.findById(song.getArtistId()).orElse(null);
             if (artist != null) {
                 logger.debug("Artist設定完了: artistId={}, artistName={}", artist.getArtistId(), artist.getArtistName());
                 
@@ -100,7 +100,7 @@ public class QuestionGeneratorService {
 
             logger.debug("Songを保存します: songName={}", song.getSongname());
             Song savedSong = songRepository.save(song);
-            logger.debug("Song保存完了: songId={}", savedSong.getSong_id());
+            logger.debug("Song保存完了: songId={}", savedSong.getSongId());
 
             Question newQuestion = new Question();
             newQuestion.setSong(savedSong);
@@ -132,7 +132,7 @@ public class QuestionGeneratorService {
             // 既存のSongを使用して問題を作成
             Question newQuestion = new Question();
             newQuestion.setSong(song);
-            Artist artist = artistRepository.findById(song.getAritst_id()).orElse(null);
+            Artist artist = artistRepository.findById(song.getArtistId()).orElse(null);
             newQuestion.setArtist(artist);
 
             logger.debug("Setting question - text='{}', answer='{}', completeSentence='{}'",
@@ -240,7 +240,7 @@ public class QuestionGeneratorService {
                 throw new IllegalStateException("楽曲の選択に失敗しました");
             }
 
-            logger.info("選択された楽曲: songId={}, songName={}", selectedSong.getSong_id(), selectedSong.getSongname());
+            logger.info("選択された楽曲: songId={}, songName={}", selectedSong.getSongId(), selectedSong.getSongname());
 
             // 2. 歌詞を取得
             String lyrics = fetchLyrics(selectedSong);
@@ -416,7 +416,7 @@ public class QuestionGeneratorService {
                     result.getGeniusSongId(), result.getDetectedLanguage());
 
                 // Genius Song IDと検出された言語をSongに設定
-                song.setGenius_song_id(result.getGeniusSongId());
+                song.setGeniusSongId(result.getGeniusSongId());
                 song.setLanguage(result.getDetectedLanguage());
 
                 return result.getLyrics();
@@ -426,9 +426,9 @@ public class QuestionGeneratorService {
         }
 
         // 2. 直接Song IDがある場合は試行（検索で失敗した場合のフォールバック）
-        if (song.getGenius_song_id() != null) {
-            logger.debug("Genius Song IDから直接歌詞を取得します: geniusSongId={}", song.getGenius_song_id());
-            lyrics = geniusApiClient.getLyrics(song.getGenius_song_id());
+        if (song.getGeniusSongId() != null) {
+            logger.debug("Genius Song IDから直接歌詞を取得します: geniusSongId={}", song.getGeniusSongId());
+            lyrics = geniusApiClient.getLyrics(song.getGeniusSongId());
 
             if (lyrics != null && !lyrics.isEmpty()) {
                 logger.info("Genius Song IDから歌詞を取得しました");
@@ -452,11 +452,11 @@ public class QuestionGeneratorService {
      * aritst_idを使ってArtistエンティティから取得
      */
     private String getArtistNameFromSong(Song song) {
-        if (song.getAritst_id() == null || song.getAritst_id() == 0L) {
+        if (song.getArtistId() == null || song.getArtistId() == 0L) {
             return null;
         }
         
-        return artistRepository.findById(song.getAritst_id())
+        return artistRepository.findById(song.getArtistId())
             .map(Artist::getArtistName)
             .orElse(null);
     }
@@ -535,6 +535,8 @@ public class QuestionGeneratorService {
                 .example_translate(wordInfo.getExampleTranslate())
                 .audio_url(wordInfo.getAudioUrl())
                 .language(language)  // ユーザーの学習言語を設定
+                .isActive(true)
+                .isDeleted(false)
                 .build();
 
             vocabularyRepository.save(vocab);
@@ -569,15 +571,15 @@ public class QuestionGeneratorService {
      */
     private QuestionGenerationResponse.SongInfo buildSongInfo(Song song) {
         String artistName = "Unknown";
-        if (song.getAritst_id() != null) {
-            Artist artist = artistRepository.findById(song.getAritst_id()).orElse(null);
+        if (song.getArtistId() != null) {
+            Artist artist = artistRepository.findById(song.getArtistId()).orElse(null);
             if (artist != null) {
                 artistName = artist.getArtistName();
             }
         }
 
         return QuestionGenerationResponse.SongInfo.builder()
-            .songId(song.getSong_id())
+            .songId(song.getSongId())
             .songName(song.getSongname())
             .artistName(artistName)
             .language(song.getLanguage())

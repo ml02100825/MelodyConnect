@@ -1,601 +1,256 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_webapp/config/app_config.dart';
+import '../bottom_nav.dart'; // 必要に応じてパスを調整してください
+import '../services/token_storage_service.dart';
 
-void main() {
-  runApp(const MyApp());
-}
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+// バッジデータのモデルクラス
+class BadgeModel {
+  final int badgeId;
+  final String title;
+  final String category;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final double progress;
+  final String rarity;
+  final String? acquiredDate;
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Badge Screen',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
-      home: const BadgeScreen(),
+  BadgeModel({
+    required this.badgeId,
+    required this.title,
+    required this.category,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.progress,
+    required this.rarity,
+    this.acquiredDate,
+  });
+
+  // APIのJSONデータをモデルに変換
+  factory BadgeModel.fromJson(Map<String, dynamic> json) {
+    return BadgeModel(
+      badgeId: json['badgeId'] ?? 0,
+      title: json['title'] ?? '',
+      category: json['category'] ?? 'スペシャル',
+      description: json['description'] ?? '',
+      // サーバーからの文字列キーをアイコン・色に変換
+      icon: _getIconData(json['iconKey']),
+      color: _getColor(json['colorCode']),
+      progress: (json['progress'] ?? 0.0).toDouble(),
+      rarity: json['rarity'] ?? 'common',
+      acquiredDate: json['acquiredDate'],
     );
+  }
+
+  // 文字列 -> アイコン変換
+  static IconData _getIconData(String? key) {
+    switch (key) {
+      case 'trending_up': return Icons.trending_up;
+      case 'calendar_today': return Icons.calendar_today;
+      case 'sports_esports': return Icons.sports_esports;
+      case 'emoji_events': return Icons.emoji_events;
+      case 'military_tech': return Icons.military_tech;
+      case 'group': return Icons.group;
+      case 'leaderboard': return Icons.leaderboard;
+      case 'king_bed': return Icons.king_bed;
+      case 'collections': return Icons.collections;
+      case 'search': return Icons.search;
+      case 'done_all': return Icons.done_all;
+      case 'emoji_objects': return Icons.emoji_objects;
+      case 'swap_horiz': return Icons.swap_horiz;
+      case 'card_giftcard': return Icons.card_giftcard;
+      case 'local_offer': return Icons.local_offer;
+      case 'event': return Icons.event;
+      case 'celebration': return Icons.celebration;
+      case 'person_add': return Icons.person_add;
+      case 'history': return Icons.history;
+      case 'cake': return Icons.cake;
+      case 'holiday_village': return Icons.holiday_village;
+      case 'bug_report': return Icons.bug_report;
+      case 'feedback': return Icons.feedback;
+      case 'share': return Icons.share;
+      case 'auto_awesome': return Icons.auto_awesome;
+      default: return Icons.star; // デフォルトアイコン
+    }
+  }
+
+  // 文字列 -> 色変換
+  static Color _getColor(String? code) {
+    switch (code) {
+      case 'green': return Colors.green;
+      case 'blue': return Colors.blue;
+      case 'red': return Colors.red;
+      case 'yellow': return Colors.yellow;
+      case 'purple': return Colors.purple;
+      case 'pink': return Colors.pink;
+      case 'orange': return Colors.orange;
+      case 'amber': return Colors.amber;
+      case 'grey': return Colors.grey;
+      default: return Colors.grey;
+    }
   }
 }
 
 class BadgeScreen extends StatefulWidget {
-  const BadgeScreen({super.key});
+  const BadgeScreen({Key? key}) : super(key: key);
 
   @override
   State<BadgeScreen> createState() => _BadgeScreenState();
 }
 
 class _BadgeScreenState extends State<BadgeScreen> {
+  // 初期値は 'all'
   String selectedFilter = 'all';
+  List<BadgeModel> badgeList = [];
+  bool isLoading = true;
 
-  // 49個のバッジデータ（12個完了）
-  final List<Map<String, dynamic>> badgeList = [
-    // 継続者カテゴリー (10個 - 3個完了)
-    {
-      'title': '継続者Ⅰ',
-      'category': '継続者',
-      'description': '達成条件：10日間ログインする',
-      'icon': Icons.trending_up,
-      'color': Colors.green,
-      'progress': 1.0,
-      'rarity': 'common',
-      'acquiredDate': '2024-01-15',
-    },
-    {
-      'title': '継続者Ⅱ',
-      'category': '継続者',
-      'description': '達成条件：30日間ログインする',
-      'icon': Icons.trending_up,
-      'color': Colors.green,
-      'progress': 1.0,
-      'rarity': 'common',
-      'acquiredDate': '2024-02-14',
-    },
-    {
-      'title': '継続者Ⅲ',
-      'category': '継続者',
-      'description': '達成条件：100日間ログインする',
-      'icon': Icons.trending_up,
-      'color': Colors.green,
-      'progress': 0.5,
-      'rarity': 'rare',
-      'acquiredDate': '2024-04-10',
-    },
-    {
-      'title': '毎日コツコツ',
-      'category': '継続者',
-      'description': '達成条件：1ヶ月間毎日ログイン',
-      'icon': Icons.calendar_today,
-      'color': Colors.blue,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
+  // サーバーURL（assets/config.jsonから読み込み）
+  String get _baseUrl => AppConfig.apiBaseUrl;
+  final TokenStorageService _tokenStorage = TokenStorageService();
+  int? _currentUserId;
+  String? _authToken;
 
-    // バトラーカテゴリー (10個 - 2個完了)
-    {
-      'title': 'バトル初心者',
-      'category': 'バトラー',
-      'description': '達成条件：初めてバトルに参加する',
-      'icon': Icons.sports_esports,
-      'color': Colors.red,
-      'progress': 1.0,
-      'rarity': 'common',
-      'acquiredDate': '2024-01-10',
-    },
-    {
-      'title': '連勝Ⅰ',
-      'category': 'バトラー',
-      'description': '達成条件：3連勝する',
-      'icon': Icons.emoji_events,
-      'color': Colors.red,
-      'progress': 1.0,
-      'rarity': 'common',
-      'acquiredDate': '2024-02-05',
-    },
-    {
-      'title': '連勝Ⅱ',
-      'category': 'バトラー',
-      'description': '達成条件：5連勝する',
-      'icon': Icons.emoji_events,
-      'color': Colors.red,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'バトルマスター',
-      'category': 'バトラー',
-      'description': '達成条件：100回バトルに勝利',
-      'icon': Icons.military_tech,
-      'color': Colors.red,
-      'progress': 0.4,
-      'rarity': 'epic',
-      'acquiredDate': null,
-    },
-    {
-      'title': '友情バトル',
-      'category': 'バトラー',
-      'description': '達成条件：フレンドと10回バトル',
-      'icon': Icons.group,
-      'color': Colors.pink,
-      'progress': 0.0,
-      'rarity': 'common',
-      'acquiredDate': null,
-    },
-
-    // ランカーカテゴリー (10個 - 3個完了)
-    {
-      'title': 'ランク入り',
-      'category': 'ランカー',
-      'description': '達成条件：初めてランキングに入る',
-      'icon': Icons.leaderboard,
-      'color': Colors.yellow,
-      'progress': 1.0,
-      'rarity': 'common',
-      'acquiredDate': '2024-01-20',
-    },
-    {
-      'title': 'トップ100',
-      'category': 'ランカー',
-      'description': '達成条件：ランキングTOP100に入る',
-      'icon': Icons.leaderboard,
-      'color': Colors.yellow,
-      'progress': 1.0,
-      'rarity': 'rare',
-      'acquiredDate': '2024-03-01',
-    },
-    {
-      'title': 'トップ50',
-      'category': 'ランカー',
-      'description': '達成条件：ランキングTOP50に入る',
-      'icon': Icons.leaderboard,
-      'color': Colors.yellow,
-      'progress': 1.0,
-      'rarity': 'epic',
-      'acquiredDate': '2024-04-15',
-    },
-    {
-      'title': 'トップ10',
-      'category': 'ランカー',
-      'description': '達成条件：ランキングTOP10に入る',
-      'icon': Icons.leaderboard,
-      'color': Colors.yellow,
-      'progress': 0.0,
-      'rarity': 'legendary',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'ランキングキング',
-      'category': 'ランカー',
-      'description': '達成条件：1位になる',
-      'icon': Icons.king_bed,
-      'color': Colors.amber,
-      'progress': 0.0,
-      'rarity': 'legendary',
-      'acquiredDate': null,
-    },
-    {
-      'title': '月間ランカー',
-      'category': 'ランカー',
-      'description': '達成条件：月間ランキングTOP10',
-      'icon': Icons.calendar_view_month,
-      'color': Colors.blue,
-      'progress': 0.0,
-      'rarity': 'epic',
-      'acquiredDate': null,
-    },
-    {
-      'title': '週間ランカー',
-      'category': 'ランカー',
-      'description': '達成条件：週間ランキングTOP10',
-      'icon': Icons.view_week,
-      'color': Colors.green,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-    {
-      'title': '連続ランクイン',
-      'category': 'ランカー',
-      'description': '達成条件：4週連続でランクイン',
-      'icon': Icons.timeline,
-      'color': Colors.purple,
-      'progress': 0.0,
-      'rarity': 'epic',
-      'acquiredDate': null,
-    },
-    {
-      'title': '新人王',
-      'category': 'ランカー',
-      'description': '達成条件：初月でTOP100に入る',
-      'icon': Icons.new_releases,
-      'color': Colors.orange,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-
-    // 獲得大王カテゴリー (10個 - 2個完了)
-    {
-      'title': 'コレクターⅠ',
-      'category': '獲得大王',
-      'description': '達成条件：10個のアイテムを集める',
-      'icon': Icons.collections,
-      'color': Colors.purple,
-      'progress': 1.0,
-      'rarity': 'common',
-      'acquiredDate': '2024-02-01',
-    },
-    {
-      'title': 'コレクターⅡ',
-      'category': '獲得大王',
-      'description': '達成条件：50個のアイテムを集める',
-      'icon': Icons.collections,
-      'color': Colors.purple,
-      'progress': 1.0,
-      'rarity': 'rare',
-      'acquiredDate': '2024-03-20',
-    },
-    {
-      'title': 'コレクターⅢ',
-      'category': '獲得大王',
-      'description': '達成条件：100個のアイテムを集める',
-      'icon': Icons.collections,
-      'color': Colors.purple,
-      'progress': 0.7,
-      'rarity': 'epic',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'レアハンター',
-      'category': '獲得大王',
-      'description': '達成条件：レアアイテムを10個集める',
-      'icon': Icons.search,
-      'color': Colors.blue,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'コンプリート',
-      'category': '獲得大王',
-      'description': '達成条件：すべてのアイテムを集める',
-      'icon': Icons.done_all,
-      'color': Colors.amber,
-      'progress': 0.0,
-      'rarity': 'legendary',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'トレジャーハンター',
-      'category': '獲得大王',
-      'description': '達成条件：隠しアイテムを5個発見',
-      'icon': Icons.emoji_objects,
-      'color': Colors.yellow,
-      'progress': 0.0,
-      'rarity': 'epic',
-      'acquiredDate': null,
-    },
-    {
-      'title': '交換大師',
-      'category': '獲得大王',
-      'description': '達成条件：アイテムを50回交換',
-      'icon': Icons.swap_horiz,
-      'color': Colors.green,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'ギフトマスター',
-      'category': '獲得大王',
-      'description': '達成条件：フレンドに20回ギフト',
-      'icon': Icons.card_giftcard,
-      'color': Colors.pink,
-      'progress': 0.0,
-      'rarity': 'common',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'セールハンター',
-      'category': '獲得大王',
-      'description': '達成条件：限定アイテムを5個獲得',
-      'icon': Icons.local_offer,
-      'color': Colors.red,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'イベントコレクター',
-      'category': '獲得大王',
-      'description': '達成条件：イベントアイテムを全て獲得',
-      'icon': Icons.event,
-      'color': Colors.orange,
-      'progress': 0.0,
-      'rarity': 'epic',
-      'acquiredDate': null,
-    },
-
-    // スペシャルカテゴリー (9個 - 2個完了)
-    {
-      'title': '初勝利',
-      'category': 'スペシャル',
-      'description': '達成条件：初めてバトルで勝利',
-      'icon': Icons.celebration,
-      'color': Colors.pink,
-      'progress': 1.0,
-      'rarity': 'common',
-      'acquiredDate': '2024-01-08',
-    },
-    {
-      'title': 'フレンド招待',
-      'category': 'スペシャル',
-      'description': '達成条件：フレンドを5人招待',
-      'icon': Icons.person_add,
-      'color': Colors.blue,
-      'progress': 1.0,
-      'rarity': 'common',
-      'acquiredDate': '2024-02-28',
-    },
-    {
-      'title': 'バージョン1.0',
-      'category': 'スペシャル',
-      'description': '達成条件：最初のバージョンプレイ',
-      'icon': Icons.history,
-      'color': Colors.grey,
-      'progress': 0.0,
-      'rarity': 'common',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'アニバーサリー',
-      'category': 'スペシャル',
-      'description': '達成条件：1周年記念',
-      'icon': Icons.cake,
-      'color': Colors.purple,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'ホリデー',
-      'category': 'スペシャル',
-      'description': '達成条件：特別な日にログイン',
-      'icon': Icons.holiday_village,
-      'color': Colors.red,
-      'progress': 0.0,
-      'rarity': 'common',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'バグハンター',
-      'category': 'スペシャル',
-      'description': '達成条件：バグを報告する',
-      'icon': Icons.bug_report,
-      'color': Colors.green,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'サポーター',
-      'category': 'スペシャル',
-      'description': '達成条件：フィードバックを送信',
-      'icon': Icons.feedback,
-      'color': Colors.orange,
-      'progress': 0.0,
-      'rarity': 'common',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'シェアマスター',
-      'category': 'スペシャル',
-      'description': '達成条件：10回SNSで共有',
-      'icon': Icons.share,
-      'color': Colors.blue,
-      'progress': 0.0,
-      'rarity': 'rare',
-      'acquiredDate': null,
-    },
-    {
-      'title': 'レジェンド',
-      'category': 'スペシャル',
-      'description': '達成条件：全てのカテゴリーでトップ',
-      'icon': Icons.auto_awesome,
-      'color': Colors.amber,
-      'progress': 0.0,
-      'rarity': 'legendary',
-      'acquiredDate': null,
-    },
-  ];
-
-  List<Map<String, dynamic>> get filteredBadges {
-    if (selectedFilter == null || selectedFilter == 'all') {
-      return badgeList;
-    }
-    return badgeList.where((badge) => badge['category'] == selectedFilter).toList();
+  @override
+  void initState() {
+    super.initState();
+    _fetchBadges();
+   
   }
+  Future<void> _loadUserId() async {
+  try {
+    final userId = await _tokenStorage.getUserId();
+    setState(() {
+      _currentUserId = userId;
+    });
+  } catch (e) {
+    debugPrint('Error loading userId: $e');
+  }
+}
+
+
+  // APIからバッジ情報を取得
+  Future<void> _fetchBadges() async {
+    await _loadToken(); // トークンが必要な場合
+
+    await _loadUserId();
+    if (_currentUserId == null) {
+    debugPrint('User ID is not available. Skip badge fetch.');
+    setState(() { isLoading = false; });
+    return;
+  }
+    try {
+      // ★修正: 選択されたフィルター(mode)をクエリパラメータとして送信
+      // バックエンドは mode=CONTINUE などを受け取ってDB検索を行う
+      final uri = Uri.parse('$_baseUrl/api/v1/badges?userId=$_currentUserId&mode=$selectedFilter');
+      debugPrint('📡 Fetching badges: $uri');
+
+      final res = await http.get(uri, headers: _getHeaders());
+
+      if (res.statusCode == 200) {
+        final List<dynamic> body = json.decode(utf8.decode(res.bodyBytes));
+        setState(() {
+          badgeList = body.map((e) => BadgeModel.fromJson(e)).toList();
+          isLoading = false;
+        });
+      } else {
+        debugPrint('❌ Error fetching badges: ${res.statusCode}');
+        setState(() { isLoading = false; });
+      }
+    } catch (e) {
+      debugPrint('❌ Exception fetching badges: $e');
+      setState(() { isLoading = false; });
+    }
+  }
+
+  Future<void> _loadToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _authToken = prefs.getString('auth_token') ?? 
+                     prefs.getString('token') ?? 
+                     prefs.getString('access_token');
+      });
+    } catch (e) {
+      debugPrint('Error loading token: $e');
+    }
+  }
+
+  Map<String, String> _getHeaders() {
+    final headers = {'Content-Type': 'application/json', 'Accept': 'application/json'};
+    if (_authToken != null) headers['Authorization'] = 'Bearer $_authToken';
+    return headers;
+  }
+
+  // ★修正: クライアント側でのフィルタリングは不要になったので削除
+  // サーバーから返ってきたリストをそのまま使う
+  List<BadgeModel> get currentBadges => badgeList;
 
   Color _getRarityColor(String rarity) {
     switch (rarity) {
-      case 'common':
-        return Colors.grey;
-      case 'rare':
-        return Colors.blue;
-      case 'epic':
-        return Colors.purple;
-      case 'legendary':
-        return Colors.orange;
-      default:
-        return Colors.grey;
+      case 'common': return Colors.grey;
+      case 'rare': return Colors.blue;
+      case 'epic': return Colors.purple;
+      case 'legendary': return Colors.orange;
+      default: return Colors.grey;
     }
   }
 
   String _getRarityText(String rarity) {
     switch (rarity) {
-      case 'common':
-        return 'コモン';
-      case 'rare':
-        return 'レア';
-      case 'epic':
-        return 'エピック';
-      case 'legendary':
-        return 'レジェンド';
-      default:
-        return 'コモン';
+      case 'common': return 'コモン';
+      case 'rare': return 'レア';
+      case 'epic': return 'エピック';
+      case 'legendary': return 'レジェンド';
+      default: return 'コモン';
     }
-  }
-
-  void _showBadgeDetails(Map<String, dynamic> badge) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: badge['color'].withOpacity(0.2),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: badge['progress'] == 1.0 ? badge['color'] : Colors.grey,
-                    width: 2,
-                  ),
-                ),
-                child: Icon(
-                  badge['icon'],
-                  color: badge['progress'] == 1.0 ? badge['color'] : Colors.grey,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      badge['title'],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: _getRarityColor(badge['rarity']).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _getRarityColor(badge['rarity']),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        _getRarityText(badge['rarity']),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: _getRarityColor(badge['rarity']),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                badge['description'],
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              if (badge['progress'] == 1.0 && badge['acquiredDate'] != null)
-                Text(
-                  '獲得日: ${badge['acquiredDate']}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              if (badge['progress'] > 0.0 && badge['progress'] < 1.0) ...[
-                LinearProgressIndicator(
-                  value: badge['progress'],
-                  backgroundColor: Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(badge['color']),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${(badge['progress'] * 100).toInt()}% 達成',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: badge['color'],
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('閉じる'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final earnedCount = badgeList.where((badge) => badge['progress'] == 1.0).length;
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.grey[50],
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // 表示中のリストに基づいてカウント
+    final earnedCount = badgeList.where((badge) => badge.progress == 1.0).length;
     final totalCount = badgeList.length;
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text(
           'バッジ',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.black),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Column(
         children: [
-          // 統計情報
           _buildStatsCard(earnedCount, totalCount),
-          
-          // フィルター
           _buildFilterSection(),
-          
-          // バッジグリッド
           _buildBadgeGrid(),
         ],
       ),
+      bottomNavigationBar: BottomNavBar(currentIndex: 0, onTap: (index) {}),
     );
   }
 
   Widget _buildStatsCard(int earnedCount, int totalCount) {
-    final progress = earnedCount / totalCount;
+    final progress = totalCount == 0 ? 0.0 : earnedCount / totalCount;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -655,11 +310,7 @@ class _BadgeScreenState extends State<BadgeScreen> {
               color: Colors.white,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.emoji_events,
-              color: Colors.amber,
-              size: 32,
-            ),
+            child: const Icon(Icons.emoji_events, color: Colors.amber, size: 32),
           ),
         ],
       ),
@@ -674,11 +325,7 @@ class _BadgeScreenState extends State<BadgeScreen> {
         children: [
           const Text(
             'カテゴリーでフィルター',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
           const SizedBox(height: 8),
           Container(
@@ -692,42 +339,27 @@ class _BadgeScreenState extends State<BadgeScreen> {
             child: DropdownButton<String>(
               value: selectedFilter,
               isExpanded: true,
-              underline: const SizedBox(), // デフォルトの下線を非表示
+              underline: const SizedBox(),
               borderRadius: BorderRadius.circular(8),
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: Colors.black87, fontSize: 14),
+              // ★修正: Dropdownのvalueを、バックエンドが期待するモード文字列に合わせる
               items: const [
-                DropdownMenuItem(
-                  value: 'all',
-                  child: Text('すべてのカテゴリー'),
-                ),
-                DropdownMenuItem(
-                  value: '継続者',
-                  child: Text('継続者'),
-                ),
-                DropdownMenuItem(
-                  value: 'バトラー',
-                  child: Text('バトラー'),
-                ),
-                DropdownMenuItem(
-                  value: 'ランカー',
-                  child: Text('ランカー'),
-                ),
-                DropdownMenuItem(
-                  value: '獲得大王',
-                  child: Text('獲得大王'),
-                ),
-                DropdownMenuItem(
-                  value: 'スペシャル',
-                  child: Text('スペシャル'),
-                ),
+                DropdownMenuItem(value: 'all', child: Text('すべてのカテゴリー')),
+                DropdownMenuItem(value: 'CONTINUE', child: Text('継続者')),
+                DropdownMenuItem(value: 'BATTLE', child: Text('バトラー')),
+                DropdownMenuItem(value: 'RANKING', child: Text('ランカー')),
+                DropdownMenuItem(value: 'COLLECT', child: Text('獲得大王')),
+                DropdownMenuItem(value: 'SPECIAL', child: Text('スペシャル')),
               ],
               onChanged: (String? value) {
-                setState(() {
-                  selectedFilter = value ?? 'all';
-                });
+                if (value != null) {
+                  setState(() {
+                    selectedFilter = value;
+                    isLoading = true; // ロード中表示
+                  });
+                  // フィルター変更時にAPIを再取得
+                  _fetchBadges();
+                }
               },
             ),
           ),
@@ -736,53 +368,33 @@ class _BadgeScreenState extends State<BadgeScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label, String value) {
-    final isSelected = selectedFilter == value;
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          setState(() {
-            selectedFilter = value;
-          });
-        },
-        backgroundColor: Colors.grey[200],
-        selectedColor: Colors.blue.withOpacity(0.2),
-        checkmarkColor: Colors.blue,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.blue : Colors.grey[700],
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-    );
-  }
-
   Widget _buildBadgeGrid() {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.9,
-          ),
-          itemCount: filteredBadges.length,
-          itemBuilder: (context, index) {
-            final badge = filteredBadges[index];
-            return _buildBadgeCircle(badge);
-          },
-        ),
+        child: badgeList.isEmpty
+            ? const Center(child: Text("バッジがありません"))
+            : GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.9,
+                ),
+                // ★修正: filteredBadgesではなくbadgeListをそのまま使用
+                itemCount: badgeList.length,
+                itemBuilder: (context, index) {
+                  final badge = badgeList[index];
+                  return _buildBadgeCircle(badge);
+                },
+              ),
       ),
     );
   }
 
-  Widget _buildBadgeCircle(Map<String, dynamic> badge) {
-    final isEarned = badge['progress'] == 1.0;
-    final isInProgress = badge['progress'] > 0.0 && badge['progress'] < 1.0;
+  Widget _buildBadgeCircle(BadgeModel badge) {
+    final isEarned = badge.progress == 1.0;
+    final isInProgress = badge.progress > 0.0 && badge.progress < 1.0;
 
     return GestureDetector(
       onTap: () => _showBadgeDetails(badge),
@@ -791,78 +403,45 @@ class _BadgeScreenState extends State<BadgeScreen> {
           Stack(
             alignment: Alignment.center,
             children: [
-              // バッジの円形背景
               Container(
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  color: isEarned 
-                      ? badge['color'].withOpacity(0.2)
-                      : Colors.grey.withOpacity(0.1),
+                  color: isEarned ? badge.color.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isEarned ? badge['color'] : Colors.grey[300]!,
+                    color: isEarned ? badge.color : Colors.grey[300]!,
                     width: 2,
                   ),
                   boxShadow: isEarned
-                      ? [
-                          BoxShadow(
-                            color: badge['color'].withOpacity(0.3),
-                            blurRadius: 8,
-                            spreadRadius: 1,
-                          ),
-                        ]
+                      ? [BoxShadow(color: badge.color.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)]
                       : null,
                 ),
                 child: Icon(
-                  badge['icon'],
-                  color: isEarned ? badge['color'] : Colors.grey,
+                  badge.icon,
+                  color: isEarned ? badge.color : Colors.grey,
                   size: 30,
                 ),
               ),
-              // 進行中のインジケーター
               if (isInProgress)
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.autorenew,
-                      color: Colors.white,
-                      size: 12,
-                    ),
-                  ),
+                const Positioned(
+                  bottom: 0, right: 0,
+                  child: Icon(Icons.autorenew, color: Colors.blue, size: 20),
                 ),
-              // 獲得済みチェック
               if (isEarned)
                 Positioned(
-                  top: 0,
-                  right: 0,
+                  top: 0, right: 0,
                   child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 12,
-                    ),
+                    width: 20, height: 20,
+                    decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                    child: const Icon(Icons.check, color: Colors.white, size: 12),
                   ),
                 ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            badge['title'],
+            badge.title,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 10,
@@ -874,6 +453,90 @@ class _BadgeScreenState extends State<BadgeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showBadgeDetails(BadgeModel badge) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: badge.color.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(badge.icon, color: badge.color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      badge.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _getRarityColor(badge.rarity).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _getRarityColor(badge.rarity), width: 1),
+                      ),
+                      child: Text(
+                        _getRarityText(badge.rarity),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: _getRarityColor(badge.rarity),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(badge.description, style: const TextStyle(fontSize: 14)),
+              const SizedBox(height: 16),
+              if (badge.progress == 1.0 && badge.acquiredDate != null)
+                Text(
+                  '獲得日: ${badge.acquiredDate}',
+                  style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                ),
+              if (badge.progress > 0.0 && badge.progress < 1.0) ...[
+                LinearProgressIndicator(
+                  value: badge.progress,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(badge.color),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${(badge.progress * 100).toInt()}% 達成',
+                  style: TextStyle(fontSize: 12, color: badge.color, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('閉じる'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -3,19 +3,16 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../models/quiz_models.dart';
 import '../services/quiz_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../config/app_config.dart';
 import 'quiz_result_screen.dart';
-
-/// ★ 追加: APIのベースURL
-const String _apiBaseUrl = String.fromEnvironment(
-  "API_BASE_URL",
-  defaultValue: "http://localhost:8080",
-);
 
 class QuizQuestionScreen extends StatefulWidget {
   final int sessionId;
   final int userId;
   final List<QuizQuestion> questions;
   final SongInfo? songInfo;
+  
+
 
   const QuizQuestionScreen({
     super.key,
@@ -34,6 +31,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   final TokenStorageService _tokenStorage = TokenStorageService();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _answerController = TextEditingController();
+  bool _hasNavigatedToResult = false;
 
   int _currentIndex = 0;
   List<AnswerResult> _answers = [];
@@ -42,6 +40,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   bool _isCorrect = false;
   String _correctAnswer = '';
   String? _accessToken;
+  String? _userName = '';
   
   // ★ 追加: 音声再生スピード（0.75x = スロー、1.0x = 通常）
   // 英語学習アプリ（Duolingo, iKnow!等）では0.75xが一般的
@@ -52,10 +51,18 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserName();
     _loadAccessToken();
     // ★ デバッグ: 問題データを確認
     _debugPrintQuestions();
   }
+  Future<void> _loadUserName() async {
+    final name = await _tokenStorage.getUsername();
+        if (!mounted) return;
+        setState(() {
+          _userName = name;
+        });
+      }
 
   /// ★ 追加: デバッグ用 - 問題データをログ出力
   void _debugPrintQuestions() {
@@ -107,6 +114,15 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
+        actions: [
+          TextButton(
+            onPressed: _showRetireDialog,
+            child: const Text(
+              'リタイア',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -118,7 +134,12 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
               const SizedBox(height: 12),
               
               // ★ 追加: 曲情報
-              if (widget.songInfo != null) _buildSongInfoChip(),
+              if ((_currentQuestion.songId != null) ||
+                  (_currentQuestion.songName != null &&
+                      _currentQuestion.songName!.isNotEmpty) ||
+                  (_currentQuestion.artistName != null &&
+                      _currentQuestion.artistName!.isNotEmpty))
+                _buildSongInfoChip(),
               const SizedBox(height: 12),
 
               // 問題タイプ表示
@@ -175,6 +196,10 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
 
   /// ★ 追加: 曲情報を表示
   Widget _buildSongInfoChip() {
+    final artistName =
+        _currentQuestion.artistName ?? '不明なアーティスト';
+    final songName = _currentQuestion.songName ?? '不明な曲';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -189,7 +214,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              '${widget.songInfo!.artistName} - ${widget.songInfo!.songName}',
+              '$artistName - $songName',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.purple.shade800,
@@ -549,12 +574,16 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     );
   }
 
+  
   Widget _buildNextButton() {
+    final isResultButton = _isLastQuestion;
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: _nextQuestion,
+        onPressed: isResultButton
+            ? (_hasNavigatedToResult ? null : _nextQuestion)
+            : _nextQuestion,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
@@ -590,7 +619,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         if (!audioUrl.startsWith('/')) {
           audioUrl = '/$audioUrl';
         }
-        audioUrl = '$_apiBaseUrl$audioUrl';
+        audioUrl = '${AppConfig.apiBaseUrl}$audioUrl';
       }
       
       debugPrint('Playing audio: $audioUrl (speed: $_playbackSpeed)');
@@ -652,19 +681,24 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         .replaceAll(RegExp(r'''[.,!?'"]+'''), '');  // 句読点を削除
   }
 
-  void _nextQuestion() {
-    if (_isLastQuestion) {
-      _completeQuiz();
-    } else {
-      setState(() {
-        _currentIndex++;
-        _showResult = false;
-        _answerController.clear();
-      });
+ 
+    void _nextQuestion() {
+      if (_isLastQuestion) {
+        setState(() {
+          _hasNavigatedToResult = true;
+        });
+        _completeQuiz();
+      } else {
+        setState(() {
+          _currentIndex++;
+          _showResult = false;
+          _answerController.clear();
+        });
+      }
     }
-  }
 
-  Future<void> _completeQuiz() async {
+
+  Future<void> _completeQuiz({bool retired = false}) async {
     if (_accessToken == null) {
       _showError('認証情報が取得できませんでした');
       return;
@@ -675,6 +709,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         sessionId: widget.sessionId,
         userId: widget.userId,
         answers: _answers,
+        retired: retired,
       );
 
       final response = await _apiService.completeQuiz(request, _accessToken!);
@@ -686,6 +721,8 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
             builder: (context) => QuizResultScreen(
               result: response,
               songInfo: widget.songInfo,
+               userId: widget.userId,
+              userName: _userName,
             ),
           ),
         );
@@ -702,5 +739,46 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         backgroundColor: Colors.red,
       ),
     );
+  }
+
+  void _showRetireDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('リタイア'),
+        content: const Text('クイズを終了しますか？\n残りの問題は不正解として処理されます。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _retire();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('リタイア'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _retire() async {
+    // 残りの問題を全て不正解として追加
+    for (int i = _currentIndex; i < widget.questions.length; i++) {
+      // 現在の問題で既に回答済みの場合はスキップ
+      if (i == _currentIndex && _showResult) continue;
+
+      _answers.add(AnswerResult(
+        questionId: widget.questions[i].questionId,
+        userAnswer: '',
+        isCorrect: false,
+      ));
+    }
+
+    // 結果画面へ遷移（リタイアフラグを送信）
+    await _completeQuiz(retired: true);
   }
 }
