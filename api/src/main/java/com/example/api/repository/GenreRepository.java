@@ -3,29 +3,27 @@ package com.example.api.repository;
 import com.example.api.entity.Genre;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
-/**
- * Genre Repository
- */
 @Repository
 public interface GenreRepository extends JpaRepository<Genre, Long>, JpaSpecificationExecutor<Genre> {
 
-    /**
-     * ジャンル名で検索
-     * 
-     * @param name ジャンル名
-     * @return Genre（存在しない場合はOptional.empty()）
-     */
     Optional<Genre> findByName(String name);
+    
+    // ... 他のメソッド ...
 
     /**
-     * ジャンル名で存在チェック
-     * 
-     * @param name ジャンル名
-     * @return 存在すればtrue
+     * ★このSQLが「0件を非表示にする」正体です
      */
-    boolean existsByName(String name);
+    @Query(value = """
+        SELECT DISTINCT g.* FROM genre g 
+        INNER JOIN artist_genre ag ON g.genre_id = ag.genre_id 
+        WHERE g.is_active = 1 
+          AND g.is_deleted = 0
+    """, nativeQuery = true)
+    List<Genre> findGenresWithArtists();
 }

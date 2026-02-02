@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// アーティスト検索結果
+/// アーティスト検索結果モデル
 class SpotifyArtist {
   final String spotifyId;
   final String name;
@@ -35,7 +35,8 @@ class SpotifyArtist {
       'spotifyId': spotifyId,
       'name': name,
       'imageUrl': imageUrl,
-      'genre': genres.isNotEmpty ? genres.first : 'pop',
+      // バックエンドの自動振り分けに任せるため、空の場合は空文字を送る
+      'genre': genres.isNotEmpty ? genres.first : '',
     };
   }
 }
@@ -44,13 +45,13 @@ class SpotifyArtist {
 class ArtistApiService {
   final String baseUrl;
 
+  // 環境に合わせて変更 (Androidエミュレーターなら 'http://10.0.2.2:8080')
   ArtistApiService({this.baseUrl = 'http://localhost:8080'});
 
-  /// アーティストを検索
-  Future<List<SpotifyArtist>> searchArtists(
-      String query, String accessToken) async {
+  /// ジャンル一覧を取得
+  Future<List<Map<String, dynamic>>> getGenres(String accessToken) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/api/artist/search?q=$query&limit=10'),
+      Uri.parse('$baseUrl/api/genres'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -58,7 +59,36 @@ class ArtistApiService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
+      final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('ジャンルの取得に失敗しました: ${response.statusCode}');
+    }
+  }
+
+  /// アーティストを検索 (修正版: queryParametersを使用)
+  Future<List<SpotifyArtist>> searchArtists(
+      String query, String accessToken) async {
+    
+    // ★修正: queryParametersを使って安全にURLエンコードを行う
+    // これにより genre:"bossa nova" などの記号やスペースを含むクエリも正しく送信されます
+    final uri = Uri.parse('$baseUrl/api/artist/search').replace(
+      queryParameters: {
+        'q': query,
+        'limit': '10',
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
       return data.map((json) => SpotifyArtist.fromJson(json)).toList();
     } else {
       throw Exception('アーティスト検索に失敗しました: ${response.statusCode}');

@@ -5,8 +5,8 @@ import '../services/artist_api_service.dart';
 import '../services/presence_websocket_service.dart';
 import '../services/token_storage_service.dart';
 import '../services/life_api_service.dart';
-import '../widgets/genre_selection_dialog.dart';
-import '../widgets/artist_selection_dialog.dart';
+// ★修正: 統合されたダイアログをインポート
+import '../widgets/unified_selection_dialog.dart'; 
 import '../bottom_nav.dart';
 import 'login_screen.dart';
 import 'my_profile.dart';
@@ -157,65 +157,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       if (!isCompleted && mounted) {
         _showedArtistDialog = true;
-        _showGenreSelectionDialog();
+        // ★修正: 統合ダイアログを表示するメソッドを呼び出し
+        _showUnifiedSelectionDialog();
       }
     } catch (e) {
-      // エラーが発生してもダイアログは表示しない
       debugPrint('初期設定状態の確認に失敗: $e');
     }
   }
 
-  /// ジャンル選択ダイアログを表示
-  Future<void> _showGenreSelectionDialog() async {
-    final selectedGenres = await showDialog<List<String>>(
+  /// ★修正: 統合された選択ダイアログを表示
+  Future<void> _showUnifiedSelectionDialog() async {
+    await showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const GenreSelectionDialog(),
+      barrierDismissible: false, // 閉じるボタン以外で閉じないようにする
+      builder: (context) => const UnifiedSelectionDialog(),
     );
-
-    if (!mounted) return;
-
-    // ジャンル選択後、アーティスト選択ダイアログを表示
-    _showArtistSelectionDialog(selectedGenres);
-  }
-
-  /// アーティスト選択ダイアログを表示
-  Future<void> _showArtistSelectionDialog(List<String>? selectedGenres) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => ArtistSelectionDialog(selectedGenres: selectedGenres),
-    );
-
-    if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('お気に入りアーティストを登録しました'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    
+    // ダイアログが閉じられたら（初期設定完了とみなす場合など）、必要ならデータを再取得
+    if (mounted) {
+      _fetchLifeStatus();
     }
   }
 
   /// ログアウト処理
   Future<void> _handleLogout() async {
     try {
-      // ★修正: userIdではなくrefreshTokenを取得
       final refreshToken = await _tokenStorage.getRefreshToken();
       final accessToken = await _tokenStorage.getAccessToken();
 
       if (refreshToken != null && accessToken != null) {
-        // ★修正: refreshTokenを渡す
         await _authApiService.logout(refreshToken, accessToken);
       }
 
-      // ローカルの認証情報を削除
       await _tokenStorage.clearAuthData();
       _presenceService.disconnect();
 
       if (!mounted) return;
 
-      // ログイン画面に戻る
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -256,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               );
             }),
             const SizedBox(width: 8),
-            // 次回回復までの時間（life < maxのとき）
+            // 次回回復までの時間
             if (_currentLife < _maxLife)
               Text(
                 _formatRecoveryTime(_nextRecoveryInSeconds),
@@ -275,18 +253,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // アバター（タップでマイプロフィールへ）
+                // アバター
                 Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: GestureDetector(
                     onTap: () {
-                      debugPrint('アバターがタップされました');
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const MyProfile(),
                         ),
-                      ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
+                      ).then((_) => _fetchLifeStatus());
                     },
                     child: Container(
                       width: 80,
@@ -304,7 +281,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
 
-                // メインコンテンツ（中央寄せ）
+                // メインコンテンツ
                 Expanded(
                   child: Center(
                     child: SingleChildScrollView(
@@ -312,7 +289,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // メインメニュー（2x2グリッド）
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -320,13 +296,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 icon: Icons.sports_esports,
                                 label: '対戦する',
                                 onTap: () {
-                                  debugPrint('対戦するボタンがタップされました');
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => const BattleModeSelectionScreen(),
                                     ),
-                                  ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
+                                  ).then((_) => _fetchLifeStatus());
                                 },
                               ),
                               const SizedBox(width: 12),
@@ -334,21 +309,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 icon: Icons.library_music,
                                 label: '単語帳',
                                 onTap: () {
-                                  debugPrint('単語帳ボタンがタップされました');
                                   if (_userId != null) {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => VocabularyScreen(userId: _userId!),
                                       ),
-                                    ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('ユーザー情報の取得に失敗しました'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
+                                    ).then((_) => _fetchLifeStatus());
                                   }
                                 },
                               ),
@@ -362,13 +329,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 icon: Icons.shopping_cart,
                                 label: 'ショップ',
                                 onTap: () {
-                                  debugPrint('ショップボタンがタップされました');
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => const ShopScreen(),
                                     ),
-                                  ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
+                                  ).then((_) => _fetchLifeStatus());
                                 },
                               ),
                               const SizedBox(width: 12),
@@ -377,29 +343,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 label: 'バッジ',
                                 subtitle: '12/49',
                                 onTap: () {
-                                  debugPrint('バッジボタンがタップされました');
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => const BadgeScreen(),
                                     ),
-                                  ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
+                                  ).then((_) => _fetchLifeStatus());
                                 },
                               ),
                             ],
                           ),
                           const SizedBox(height: 24),
-
-                          // ランキングボタン
                           _buildRankingCard(
                             onTap: () {
-                              debugPrint('ランキングボタンがタップされました');
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => const RankingScreen(),
                                 ),
-                              ).then((_) => _fetchLifeStatus()); // 戻ったら再取得
+                              ).then((_) => _fetchLifeStatus());
                             },
                           ),
                         ],
@@ -412,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       bottomNavigationBar: BottomNavBar(
         currentIndex: 0,
         onTap: (index) {
-          // 画面遷移はBottomNavBar内で処理
+          // Navigation logic
         },
       ),
     );
