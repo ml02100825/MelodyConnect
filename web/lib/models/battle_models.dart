@@ -45,7 +45,7 @@ class BattlePlayer {
     return BattlePlayer(
       userId: json['userId'] ?? json['id'] ?? 0,
       username: json['username'] ?? json['userName'] ?? 'Player',
-      iconUrl: json['iconUrl'] ?? json['userUuid'],
+      iconUrl: json['imageUrl'] ?? json['iconUrl'],
       rating: json['rating'] ?? json['rate'],
       hasAnswered: json['hasAnswered'] ?? false,
     );

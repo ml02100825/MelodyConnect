@@ -4,17 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_webapp/config/app_config.dart';
 import '../services/token_storage_service.dart';
 import '../services/room_api_service.dart';
 import '../screens/home_screen.dart';
 import '../screens/report_screen.dart';
 import '../models/battle_models.dart';
-
-/// APIのベースURL
-const String _apiBaseUrl = String.fromEnvironment(
-  "API_BASE_URL",
-  defaultValue: "http://localhost:8080",
-);
 
 /// バトル画面
 /// ランクマッチ/ルームマッチの対戦進行を行います
@@ -161,7 +156,7 @@ class _BattleScreenState extends State<BattleScreen>
     }
 
     final response = await http.get(
-      Uri.parse('$_apiBaseUrl/api/battle/start/${widget.matchId}'),
+      Uri.parse('${AppConfig.apiBaseUrl}/api/battle/start/${widget.matchId}'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -222,7 +217,7 @@ class _BattleScreenState extends State<BattleScreen>
     _stompClient?.deactivate();
     _stompClient = StompClient(
       config: StompConfig(
-        url: 'ws://localhost:8080/ws',
+        url: '${AppConfig.wsBaseUrl}/ws',
         stompConnectHeaders: {
           if (_myUserId != null) 'userId': _myUserId.toString(),
           'clientType': 'battle',
@@ -677,14 +672,14 @@ class _BattleScreenState extends State<BattleScreen>
         if (!audioUrl.startsWith('/')) {
           audioUrl = '/$audioUrl';
         }
-        audioUrl = '$_apiBaseUrl$audioUrl';
+        audioUrl = '${AppConfig.apiBaseUrl}$audioUrl';
       }
 
       // デバッグログ（学習側との比較用）
       debugPrint('=== Audio Debug ===');
       debugPrint('Original audioUrl: $originalUrl');
       debugPrint('Final audioUrl: $audioUrl');
-      debugPrint('API Base URL: $_apiBaseUrl');
+      debugPrint('API Base URL: ${AppConfig.apiBaseUrl}');
       debugPrint('==================');
 
       await _audioPlayer.setPlaybackRate(_playbackSpeed);
@@ -916,18 +911,24 @@ class _BattleScreenState extends State<BattleScreen>
     required int wins,
     required bool hasAnswered,
     required bool isMe,
+    
   }) {
+    final iconUrl = player?.iconUrl;
     return Column(
       children: [
         // アイコン（回答済みなら✓マーク）
         Stack(
           children: [
+            
             CircleAvatar(
               radius: 28,
               backgroundColor: isMe ? Colors.blue[100] : Colors.orange[100],
-              backgroundImage: player?.iconUrl != null
-                  ? NetworkImage('$_apiBaseUrl/images/${player!.iconUrl}')
-                  : null,
+              
+      
+            backgroundImage: (iconUrl != null && iconUrl.isNotEmpty)
+                ? NetworkImage(iconUrl)
+                : null,
+
               child: player?.iconUrl == null
                   ? Icon(
                       Icons.person,

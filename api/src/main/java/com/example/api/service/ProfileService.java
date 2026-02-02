@@ -6,6 +6,7 @@ import com.example.api.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Optional;
 
@@ -18,6 +19,8 @@ public class ProfileService {
 
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private ImageUploadService imageUploadService;
 
     /**
      * プロフィール更新（ステップ2: ユーザー名、アイコン、ユーザーID設定）
@@ -27,32 +30,28 @@ public class ProfileService {
      * @throws IllegalArgumentException ユーザーが見つからない場合、またはユーザーIDが重複している場合
      */
     @Transactional
-    public User updateProfile(Long userId, ProfileUpdateRequest request) {
-        // ユーザーを検索
-        Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isEmpty()) {
-            throw new IllegalArgumentException("ユーザーが見つかりません");
+public User updateProfileMultipart(Long userId, String username, String userUuid, MultipartFile icon) throws Exception {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+
+    if (userUuid != null && !userUuid.isEmpty()) {
+        Optional<User> existingUser = userRepository.findByUserUuid(userUuid);
+        if (existingUser.isPresent() && !existingUser.get().getId().equals(userId)) {
+            throw new IllegalArgumentException("このユーザーIDは既に使用されています");
         }
-
-        User user = userOpt.get();
-
-        // ユーザーUUIDの重複チェック（自分以外のユーザーで同じユーザーUUIDが存在するか）
-        if (request.getUserUuid() != null && !request.getUserUuid().isEmpty()) {
-            Optional<User> existingUser = userRepository.findByUserUuid(request.getUserUuid());
-            if (existingUser.isPresent() && !existingUser.get().getId().equals(userId)) {
-                throw new IllegalArgumentException("このユーザーIDは既に使用されています");
-            }
-            user.setUserUuid(request.getUserUuid());
-        }
-
-        // プロフィールを更新（ユーザー名は重複可能）
-        user.setUsername(request.getUsername());
-        if (request.getImageUrl() != null && !request.getImageUrl().isEmpty()) {
-            user.setImageUrl(request.getImageUrl());
-        }
-
-        return userRepository.save(user);
+        user.setUserUuid(userUuid);
     }
+
+    user.setUsername(username);
+
+    if (icon != null && !icon.isEmpty()) {
+        String imageUrl = imageUploadService.uploadImage(icon);
+        user.setImageUrl(imageUrl);
+    }
+    // icon が無い場合は imageUrl を変えない（デフォルト表示のまま）
+
+    return userRepository.save(user);
+}
 
     /**
      * ユーザー情報を取得

@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/report_models.dart';
+import '../config/app_config.dart';
 
-const baseUrl = String.fromEnvironment(
-  "API_BASE_URL",
-  defaultValue: "http://localhost:8080",
-);
+String get baseUrl => AppConfig.apiBaseUrl;
 
 class ReportApiService {
   /// 通報を送信

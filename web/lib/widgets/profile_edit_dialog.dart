@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
-
+import 'package:image_picker/image_picker.dart';
 /// ========================================
 /// プロフィール編集ダイアログ
 /// ========================================
@@ -32,6 +33,9 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
   final _profileApiService = ProfileApiService();
   final _tokenStorage = TokenStorageService();
   final _formKey = GlobalKey<FormState>();
+  Uint8List? _imageBytes;
+  String? _uploadedImageUrl;
+  XFile? _selectedImageFile;
 
   // ========================================
   // フォーム入力用コントローラー
@@ -82,15 +86,14 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
         throw Exception('認証情報が見つかりません');
       }
 
-      await _profileApiService.updateProfile(
-        userId: userId,
-        username: _usernameController.text.trim(),
-        userUuid: _userUuidController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isNotEmpty
-            ? _imageUrlController.text.trim()
-            : null,
-        accessToken: accessToken,
-      );
+      await _profileApiService.updateProfileMultipart(
+      userId: userId,
+      username: _usernameController.text.trim(),
+      userUuid: _userUuidController.text.trim(),
+      imageBytes: _imageBytes,
+      filename: _selectedImageFile?.name,
+      accessToken: accessToken,
+    );
 
       // TokenStorageのユーザー名も更新
       await _tokenStorage.saveUsername(_usernameController.text.trim());

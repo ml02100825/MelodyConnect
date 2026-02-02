@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Primary;
 @Configuration
 public class ImageUploadConfig {
 
-    @Value("${upload.storage.type:local}")
+    @Value("${upload.storage.type:}")
     private String storageType;
 
     /**
