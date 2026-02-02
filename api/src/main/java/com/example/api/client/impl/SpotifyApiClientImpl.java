@@ -25,6 +25,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.Instant;
 import java.util.*;
@@ -64,6 +65,8 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     private static final String SPOTIFY_API_URL = "https://api.spotify.com/v1";
     private static final int MAX_ALBUMS_PER_REQUEST = 50;
     private static final int MAX_TRACKS_PER_REQUEST = 50;
+    private static final int SPOTIFY_SEARCH_MAX_LIMIT = 50;
+    private static final int SPOTIFY_SEARCH_MAX_OFFSET = 1000;
     
     /** ジャンル検索で返却する楽曲数 */
     private static final int GENRE_SEARCH_SONG_LIMIT = 5;
@@ -72,6 +75,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     private final WebClient apiClient;
     private final ObjectMapper objectMapper;
     private final Random random = new Random();
+    private static final Map<String, List<String>> GENRE_KEYWORDS = buildGenreKeywords();
 
     @Value("${spotify.client.id:}")
     private String clientId;
@@ -567,45 +571,382 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
     @Override
     public List<SpotifyArtistDto> searchArtists(String query, int limit) {
+        if (query == null || query.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
         String token = getAccessToken();
         if (token == null) {
-            logger.warn("トークンが取得できないためモックデータを返します");
+            logger.warn("Spotify token not available");
             return createMockArtists(query);
         }
 
         try {
-            String response = apiClient.get()
-                .uri(uriBuilder -> uriBuilder
-                    .path("/search")
-                    .queryParam("q", query)
-                    .queryParam("type", "artist")
-                    .queryParam("limit", limit)
-                    .build())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
-
-            JsonNode jsonNode = objectMapper.readTree(response);
-            JsonNode artists = jsonNode.path("artists").path("items");
-
             List<SpotifyArtistDto> result = new ArrayList<>();
-            if (artists.isArray()) {
+            int remaining = Math.max(1, limit);
+            int perRequest = 50;
+            int offset = 0;
+
+            while (remaining > 0) {
+                int requestLimit = Math.min(perRequest, remaining);
+                final int currentOffset = offset;
+                String response = apiClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                        .path("/search")
+                        .queryParam("q", query)
+                        .queryParam("type", "artist")
+                        .queryParam("limit", requestLimit)
+                        .queryParam("offset", currentOffset)
+                        .build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+                JsonNode jsonNode = objectMapper.readTree(response);
+                JsonNode artists = jsonNode.path("artists").path("items");
+                if (!artists.isArray() || artists.size() == 0) {
+                    break;
+                }
+
                 for (JsonNode artistNode : artists) {
                     SpotifyArtistDto dto = parseArtistNode(artistNode);
                     if (dto != null) {
                         result.add(dto);
                     }
                 }
+
+                offset += requestLimit;
+                remaining -= requestLimit;
+                if (offset >= 10000) {
+                    break;
+                }
             }
 
-            logger.info("Spotifyアーティスト検索完了: query={}, 結果数={}", query, result.size());
+            logger.info("Spotify artist search: query={}, count={}", query, result.size());
             return result;
 
         } catch (Exception e) {
-            logger.error("アーティスト検索に失敗しました: query={}", query, e);
+            logger.error("Spotify artist search failed: query={}", query, e);
             return createMockArtists(query);
         }
+    }
+
+
+    
+    @Override
+    public List<SpotifyArtistDto> searchArtistsByGenre(String genreName, int limit) {
+        if (genreName == null || genreName.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        logger.info("Genre artist search start: genre={}, limit={}", genreName, limit);
+        String token = getAccessToken();
+        if (token == null) {
+            logger.warn("Spotify token not available");
+            return createMockArtists(genreName);
+        }
+
+        try {
+            List<String> keywords = buildGenreKeywordList(genreName);
+            logger.info("Genre keyword search: genre={}, keywords={}", genreName, keywords);
+            return searchArtistsByGenreKeywords(genreName, keywords, limit, token);
+        } catch (Exception e) {
+            logger.error("Genre artist search failed: genre={}", genreName, e);
+            return createMockArtists(genreName);
+        }
+    }
+
+    private List<SpotifyArtistDto> searchArtistsByGenreKeywords(
+        String genreName,
+        List<String> keywords,
+        int limit,
+        String token
+    ) throws Exception {
+        if (keywords == null || keywords.isEmpty()) {
+            logger.info("Genre keyword search empty: genre={}", genreName);
+            return Collections.emptyList();
+        }
+
+        int searchLimit = SPOTIFY_SEARCH_MAX_LIMIT;
+        int maxRequests = 10;
+        int maxOffset = SPOTIFY_SEARCH_MAX_OFFSET - searchLimit;
+        if (maxOffset < 0) {
+            maxOffset = 0;
+        }
+        int maxPage = maxOffset / searchLimit;
+
+        LinkedHashSet<String> artistIds = new LinkedHashSet<>();
+        int requestCount = 0;
+        int keywordIndex = 0;
+        while (requestCount < maxRequests) {
+            String keyword = keywords.get(keywordIndex % keywords.size());
+            keywordIndex++;
+            String query = buildTrackKeywordQuery(keyword);
+            if (query.isBlank()) {
+                requestCount++;
+                continue;
+            }
+            int offset = maxPage > 0 ? random.nextInt(maxPage + 1) * searchLimit : 0;
+
+            String response;
+            try {
+                response = apiClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                        .path("/search")
+                        .queryParam("q", query)
+                        .queryParam("type", "track")
+                        .queryParam("limit", searchLimit)
+                        .queryParam("offset", offset)
+                        .build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+            } catch (WebClientResponseException e) {
+                logger.error(
+                    "Genre search request failed: query={}, offset={}, limit={}, status={}, body={}",
+                    query,
+                    offset,
+                    searchLimit,
+                    e.getRawStatusCode(),
+                    e.getResponseBodyAsString());
+                if (e.getStatusCode().value() == 400) {
+                    continue;
+                }
+                throw e;
+            }
+            if (response == null || response.isBlank()) {
+                requestCount++;
+                continue;
+            }
+
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode tracks = jsonNode.path("tracks").path("items");
+            if (!tracks.isArray() || tracks.size() == 0) {
+                requestCount++;
+                continue;
+            }
+
+            collectArtistIdsFromTracks(tracks, artistIds);
+            requestCount++;
+            if (artistIds.size() >= Math.max(1, limit) * 2) {
+                break;
+            }
+        }
+
+        if (artistIds.isEmpty()) {
+            logger.info("Genre keyword search artists empty: genre={}, keywords={}", genreName, keywords);
+            return Collections.emptyList();
+        }
+
+        List<String> artistIdList = new ArrayList<>(artistIds);
+        logger.info(
+            "Genre keyword search collected artist ids: genre={}, count={}",
+            genreName,
+            artistIdList.size());
+
+        List<SpotifyArtistDto> detailedArtists = fetchArtistsByIds(artistIdList, token);
+        if (detailedArtists.isEmpty()) {
+            logger.info("Genre keyword search detail artists empty: genre={}", genreName);
+            return Collections.emptyList();
+        }
+
+        List<SpotifyArtistDto> result = new ArrayList<>();
+        for (SpotifyArtistDto dto : detailedArtists) {
+            if (matchesAnyKeywordInArtistGenres(dto, keywords)) {
+                result.add(dto);
+            }
+        }
+
+        if (result.isEmpty()) {
+            logger.info("Genre keyword search genre filter empty: genre={}, keywords={}", genreName, keywords);
+            return Collections.emptyList();
+        }
+
+        result.sort(Comparator.comparingInt(SpotifyArtistDto::getPopularity).reversed());
+        logger.info(
+            "Genre keyword search result count: collected={}, detailed={}, genreFiltered={}, returned={}",
+            artistIds.size(),
+            detailedArtists.size(),
+            result.size(),
+            result.size());
+
+        if (result.size() > limit) {
+            return result.subList(0, limit);
+        }
+        return result;
+    }
+
+    private static Map<String, List<String>> buildGenreKeywords() {
+        Map<String, List<String>> map = new HashMap<>();
+        map.put("anime", List.of(
+            "アニメ",
+            "アニソン",
+            "アニメソング",
+            "anime",
+            "anisong",
+            "anime song",
+            "soundtrack",
+            "theme song",
+            "opening",
+            "ending",
+            "OST",
+            "original soundtrack"
+        ));
+        map.put("jpop", List.of("j-pop", "jpop", "J-POP", "邦楽", "Jポップ"));
+        map.put("kpop", List.of("k-pop", "kpop", "K-POP", "케이팝", "한국", "korean pop"));
+        map.put("pop", List.of("pop", "pops", "hit song", "chart"));
+        map.put("rock", List.of("rock", "rock band", "guitar"));
+        map.put("metal", List.of("metal", "heavy metal", "metalcore"));
+        map.put("punk", List.of("punk", "pop punk", "hardcore"));
+        map.put("hiphop", List.of("hip hop", "hiphop", "rap"));
+        map.put("rap", List.of("rap", "hip hop"));
+        map.put("rnb", List.of("r&b", "rnb", "rhythm and blues", "soul"));
+        map.put("soul", List.of("soul", "neo soul"));
+        map.put("funk", List.of("funk", "groove"));
+        map.put("jazz", List.of("jazz", "swing", "bebop"));
+        map.put("classical", List.of("classical", "symphony", "orchestra", "concerto", "piano", "violin"));
+        map.put("electronic", List.of("electronic", "electronica", "synth", "synthwave"));
+        map.put("edm", List.of("edm", "electronic dance"));
+        map.put("dance", List.of("dance", "club"));
+        map.put("house", List.of("house", "deep house"));
+        map.put("techno", List.of("techno"));
+        map.put("trance", List.of("trance"));
+        map.put("dubstep", List.of("dubstep"));
+        map.put("drumandbass", List.of("drum and bass", "dnb"));
+        map.put("reggae", List.of("reggae", "dub"));
+        map.put("ska", List.of("ska"));
+        map.put("blues", List.of("blues"));
+        map.put("folk", List.of("folk", "acoustic"));
+        map.put("country", List.of("country", "bluegrass", "americana"));
+        map.put("latin", List.of("latin", "reggaeton", "salsa", "bachata"));
+        map.put("bossa", List.of("bossa nova"));
+        map.put("citypop", List.of("city pop", "シティポップ"));
+        return map;
+    }
+
+    private String buildTrackKeywordQuery(String keyword) {
+        if (keyword == null) {
+            return "";
+        }
+        String term = keyword.trim();
+        if (term.isEmpty()) {
+            return "";
+        }
+        if (term.contains(" ")) {
+            return "\"" + term + "\"";
+        }
+        return term;
+    }
+
+    private List<String> buildGenreKeywordList(String genreName) {
+        String normalized = normalizeGenreKey(genreName);
+        LinkedHashSet<String> keywords = new LinkedHashSet<>();
+        List<String> mapped = GENRE_KEYWORDS.get(normalized);
+        if (mapped != null) {
+            keywords.addAll(mapped);
+        }
+        String trimmed = genreName == null ? "" : genreName.trim();
+        if (!trimmed.isEmpty()) {
+            keywords.add(trimmed);
+            keywords.add(trimmed.toLowerCase(Locale.ROOT));
+        }
+        return new ArrayList<>(keywords);
+    }
+
+    private boolean matchesAnyKeywordInArtistGenres(SpotifyArtistDto artist, List<String> keywords) {
+        if (artist == null || artist.getGenres() == null || keywords == null || keywords.isEmpty()) {
+            return false;
+        }
+        List<String> genres = artist.getGenres();
+        for (String keyword : keywords) {
+            if (keyword == null) {
+                continue;
+            }
+            String term = keyword.trim();
+            if (term.isEmpty()) {
+                continue;
+            }
+            String loweredTerm = term.toLowerCase(Locale.ROOT);
+            for (String genre : genres) {
+                if (genre == null) {
+                    continue;
+                }
+                if (genre.toLowerCase(Locale.ROOT).contains(loweredTerm)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private String normalizeGenreKey(String genreName) {
+        if (genreName == null) {
+            return "";
+        }
+        String lower = genreName.trim().toLowerCase(Locale.ROOT);
+        return lower.replaceAll("[\\s_\\-]+", "");
+    }
+
+    private void collectArtistIdsFromTracks(JsonNode tracks, Set<String> artistIds) {
+        if (!tracks.isArray()) {
+            return;
+        }
+        for (JsonNode trackNode : tracks) {
+            JsonNode artists = trackNode.path("artists");
+            if (!artists.isArray()) {
+                continue;
+            }
+            for (JsonNode artistNode : artists) {
+                String artistId = artistNode.path("id").asText();
+                if (artistId != null && !artistId.isBlank()) {
+                    artistIds.add(artistId);
+                }
+            }
+        }
+    }
+
+    private List<SpotifyArtistDto> fetchArtistsByIds(List<String> artistIds, String token) throws Exception {
+        if (artistIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        int batchSize = 50;
+        LinkedHashMap<String, SpotifyArtistDto> resultsById = new LinkedHashMap<>();
+        for (int start = 0; start < artistIds.size(); start += batchSize) {
+            int end = Math.min(start + batchSize, artistIds.size());
+            List<String> batch = artistIds.subList(start, end);
+
+            String response = apiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/artists")
+                    .queryParam("ids", String.join(",", batch))
+                    .build())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+            if (response == null || response.isBlank()) {
+                continue;
+            }
+
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode artists = jsonNode.path("artists");
+
+            if (artists.isArray()) {
+                for (JsonNode artistNode : artists) {
+                    SpotifyArtistDto dto = parseArtistNode(artistNode);
+                    if (dto != null && !resultsById.containsKey(dto.getSpotifyId())) {
+                        resultsById.put(dto.getSpotifyId(), dto);
+                    }
+                }
+            }
+        }
+
+        List<SpotifyArtistDto> result = new ArrayList<>(resultsById.values());
+        return result;
     }
 
     private SpotifyArtistDto parseArtistNode(JsonNode artistNode) {

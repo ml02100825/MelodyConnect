@@ -34,7 +34,8 @@ public interface ArtistGenreRepository extends JpaRepository<ArtistGenre, Long> 
      * @param genreId ジャンルID
      * @return ArtistGenreのリスト
      */
-    List<ArtistGenre> findByGenreId(Long genreId);
+    @Query("SELECT ag FROM ArtistGenre ag WHERE ag.genre.genreId = :genreId")
+    List<ArtistGenre> findByGenreId(@Param("genreId") Long genreId);
 
     /**
      * アーティストIDに紐づく全ジャンルを取得

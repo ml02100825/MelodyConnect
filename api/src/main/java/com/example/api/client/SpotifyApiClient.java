@@ -21,6 +21,15 @@ public interface SpotifyApiClient {
     List<SpotifyArtistDto> searchArtists(String query, int limit);
 
     /**
+     * ジャンル名からアーティストを検索
+     *
+     * @param genreName ジャンル名
+     * @param limit     取得上限
+     * @return アーティストリスト
+     */
+    List<SpotifyArtistDto> searchArtistsByGenre(String genreName, int limit);
+
+    /**
      * アーティストIDからランダムな楽曲を取得
      *
      * @param artistId アーティストID

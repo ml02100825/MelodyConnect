@@ -75,7 +75,7 @@ class ArtistApiService {
     final uri = Uri.parse('$baseUrl/api/artist/search').replace(
       queryParameters: {
         'q': query,
-        'limit': '10',
+        'limit': '20',
       },
     );
 
@@ -92,6 +92,32 @@ class ArtistApiService {
       return data.map((json) => SpotifyArtist.fromJson(json)).toList();
     } else {
       throw Exception('アーティスト検索に失敗しました: ${response.statusCode}');
+    }
+  }
+
+  /// ジャンル名からアーティストを検索
+  Future<List<SpotifyArtist>> searchArtistsByGenre(
+      String genreName, String accessToken) async {
+    final uri = Uri.parse('$baseUrl/api/artist/search-by-genre').replace(
+      queryParameters: {
+        'genre': genreName,
+        'limit': '100',
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+      return data.map((json) => SpotifyArtist.fromJson(json)).toList();
+    } else {
+      throw Exception('ジャンル検索に失敗しました: ${response.statusCode}');
     }
   }
 

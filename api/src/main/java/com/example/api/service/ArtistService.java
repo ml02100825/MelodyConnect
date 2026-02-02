@@ -68,6 +68,10 @@ public class ArtistService {
         return spotifyApiClient.searchArtists(query, limit);
     }
 
+    public List<SpotifyArtistDto> searchArtistsByGenre(String genreName, int limit) {
+        return spotifyApiClient.searchArtistsByGenre(genreName, limit);
+    }
+
     @Transactional
     public void registerLikeArtists(Long userId, LikeArtistRequest request) {
         User user = userRepository.findById(userId)

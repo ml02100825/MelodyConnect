@@ -42,6 +42,10 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
   final List<SpotifyArtist> _selectedPendingArtists = [];
   final Set<String> _registeredArtistIds = {}; 
 
+  static const int _genrePageSize = 20;
+  bool _isGenreSearchResults = false;
+  int _currentGenrePage = 0;
+
   bool _isSearching = false;
   bool _isSubmitting = false;
 
@@ -145,22 +149,54 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
 
   /// ジャンルタップ時の検索処理
   void _onGenreTap(GenreInfo genre) {
-    String searchTerm = _convertToSpotifySearchTerm(genre.name);
-
-    if (searchTerm.contains(' ')) {
-      _searchController.text = '"$searchTerm"';
-    } else {
-      _searchController.text = searchTerm;
-    }
-
+    final term = _convertToSpotifySearchTerm(genre.name);
+    _searchController.text = genre.displayName;
     _searchFocusNode.requestFocus();
     
-    _searchArtists();
+    _searchArtistsByGenre(term);
   }
 
   /// アーティスト検索実行
-  Future<void> _searchArtists({String? queryOverride}) async {
-    final query = queryOverride ?? _searchController.text.trim();
+  Future<void> _searchArtistsByGenre(String genreName) async {
+    final query = genreName.trim();
+    if (query.isEmpty) return;
+
+    setState(() {
+      _isSearching = true;
+      _showGenreGrid = false;
+      _headerTitle = 'アーティストを検索';
+    });
+
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken == null) throw Exception('認証が必要です');
+
+      final results = await _artistApiService.searchArtistsByGenre(query, accessToken);
+      
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isGenreSearchResults = true;
+          _currentGenrePage = 0;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('検索エラー: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _searchArtistsByName() async {
+    final query = _searchController.text.trim();
     if (query.isEmpty) return;
 
     setState(() {
@@ -178,6 +214,8 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
       if (mounted) {
         setState(() {
           _searchResults = results;
+          _isGenreSearchResults = false;
+          _currentGenrePage = 0;
         });
       }
     } catch (e) {
@@ -261,7 +299,34 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
       _headerTitle = '好きなジャンルを選択';
       _showGenreGrid = true;
       _searchResults = [];
+      _isSearching = false;
+      _isGenreSearchResults = false;
+      _currentGenrePage = 0;
     });
+  }
+
+
+  int _totalGenrePages() {
+    if (_searchResults.isEmpty) return 0;
+    return (_searchResults.length / _genrePageSize).ceil();
+  }
+
+  void _goToGenrePage(int page) {
+    final total = _totalGenrePages();
+    if (total == 0) return;
+    final next = page.clamp(0, total - 1);
+    setState(() {
+      _currentGenrePage = next;
+    });
+  }
+
+  List<SpotifyArtist> _currentPageResults() {
+    if (!_isGenreSearchResults) return _searchResults;
+    final start = _currentGenrePage * _genrePageSize;
+    if (start >= _searchResults.length) return [];
+    var end = start + _genrePageSize;
+    if (end > _searchResults.length) end = _searchResults.length;
+    return _searchResults.sublist(start, end);
   }
 
   @override
@@ -277,11 +342,18 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  _headerTitle,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                if (!_showGenreGrid)
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: '戻る',
+                    onPressed: _clearSearch,
+                  ),
+                Expanded(
+                  child: Text(
+                    _headerTitle,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -291,7 +363,7 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
               controller: _searchController,
               focusNode: _searchFocusNode,
               textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _searchArtists(),
+              onSubmitted: (_) => _searchArtistsByName(),
               decoration: InputDecoration(
                 hintText: 'アーティスト名を入力',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -340,6 +412,28 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
                   ? _buildGenreGrid()
                   : _buildSearchResultsList(),
             ),
+
+            if (!_showGenreGrid && _isGenreSearchResults && _searchResults.length > _genrePageSize) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: _currentGenrePage > 0
+                        ? () => _goToGenrePage(_currentGenrePage - 1)
+                        : null,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  Text('${_currentGenrePage + 1} / ${_totalGenrePages()}'),
+                  IconButton(
+                    onPressed: _currentGenrePage < _totalGenrePages() - 1
+                        ? () => _goToGenrePage(_currentGenrePage + 1)
+                        : null,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+            ],
 
             const SizedBox(height: 16),
             Row(
@@ -438,6 +532,7 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
   }
 
   Widget _buildSearchResultsList() {
+    final displayedResults = _currentPageResults();
     if (_searchResults.isEmpty && !_isSearching) {
       return const Center(
         child: Text(
@@ -449,9 +544,9 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
     }
 
     return ListView.builder(
-      itemCount: _searchResults.length,
+      itemCount: displayedResults.length,
       itemBuilder: (context, index) {
-        final artist = _searchResults[index];
+        final artist = displayedResults[index];
         final isSelected = _selectedPendingArtists.any((a) => a.spotifyId == artist.spotifyId);
         final isRegistered = _registeredArtistIds.contains(artist.spotifyId);
 

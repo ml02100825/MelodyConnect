@@ -44,6 +44,19 @@ public class ArtistController {
      * お気に入りアーティストを登録
      * POST /api/artist/like
      */
+    /**
+     * ジャンル名からアーティストを検索
+     * GET /api/artist/search-by-genre?genre=anime&limit=10
+     */
+    @GetMapping("/search-by-genre")
+    public ResponseEntity<List<SpotifyArtistDto>> searchArtistsByGenre(
+            @RequestParam("genre") String genre,
+            @RequestParam(value = "limit", defaultValue = "10") int limit) {
+        logger.info("ジャンルアーティスト検索: genre={}, limit={}", genre, limit);
+        List<SpotifyArtistDto> artists = artistService.searchArtistsByGenre(genre, limit);
+        return ResponseEntity.ok(artists);
+    }
+
     @PostMapping("/like")
     public ResponseEntity<Map<String, Object>> registerLikeArtists(
             @RequestBody LikeArtistRequest request,
