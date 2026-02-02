@@ -1,8 +1,19 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http; // 直接通信用
+import 'package:flutter_webapp/config/app_config.dart';
+import '../services/profile_api_service.dart';
+import '../services/token_storage_service.dart';
+import '../widgets/profile_edit_dialog.dart';
+import 'contact_screen.dart';
+import 'email_change_screen.dart';
 import '../bottom_nav.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'login_screen.dart';
+import 'payment_management_screen.dart';
+import 'subscription_screen.dart';
+import 'privacy_settings_screen.dart';
 
 class OtherScreen extends StatefulWidget {
   const OtherScreen({Key? key}) : super(key: key);
@@ -12,270 +23,314 @@ class OtherScreen extends StatefulWidget {
 }
 
 class _OtherScreenState extends State<OtherScreen> {
-  final TokenStorageService _tokenStorage = TokenStorageService();
-  final AuthApiService _authApiService = AuthApiService();
+  String get _baseUrl => AppConfig.apiBaseUrl;
+  final _profileApiService = ProfileApiService();
+  final _tokenStorage = TokenStorageService();
+  
+  bool _isLoading = true;
+  int? _userId;
 
-  // ログアウト処理
-  Future<void> _handleLogout() async {
+  // プロフィール表示用
+  String? _username;
+  String? _userUuid;
+  String? _imageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    
     try {
-      // ★修正: userIdではなくrefreshTokenを取得
-      final refreshToken = await _tokenStorage.getRefreshToken();
-      final accessToken = await _tokenStorage.getAccessToken();
+      final userId = await _tokenStorage.getUserId();
+      final token = await _tokenStorage.getAccessToken();
 
-      if (refreshToken != null && accessToken != null) {
-        // ★修正: refreshTokenを渡す
-        await _authApiService.logout(refreshToken, accessToken);
+      if (userId == null || token == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
       }
 
-      // ローカルの認証情報を削除
-      await _tokenStorage.clearAuthData();
-
-      if (!mounted) return;
-
-      // ログイン画面に戻る
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
+      final data = await _profileApiService.getProfile(
+        userId: userId,
+        accessToken: token,
       );
+
+      if (mounted) {
+        setState(() {
+          _userId = userId;
+          _username = data['username'];
+          _userUuid = data['userUuid'];
+          _imageUrl = data['imageUrl'];
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('ログアウトに失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      debugPrint('Error loading profile: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  // 退会確認ダイアログ（OtherScreen から直接実行する）
-  void _confirmWithdraw() {
-    showDialog(
+  Future<void> _showProfileEdit() async {
+    if (_userId == null) return;
+
+    final result = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('本当に退会しますか？'),
-        content: const Text(
-          '退会すると今までの履歴や\nサブスクリプションの情報が\n閲覧できなくなります。\n退会する場合は退会するを押してください',
-          textAlign: TextAlign.center,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('戻る'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _performWithdraw();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('退会する', style: TextStyle(color: Colors.white)),
-          ),
-        ],
+      builder: (_) => ProfileEditDialog(
+        currentUsername: _username ?? '',
+        currentUserUuid: _userUuid ?? '',
+        currentImageUrl: _imageUrl,
       ),
+    );
+
+    if (result == true) {
+      await _loadProfile();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('プロフィールを更新しました')),
+        );
+      }
+    }
+  }
+
+  // ログアウト処理
+  Future<void> _handleLogout() async {
+    await _tokenStorage.clearAuthData();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
     );
   }
 
-  // 退会処理（アカウント削除またはログアウト）
-  Future<void> _performWithdraw() async {
+  // ▼▼▼ 退会処理（修正版） ▼▼▼
+  Future<void> _handleWithdraw() async {
+    setState(() => _isLoading = true);
     try {
-      // ★修正: userIdではなくrefreshTokenを取得
-      final refreshToken = await _tokenStorage.getRefreshToken();
-      final accessToken = await _tokenStorage.getAccessToken();
-
-      if (refreshToken != null && accessToken != null) {
-        // ★修正: refreshTokenを渡す
-        await _authApiService.logout(refreshToken, accessToken);
+      // 1. ユーザーIDとトークンを取得
+      final userId = await _tokenStorage.getUserId();
+      final token = await _tokenStorage.getAccessToken();
+      
+      if (userId == null || token == null) {
+        throw Exception('認証情報またはユーザーIDが見つかりません');
       }
 
+      // 2. サーバーへ退会リクエスト（POSTメソッド、IDはトークンから取得される）
+      final url = Uri.parse('$_baseUrl/api/auth/withdraw');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      // 3. レスポンス確認
+      if (response.statusCode != 200) {
+        String errorMessage = '退会処理に失敗しました';
+        try {
+            final body = jsonDecode(utf8.decode(response.bodyBytes));
+            if (body['error'] != null) {
+                errorMessage = body['error'];
+            }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+      
+      // 4. 成功したら端末のデータを消してログイン画面へ
       await _tokenStorage.clearAuthData();
 
       if (!mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
         (route) => false,
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('退会しました。ご利用ありがとうございました。')),
       );
     } catch (e) {
       if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('退会に失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('エラー: $e')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(
-                Icons.settings,
-                color: Colors.white,
-                size: 24,
+      appBar: AppBar(title: const Text('設定・その他'), centerTitle: true),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        children: [
+          // プロフィール
+          if (_userId != null)
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                leading: CircleAvatar(
+                  radius: 30,
+                  backgroundImage: _imageUrl != null && _imageUrl!.isNotEmpty
+                      ? NetworkImage(_imageUrl!)
+                      : null,
+                  child: _imageUrl == null || _imageUrl!.isEmpty
+                      ? const Icon(Icons.person, size: 30) : null,
+                ),
+                title: Text(_username ?? 'No Name', 
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                subtitle: Text('ID: ${_userUuid ?? '---'}'),
+                trailing: IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  onPressed: _showProfileEdit,
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            const Text(
-              '設定',
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(16),
-            ),
+          
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('契約・支払い', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.credit_card),
+            title: const Text('クレジットカード管理'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PaymentManagementScreen()),
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.workspace_premium),
+            title: const Text('サブスクリプション登録・解約'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SubscriptionScreen()),
+              );
+            },
+          ),
+
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('アプリ設定', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.lock),
+            title: const Text('プライバシー設定'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              if (_userId != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PrivacySettingsScreen(userId: _userId!),
+                  ),
+                );
+              }
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.email),
+            title: const Text('メールアドレス変更'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EmailChangeScreen()),
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.mail_outline),
+            title: const Text('お問い合わせ'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ContactScreen()),
+              );
+            },
+          ),
+
+          const Divider(),
+          
+          // ログアウト
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('ログアウト'),
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('確認'),
+                  content: const Text('ログアウトしますか？'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _handleLogout();
+                      },
+                      child: const Text('ログアウト', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+
+          // 退会ボタン
+          ListTile(
+            leading: const Icon(Icons.delete_forever, color: Colors.red),
+            title: const Text('退会する', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('退会の確認', style: TextStyle(color: Colors.red)),
+                  content: const Text('本当に退会しますか？\nアカウント情報はすべて削除され、復元できません。'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _handleWithdraw();
+                      },
+                      child: const Text('退会する', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
-
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildMenuButton(
-              context,
-              icon: Icons.edit,
-              label: 'プロフィール編集',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.volume_up,
-              label: '音量設定',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.language,
-              label: '言語設定',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.lock,
-              label: 'プライバシー設定',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.payment,
-              label: '支払い情報管理',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.subscriptions,
-              label: 'サブスク登録・解約',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.support_agent,
-              label: 'お問い合わせ',
-              onTap: () {},
-            ),
-            const SizedBox(height: 12),
-            _buildMenuButton(
-              context,
-              icon: Icons.delete_outline,
-              label: '退会',
-              onTap: _confirmWithdraw,
-            ),
-          ],
-        ),
-      ),
-
       bottomNavigationBar: BottomNavBar(
         currentIndex: 4,
-        onTap: (index) {
-          // TODO: 画面遷移処理を書く
-        },
-      ),
-    );
-  }
-
-  Widget _buildMenuButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, color: Colors.black87, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.black87,
-              ),
-            ),
-          ],
-        ),
+        onTap: (index) {},
       ),
     );
   }

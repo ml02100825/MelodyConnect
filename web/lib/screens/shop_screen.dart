@@ -168,15 +168,37 @@ class ItemDetailScreen extends StatefulWidget {
 }
 
 class _ItemDetailScreenState extends State<ItemDetailScreen> {
-  bool get _hasPaymentMethod => PaymentMethodManager.paymentMethods.isNotEmpty;
+  // DBから取得した支払い方法リスト
+  List<dynamic> _paymentMethods = [];
   Map<String, dynamic>? _selectedPaymentMethod;
+  bool _isLoading = true;
   
   @override
   void initState() {
     super.initState();
-    _selectedPaymentMethod = _hasPaymentMethod ? PaymentMethodManager.paymentMethods.first : null;
+    _loadPaymentMethods();
+  }
+
+  // APIから支払い方法を取得
+  Future<void> _loadPaymentMethods() async {
+    try {
+      final methods = await PaymentApiService.getPaymentMethods();
+      if (mounted) {
+        setState(() {
+          _paymentMethods = methods;
+          // デフォルトで最初のカードを選択
+          if (_paymentMethods.isNotEmpty && _selectedPaymentMethod == null) {
+            _selectedPaymentMethod = _paymentMethods.first;
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
   
+  bool get _hasPaymentMethod => _paymentMethods.isNotEmpty;
   Map<String, dynamic>? get _primaryPaymentMethod => _selectedPaymentMethod;
 
   @override
@@ -193,7 +215,9 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         title: const Text('アイテム詳細', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600)),
         centerTitle: true,
       ),
-      body: Padding(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
@@ -223,7 +247,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             ),
             const Spacer(),
             // 登録済みカード情報表示
-            if (_hasPaymentMethod)
+            if (_hasPaymentMethod && _primaryPaymentMethod != null)
               Container(
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
@@ -234,7 +258,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(_primaryPaymentMethod!['icon'] ?? Icons.credit_card, color: _primaryPaymentMethod!['color'] ?? Colors.blue),
+                    const Icon(Icons.credit_card, color: Colors.blue),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -282,27 +306,15 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         MaterialPageRoute(builder: (context) => const AddPaymentMethodScreen()),
       );
       if (result == true) {
-        setState(() {
-          _selectedPaymentMethod = PaymentMethodManager.paymentMethods.last;
-        });
-        _showPurchaseConfirmDialog();
+        await _loadPaymentMethods(); // リロード
+        if (mounted && _paymentMethods.isNotEmpty) {
+          setState(() {
+            _selectedPaymentMethod = _paymentMethods.last;
+          });
+          _showPurchaseConfirmDialog();
+        }
       }
     }
-  }
-
-  void _navigateToPaymentManagement() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const PaymentManagementScreen()),
-    );
-    setState(() {
-      // 支払い方法が削除された場合の対応
-      if (_hasPaymentMethod) {
-        _selectedPaymentMethod = PaymentMethodManager.paymentMethods.first;
-      } else {
-        _selectedPaymentMethod = null;
-      }
-    });
   }
   
   void _showPaymentMethodSelector() {
@@ -319,10 +331,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           children: [
             const Text('支払い方法を選択', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
-            ...PaymentMethodManager.paymentMethods.map((method) {
-              final isSelected = _selectedPaymentMethod == method;
+            ..._paymentMethods.map((method) {
+              final isSelected = _selectedPaymentMethod != null && _selectedPaymentMethod!['id'] == method['id'];
               return ListTile(
-                leading: Icon(method['icon'] ?? Icons.credit_card, color: method['color'] ?? Colors.blue),
+                leading: const Icon(Icons.credit_card, color: Colors.blue),
                 title: Text('${method['brand']} •••• ${method['last4']}'),
                 trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : null,
                 onTap: () {
@@ -345,9 +357,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                   MaterialPageRoute(builder: (context) => const AddPaymentMethodScreen()),
                 );
                 if (result == true) {
-                  setState(() {
-                    _selectedPaymentMethod = PaymentMethodManager.paymentMethods.last;
-                  });
+                  await _loadPaymentMethods();
+                  if (mounted && _paymentMethods.isNotEmpty) {
+                    setState(() {
+                      _selectedPaymentMethod = _paymentMethods.last;
+                    });
+                  }
                 }
               },
             ),

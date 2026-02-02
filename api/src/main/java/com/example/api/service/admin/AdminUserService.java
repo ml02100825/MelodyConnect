@@ -164,7 +164,7 @@ public class AdminUserService {
         summary.setUsername(user.getUsername());
         summary.setEmail(user.getMailaddress());
         summary.setBanFlag(user.isBanFlag());
-        summary.setSubscribeFlag(user.isSubscribeFlag());
+        summary.setSubscribeFlag(user.getSubscribeFlag() == 1 && user.getCancellationFlag() == 0);
         summary.setCreatedAt(user.getCreatedAt());
         summary.setOfflineAt(user.getOfflineAt());
         summary.setExpiresAt(user.getExpiresAt());
@@ -179,7 +179,7 @@ public class AdminUserService {
         detail.setUsername(user.getUsername());
         detail.setEmail(user.getMailaddress());
         detail.setBanFlag(user.isBanFlag());
-        detail.setSubscribeFlag(user.isSubscribeFlag());
+        detail.setSubscribeFlag(user.getSubscribeFlag() == 1 && user.getCancellationFlag() == 0);
         detail.setCreatedAt(user.getCreatedAt());
         detail.setOfflineAt(user.getOfflineAt());
         detail.setAcceptedAt(user.getAcceptedAt());

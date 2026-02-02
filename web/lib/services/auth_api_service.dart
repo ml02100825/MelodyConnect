@@ -184,6 +184,35 @@ class AuthApiService {
     }
   }
 
+  /// 退会(アカウント削除)
+  ///
+  /// [accessToken] - アクセストークン
+  ///
+  /// 成功した場合はtrue、失敗した場合は例外をスロー
+  Future<bool> withdraw(String accessToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/withdraw'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+     
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? '退会処理に失敗しました');
+      }
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('ネットワークエラーが発生しました');
+    }
+  }
+
   // ==========================================
   // ★追加: パスワードリセット関連メソッド
   // ==========================================
@@ -229,6 +258,60 @@ class AuthApiService {
 
     if (response.statusCode != 200) {
       String message = 'パスワード更新に失敗しました';
+      try {
+        final body = jsonDecode(utf8.decode(response.bodyBytes));
+        if (body['error'] != null) {
+          message = body['error'];
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+  }
+
+  /// メールアドレス変更要求 (現在のメールアドレスにコード送信)
+  ///
+  /// [accessToken] - アクセストークン
+  Future<void> requestEmailChange(String accessToken) async {
+    final uri = Uri.parse('$baseUrl/request-email-change');
+
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      String message = '送信に失敗しました';
+      try {
+        final body = jsonDecode(utf8.decode(response.bodyBytes));
+        if (body['error'] != null) {
+          message = body['error'];
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+  }
+
+  /// メールアドレス変更実行
+  ///
+  /// [token] - メール(ログ)で受け取った変更コード
+  /// [newEmail] - 新しいメールアドレス
+  Future<void> confirmEmailChange(String token, String newEmail) async {
+    final uri = Uri.parse('$baseUrl/confirm-email-change');
+
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'token': token,
+        'newEmail': newEmail,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      String message = 'メールアドレス変更に失敗しました';
       try {
         final body = jsonDecode(utf8.decode(response.bodyBytes));
         if (body['error'] != null) {

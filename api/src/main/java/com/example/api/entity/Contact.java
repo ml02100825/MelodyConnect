@@ -1,6 +1,8 @@
 package com.example.api.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 
 @Entity
@@ -18,11 +20,12 @@ public class Contact {
     @Column(name = "contact_id")
     private Long contactId;
 
-    @Column(name = "contact_detail", length = 500)
-    private String contact_detail;
+    @NotBlank
+    @Column(name = "contact_detail", nullable = false, columnDefinition = "TEXT")
+    private String contactDetail;
 
-    @Column(name = "image_url", length = 200)
-    private String image_url;
+    @Column(name = "image_url")
+    private String imageUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -50,6 +53,17 @@ public class Contact {
         }
     }
 
+    // ====== コンストラクタ ======
+    public Contact() {
+    }
+
+    public Contact(User user, String title, String contactDetail, String imageUrl) {
+        this.user = user;
+        this.title = title;
+        this.contactDetail = contactDetail;
+        this.imageUrl = imageUrl;
+    }
+
     // ====== getters / setters ======
     public Long getContactId() {
         return contactId;
@@ -58,18 +72,18 @@ public class Contact {
         this.contactId = contactId;
     }
 
-    public String getContact_detail() {
-        return contact_detail;
+    public String getContactDetail() {
+        return contactDetail;
     }
-    public void setContact_detail(String contact_detail) {
-        this.contact_detail = contact_detail;
+    public void setContactDetail(String contactDetail) {
+        this.contactDetail = contactDetail;
     }
 
-    public String getImage_url() {
-        return image_url;
+    public String getImageUrl() {
+        return imageUrl;
     }
-    public void setImage_url(String image_url) {
-        this.image_url = image_url;
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public User getUser() {

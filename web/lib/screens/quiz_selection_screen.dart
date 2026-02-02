@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/quiz_models.dart';
+import '../../models/quiz_models.dart';
 import '../services/quiz_api_service.dart';
 import '../services/token_storage_service.dart';
 import 'quiz_question_screen.dart';

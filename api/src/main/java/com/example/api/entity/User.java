@@ -3,12 +3,7 @@ package com.example.api.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
-/**
- * ユーザーエンティティクラス
- * データベースのusersテーブルにマッピングされます
- */
 @Entity
 @Table(name = "users",
        indexes = {
@@ -47,17 +42,19 @@ public class User {
 
     @Min(0)
     @Max(100)
-    @Column(name = "volume", nullable = false)
-    private int volume = 50;
-
     @Column(name = "language", nullable = false)
     private int language = 0;
 
-    @Column(name = "privacy", nullable = false)
-    private int privacy = 0;
+    @Column(name = "privacy")
+    private Integer privacy = 0;
 
+    // ▼▼▼ DBに合わせて2つのフラグを定義 ▼▼▼
     @Column(name = "subscribe_flag", nullable = false)
-    private boolean subscribeFlag = false;
+    private int subscribeFlag = 0; // 0:未契約, 1:契約中
+
+    @Column(name = "cancellation_flag", nullable = false)
+    private int cancellationFlag = 0; // 0:未解約, 1:解約済み
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
@@ -110,7 +107,7 @@ public class User {
         // userUuidは手動で設定する（フレンド申請用のユーザーID）
     }
 
-    // ====== getters / setters ======
+    // Getters / Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -129,17 +126,18 @@ public class User {
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
-    public int getVolume() { return volume; }
-    public void setVolume(int volume) { this.volume = volume; }
-
     public int getLanguage() { return language; }
     public void setLanguage(int language) { this.language = language; }
 
     public int getPrivacy() { return privacy; }
     public void setPrivacy(int privacy) { this.privacy = privacy; }
 
-    public boolean isSubscribeFlag() { return subscribeFlag; }
-    public void setSubscribeFlag(boolean subscribeFlag) { this.subscribeFlag = subscribeFlag; }
+    // Flags
+    public int getSubscribeFlag() { return subscribeFlag; }
+    public void setSubscribeFlag(int subscribeFlag) { this.subscribeFlag = subscribeFlag; }
+
+    public int getCancellationFlag() { return cancellationFlag; }
+    public void setCancellationFlag(int cancellationFlag) { this.cancellationFlag = cancellationFlag; }
 
     public LocalDateTime getAcceptedAt() { return acceptedAt; }
     public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }

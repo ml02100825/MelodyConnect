@@ -4,8 +4,6 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter_webapp/config/app_config.dart';
 
-/// プロフィールAPIサービス
-/// バックエンドのプロフィールエンドポイントとの通信を行います
 class ProfileApiService {
   String get baseUrl => '${AppConfig.apiBaseUrl}/api/profile';
 
@@ -66,26 +64,64 @@ class ProfileApiService {
     required int userId,
     required String accessToken,
   }) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/$userId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-      );
+    final response = await http.get(
+      Uri.parse('$baseUrl/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error'] ?? 'プロフィール取得に失敗しました');
-      }
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
-      }
-      throw Exception('ネットワークエラーが発生しました');
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    } else {
+      throw Exception('プロフィール取得失敗: ${response.statusCode}');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    required int userId,
+    required String username,
+    required String userUuid,
+    String? imageUrl,
+    required String accessToken,
+  }) async {
+    return _putRequest(
+      '$baseUrl/$userId',
+      accessToken,
+      {
+        'username': username,
+        'userUuid': userUuid,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+      },
+    );
+  }
+
+  // 音量更新メソッドは削除しました
+
+  Future<void> updatePrivacy(int userId, int privacy, String accessToken) async {
+    await _putRequest(
+      '$baseUrl/$userId/privacy',
+      accessToken,
+      {'privacy': privacy},
+    );
+  }
+
+  Future<Map<String, dynamic>> _putRequest(
+      String url, String token, Map<String, dynamic> body) async {
+    final response = await http.put(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    } else {
+      throw Exception('更新失敗: ${response.body}');
     }
   }
 }

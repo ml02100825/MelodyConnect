@@ -53,6 +53,9 @@ public class AuthService {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
+    private EmailChangeTokenRepository emailChangeTokenRepository;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     @Autowired
@@ -107,9 +110,11 @@ public class AuthService {
      * 共通処理: セッション作成とレスポンス生成
      */
     private AuthResponse createSessionAndResponse(User user, String userAgent, String ip) {
+        // トークンを生成
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
+        // セッションを作成
         String refreshHash = hashWithSHA256(refreshToken);
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(30);
         Session session = new Session(user, refreshHash, expiresAt, userAgent, ip);
@@ -142,6 +147,11 @@ public class AuthService {
         user.setMailaddress(request.getEmail());
         user.setPassword(passwordHash);
         user.setUsername("user_" + System.currentTimeMillis());
+
+        // サブスク初期状態設定
+        user.setSubscribeFlag(0);    // 未契約
+        user.setCancellationFlag(0); // 未解約
+
         user = userRepository.save(user);
 
         Integer currentSeason = seasonCalculator.getCurrentSeason();
@@ -166,14 +176,28 @@ public class AuthService {
             throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
         }
 
-        User user = userRepository.findByMailaddress(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません"));
+        // ユーザーを検索
+        Optional<User> userOpt = userRepository.findByMailaddress(request.getEmail());
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
+        }
+
+        User user = userOpt.get();
+        if (user.isDeleteFlag()) {
+            throw new IllegalArgumentException("そのアカウントは存在しません。");
+        }
+        if (user.isBanFlag()) {
+            throw new IllegalArgumentException("そのアカウントは停止されています。");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
         }
 
+        // 現在のシーズンを取得
         Integer currentSeason = seasonCalculator.getCurrentSeason();
+
+        // Rateレコードが存在しない場合作成
         if (!rateRepository.existsByUserAndSeason(user, currentSeason)) {
             Rate rate = new Rate(user, currentSeason);
             rateRepository.save(rate);
@@ -272,9 +296,19 @@ public class AuthService {
         if (user == null || user.getId() == null || !userRepository.existsById(user.getId())) {
             throw new IllegalArgumentException("ユーザーが見つかりません");
         }
-        // ★ご指定の実装を使用（SessionRepositoryへのメソッド追加が必要）
-        sessionRepository.revokeAllUserSessions(user); 
+        sessionRepository.revokeAllUserSessions(user);
         updateOfflineAtIfNoActiveSessions(user);
+    }
+
+    /**
+     * 退会処理
+     */
+    @Transactional
+    public void withdraw(User user) {
+        user.setDeleteFlag(true);
+        user.setOfflineAt(LocalDateTime.now());
+        sessionRepository.revokeAllUserSessions(user);
+        userRepository.save(user);
     }
 
     /**
@@ -398,7 +432,94 @@ public class AuthService {
         logout(user);
 
         passwordResetTokenRepository.delete(resetToken);
-        
+
         logger.info("パスワードリセット完了: UserID {}", user.getId());
+    }
+
+    /**
+     * メールアドレス変更要求（現在のメールアドレスにコード送信）
+     */
+    @Transactional
+    public void requestEmailChange(User user) {
+        // 既存のトークンをチェック
+        Optional<EmailChangeToken> existingTokenOpt = emailChangeTokenRepository.findByUser(user);
+
+        if (existingTokenOpt.isPresent()) {
+            EmailChangeToken existingToken = existingTokenOpt.get();
+            LocalDateTime now = LocalDateTime.now();
+
+            // トークンが有効期限内かつnewEmailが空の場合は再利用
+            if (existingToken.getExpiryDate().isAfter(now) &&
+                (existingToken.getNewEmail() == null || existingToken.getNewEmail().isEmpty())) {
+                logger.info("既にトークンが存在し有効期限内のため再利用します: UserID {}", user.getId());
+                return; // メールを再送信せず、正常終了
+            }
+
+            // 期限切れまたはnewEmailが設定済みの場合は削除
+            logger.info("既存トークンを削除して新しいトークンを作成します: UserID {}", user.getId());
+            emailChangeTokenRepository.deleteByUser(user);
+        }
+
+        // トークン生成（有効期限1時間）
+        String tokenStr = UUID.randomUUID().toString();
+        EmailChangeToken token = new EmailChangeToken(
+                tokenStr,
+                user,
+                LocalDateTime.now().plusHours(1),
+                "" // 新しいメールアドレスは後で設定
+        );
+        emailChangeTokenRepository.save(token);
+
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(user.getMailaddress());
+            message.setSubject("【MelodyConnect】メールアドレス変更");
+            message.setText(
+                    "メールアドレス変更のリクエストを受け付けました。\n" +
+                    "以下のコードをアプリに入力して、新しいメールアドレスを設定してください。\n\n" +
+                    "変更コード: " + tokenStr + "\n\n" +
+                    "※このコードの有効期限は1時間です。\n" +
+                    "※心当たりがない場合はこのメールを無視してください。"
+            );
+
+            mailSender.send(message);
+            logger.info("メールアドレス変更メール送信完了: {}", user.getMailaddress());
+
+        } catch (MailException e) {
+            logger.error("メール送信失敗: {}", e.getMessage(), e);
+            throw new RuntimeException("メールの送信に失敗しました。しばらく待ってから再試行してください。");
+        }
+    }
+
+    /**
+     * メールアドレス変更実行
+     */
+    @Transactional
+    public void confirmEmailChange(String tokenStr, String newEmail) {
+        EmailChangeToken token = emailChangeTokenRepository.findByToken(tokenStr)
+                .orElseThrow(() -> new IllegalArgumentException("無効な変更コードです"));
+
+        if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
+            emailChangeTokenRepository.delete(token);
+            throw new IllegalArgumentException("変更コードの有効期限が切れています");
+        }
+
+        // 新しいメールアドレスが既に使用されていないかチェック
+        Optional<User> existingUser = userRepository.findByMailaddress(newEmail);
+        if (existingUser.isPresent() && !existingUser.get().getId().equals(token.getUser().getId())) {
+            throw new IllegalArgumentException("このメールアドレスは既に使用されています");
+        }
+
+        User user = token.getUser();
+        user.setMailaddress(newEmail);
+        userRepository.save(user);
+
+        // 全セッションを無効化（セキュリティのため）
+        logout(user);
+
+        emailChangeTokenRepository.delete(token);
+
+        logger.info("メールアドレス変更完了: UserID {}, 新メール {}", user.getId(), newEmail);
     }
 }

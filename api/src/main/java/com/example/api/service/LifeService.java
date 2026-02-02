@@ -55,7 +55,8 @@ public class LifeService {
      * @return ライフ上限（通常:5, サブスク:10）
      */
     public int getMaxLife(User user) {
-        return user.isSubscribeFlag() ? MAX_LIFE_SUBSCRIBER : MAX_LIFE_NORMAL;
+        // [修正] subscribeFlagが1なら特典適用 (解約済みでも期限内なら1なのでOK)
+        return (user.getSubscribeFlag() == 1) ? MAX_LIFE_SUBSCRIBER : MAX_LIFE_NORMAL;
     }
 
     /**
@@ -74,11 +75,14 @@ public class LifeService {
         int maxLife = getMaxLife(user);
         long nextRecoveryInSeconds = calculateNextRecoveryInSeconds(user, maxLife);
 
+        // [修正] プレミアム判定
+        boolean isPremium = (user.getSubscribeFlag() == 1);
+
         return new LifeStatusResponse(
                 user.getLife(),
                 maxLife,
                 nextRecoveryInSeconds,
-                user.isSubscribeFlag()
+                isPremium
         );
     }
 
@@ -105,7 +109,6 @@ public class LifeService {
         }
 
         // 原子的にライフを消費
-        LocalDateTime now = LocalDateTime.now();
         int updatedRows = userRepository.consumeLife(userId, user.getLifeLastRecoveredAt());
 
         if (updatedRows == 0) {
@@ -179,11 +182,14 @@ public class LifeService {
         int maxLife = getMaxLife(user);
         long nextRecoveryInSeconds = calculateNextRecoveryInSeconds(user, maxLife);
 
+        // [修正] プレミアム判定
+        boolean isPremium = (user.getSubscribeFlag() == 1);
+
         return new LifeStatusResponse(
                 user.getLife(),
                 maxLife,
                 nextRecoveryInSeconds,
-                user.isSubscribeFlag()
+                isPremium
         );
     }
 
@@ -248,9 +254,9 @@ public class LifeService {
 
         LocalDateTime now = LocalDateTime.now();
         long elapsedSeconds = Duration.between(lastRecoveredAt, now).getSeconds();
-        long remainingSeconds = RECOVERY_INTERVAL_SECONDS - (elapsedSeconds % RECOVERY_INTERVAL_SECONDS);
-
-        return remainingSeconds;
+        
+        long remaining = RECOVERY_INTERVAL_SECONDS - (elapsedSeconds % RECOVERY_INTERVAL_SECONDS);
+        return Math.max(0, remaining);
     }
 
     /**
