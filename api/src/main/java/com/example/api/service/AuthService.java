@@ -435,8 +435,24 @@ public class AuthService {
      */
     @Transactional
     public void requestEmailChange(User user) {
-        // 既存のトークンを削除
-        emailChangeTokenRepository.deleteByUser(user);
+        // 既存のトークンをチェック
+        Optional<EmailChangeToken> existingTokenOpt = emailChangeTokenRepository.findByUser(user);
+
+        if (existingTokenOpt.isPresent()) {
+            EmailChangeToken existingToken = existingTokenOpt.get();
+            LocalDateTime now = LocalDateTime.now();
+
+            // トークンが有効期限内かつnewEmailが空の場合は再利用
+            if (existingToken.getExpiryDate().isAfter(now) &&
+                (existingToken.getNewEmail() == null || existingToken.getNewEmail().isEmpty())) {
+                logger.info("既にトークンが存在し有効期限内のため再利用します: UserID {}", user.getId());
+                return; // メールを再送信せず、正常終了
+            }
+
+            // 期限切れまたはnewEmailが設定済みの場合は削除
+            logger.info("既存トークンを削除して新しいトークンを作成します: UserID {}", user.getId());
+            emailChangeTokenRepository.deleteByUser(user);
+        }
 
         // トークン生成（有効期限1時間）
         String tokenStr = UUID.randomUUID().toString();

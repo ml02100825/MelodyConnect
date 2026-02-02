@@ -96,6 +96,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/contacts").authenticated()
                         .requestMatchers("/api/auth/request-password-reset").permitAll() // リクエスト送信を許可
                         .requestMatchers("/api/auth/reset-password").permitAll()
+                        .requestMatchers("/api/auth/confirm-email-change").permitAll() // メール変更確認を許可
                         // 管理者認証エンドポイント（認証不要）
                         .requestMatchers("/api/admin/auth/login").permitAll()
                         .requestMatchers("/api/admin/auth/refresh").permitAll()

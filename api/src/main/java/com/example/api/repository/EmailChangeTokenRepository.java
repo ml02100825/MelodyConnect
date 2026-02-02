@@ -22,6 +22,11 @@ public interface EmailChangeTokenRepository extends JpaRepository<EmailChangeTok
     Optional<EmailChangeToken> findByToken(String token);
 
     /**
+     * 特定ユーザーのメールアドレス変更トークンを検索
+     */
+    Optional<EmailChangeToken> findByUser(User user);
+
+    /**
      * 特定ユーザーのメールアドレス変更トークンを削除
      */
     void deleteByUser(User user);

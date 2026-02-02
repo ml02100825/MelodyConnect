@@ -34,13 +34,15 @@ public class AuthController {
 
     // 依存性をfinalにして不変性を保証
     private final AuthService authService;
+    private final com.example.api.repository.UserRepository userRepository;
 
     /**
      * コンストラクタインジェクション
-     * Springが起動時に自動的にAuthServiceを注入します
+     * Springが起動時に自動的にAuthServiceとUserRepositoryを注入します
      */
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, com.example.api.repository.UserRepository userRepository) {
         this.authService = authService;
+        this.userRepository = userRepository;
     }
 
     /**
@@ -191,16 +193,20 @@ public class AuthController {
     /**
      * メールアドレス変更要求エンドポイント
      * 現在のメールアドレスに変更コードを送信します。
-     * @param user 認証済みユーザー
+     * @param userId 認証済みユーザーID
      * @return 送信完了メッセージ
      */
     @PostMapping("/request-email-change")
-    public ResponseEntity<?> requestEmailChange(@AuthenticationPrincipal User user) {
+    public ResponseEntity<?> requestEmailChange(@AuthenticationPrincipal Long userId) {
         try {
-            if (user == null) {
+            if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(createErrorResponse("認証が必要です"));
             }
+
+            // データベースからUserエンティティを取得
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
 
             logger.info("メールアドレス変更要求受信: UserID {}", user.getId());
             authService.requestEmailChange(user);
@@ -208,6 +214,9 @@ public class AuthController {
             Map<String, String> response = new HashMap<>();
             response.put("message", "現在のメールアドレスに変更コードを送信しました");
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
             logger.error("メールアドレス変更要求エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -239,9 +248,27 @@ public class AuthController {
     }
 
     @PostMapping("/withdraw")
-    public ResponseEntity<?> withdraw(@AuthenticationPrincipal User user) {
-        authService.withdraw(user);
-        return ResponseEntity.ok(Map.of("message", "退会しました"));
+    public ResponseEntity<?> withdraw(@AuthenticationPrincipal Long userId) {
+        try {
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("認証が必要です"));
+            }
+
+            // データベースからUserエンティティを取得
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+
+            authService.withdraw(user);
+            return ResponseEntity.ok(Map.of("message", "退会しました"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("退会処理エラー", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("退会処理中にエラーが発生しました"));
+        }
     }
 
     /**
