@@ -186,14 +186,13 @@ class AuthApiService {
 
   /// 退会(アカウント削除)
   ///
-  /// [userId] - ユーザーID
   /// [accessToken] - アクセストークン
   ///
   /// 成功した場合はtrue、失敗した場合は例外をスロー
-  Future<bool> withdraw(int userId, String accessToken) async {
+  Future<bool> withdraw(String accessToken) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/withdraw/$userId'),
+      final response = await http.post(
+        Uri.parse('$baseUrl/withdraw'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
