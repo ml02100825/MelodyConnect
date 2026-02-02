@@ -120,10 +120,10 @@ class _OtherScreenState extends State<OtherScreen> {
         throw Exception('認証情報またはユーザーIDが見つかりません');
       }
 
-      // 2. サーバーへ退会リクエスト（URLにIDを含める + DELETEメソッド）
-      final url = Uri.parse('$_baseUrl/api/auth/withdraw/$userId'); 
-      
-      final response = await http.delete( // POST -> DELETE に変更
+      // 2. サーバーへ退会リクエスト（POSTメソッド、IDはトークンから取得される）
+      final url = Uri.parse('$_baseUrl/api/auth/withdraw');
+
+      final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',

@@ -183,6 +183,12 @@ public class AuthService {
         }
 
         User user = userOpt.get();
+        if (user.isDeleteFlag()) {
+            throw new IllegalArgumentException("そのアカウントは存在しません。");
+        }
+        if (user.isBanFlag()) {
+            throw new IllegalArgumentException("そのアカウントは停止されています。");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("メールアドレスまたはパスワードが正しくありません");
