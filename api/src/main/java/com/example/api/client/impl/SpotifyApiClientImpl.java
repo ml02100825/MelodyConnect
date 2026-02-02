@@ -712,6 +712,7 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
                     e.getRawStatusCode(),
                     e.getResponseBodyAsString());
                 if (e.getStatusCode().value() == 400) {
+                    requestCount++;
                     continue;
                 }
                 throw e;
