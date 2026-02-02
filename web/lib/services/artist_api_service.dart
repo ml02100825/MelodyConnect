@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 
 /// アーティスト検索結果モデル
 class SpotifyArtist {
@@ -45,8 +46,7 @@ class SpotifyArtist {
 class ArtistApiService {
   final String baseUrl;
 
-  // 環境に合わせて変更 (Androidエミュレーターなら 'http://10.0.2.2:8080')
-  ArtistApiService({this.baseUrl = 'http://localhost:8080'});
+  ArtistApiService({String? baseUrl}) : baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
 
   /// ジャンル一覧を取得
   Future<List<Map<String, dynamic>>> getGenres(String accessToken) async {

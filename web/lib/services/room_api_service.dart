@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 
 /// ルームマッチAPI サービス
 class RoomApiService {
-  static const String baseUrl = 'http://localhost:8080/api/rooms';
+  String get baseUrl => '${AppConfig.apiBaseUrl}/api/rooms';
 
   /// 部屋を作成
   Future<Map<String, dynamic>> createRoom({

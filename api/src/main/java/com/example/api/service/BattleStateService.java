@@ -657,6 +657,25 @@ public class BattleStateService {
     }
 
     /**
+     * 回答フェーズでタイムアウトしている試合を取得
+     * roundStartTimeが設定されており、90秒以上経過し、
+     * かつroundResultStartTimeがnull（まだラウンド処理されていない）の試合
+     */
+    public List<String> getTimedOutAnswerPhaseMatches() {
+        List<String> timedOutMatches = new ArrayList<>();
+        for (Map.Entry<String, BattleState> entry : activeBattles.entrySet()) {
+            BattleState state = entry.getValue();
+            if (state.getStatus() == Status.IN_PROGRESS &&
+                state.getRoundStartTime() != null &&
+                state.getRoundResultStartTime() == null &&
+                isRoundTimedOut(entry.getKey())) {
+                timedOutMatches.add(entry.getKey());
+            }
+        }
+        return timedOutMatches;
+    }
+
+    /**
      * ラウンドがタイムアウトしているかチェック
      */
     public boolean isRoundTimedOut(String matchUuid) {

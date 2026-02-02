@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_webapp/config/app_config.dart';
 import '../bottom_nav.dart'; // 必要に応じてパスを調整してください
 import '../services/token_storage_service.dart';
 
@@ -108,8 +109,8 @@ class _BadgeScreenState extends State<BadgeScreen> {
   List<BadgeModel> badgeList = [];
   bool isLoading = true;
 
-  // サーバーURL（環境に合わせて変更してください）
-  final String _baseUrl = 'http://localhost:8080';
+  // サーバーURL（assets/config.jsonから読み込み）
+  String get _baseUrl => AppConfig.apiBaseUrl;
   final TokenStorageService _tokenStorage = TokenStorageService();
   int? _currentUserId;
   String? _authToken;

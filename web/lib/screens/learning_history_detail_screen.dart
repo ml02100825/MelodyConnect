@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/history_models.dart';
 import '../services/history_api_service.dart';
 import '../services/token_storage_service.dart';
+import 'report_screen.dart';
 
 /// 学習履歴詳細画面
 class LearningHistoryDetailScreen extends StatefulWidget {
@@ -23,6 +24,8 @@ class _LearningHistoryDetailScreenState extends State<LearningHistoryDetailScree
   LearningHistoryDetail? _detail;
   bool _isLoading = true;
   String? _errorMessage;
+  int? _userId;
+  String? _userName;
 
   @override
   void initState() {
@@ -42,9 +45,15 @@ class _LearningHistoryDetailScreenState extends State<LearningHistoryDetailScree
         return;
       }
 
+      // ユーザー情報を取得
+      final userId = await _tokenStorage.getUserId();
+      final userName = await _tokenStorage.getUsername();
+
       final detail = await _apiService.getLearningHistoryDetail(widget.historyId, token);
       setState(() {
         _detail = detail;
+        _userId = userId;
+        _userName = userName;
         _isLoading = false;
       });
     } catch (e) {
@@ -271,6 +280,28 @@ class _LearningHistoryDetailScreenState extends State<LearningHistoryDetailScree
               ),
             ),
           ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(
+            Icons.flag,
+            color: Colors.red,
+          ),
+          onPressed: question.questionId != null && _userId != null
+              ? () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ReportScreen(
+                        reportType: 'QUESTION',
+                        targetId: question.questionId!,
+                        targetDisplayText: question.questionText,
+                        userName: _userName ?? 'User',
+                        userId: _userId!,
+                      ),
+                    ),
+                  );
+                }
+              : null,
         ),
         children: [
           Padding(
