@@ -19,13 +19,35 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 @Service
 public class ArtistService {
 
     private static final Logger logger = LoggerFactory.getLogger(ArtistService.class);
+
+    // ジャンル判定用のキーワードマッピング
+    // LinkedHashMapを使用することで挿入順序（優先順位）を保証します
+    private static final Map<String, List<String>> GENRE_MAPPINGS = new LinkedHashMap<>();
+
+    static {
+        GENRE_MAPPINGS.put("Rock", List.of("rock", "punk", "metal", "grunge"));
+        GENRE_MAPPINGS.put("Hip Hop", List.of("hip hop", "rap", "trap", "drill"));
+        GENRE_MAPPINGS.put("Jazz", List.of("jazz", "blues"));
+        GENRE_MAPPINGS.put("R&B", List.of("r&b", "soul", "funk"));
+        GENRE_MAPPINGS.put("Electronic", List.of("electronic", "dance", "techno", "house", "edm"));
+        GENRE_MAPPINGS.put("Reggae", List.of("reggae", "ska"));
+        GENRE_MAPPINGS.put("Latin", List.of("latin", "reggaeton"));
+        GENRE_MAPPINGS.put("Classical", List.of("classic", "orchestra"));
+        GENRE_MAPPINGS.put("Country", List.of("folk", "acoustic", "country"));
+        GENRE_MAPPINGS.put("Anime", List.of("anime", "game", "soundtrack"));
+        GENRE_MAPPINGS.put("K-Pop", List.of("k-pop"));
+        GENRE_MAPPINGS.put("J-Pop", List.of("j-pop"));
+        // Popは他のジャンルに含まれやすいので、判定順序を最後にします
+        GENRE_MAPPINGS.put("Pop", List.of("pop", "indie"));
+    }
 
     @Autowired
     private SpotifyApiClient spotifyApiClient;
@@ -54,11 +76,9 @@ public class ArtistService {
         List<LikeArtist> savedArtists = new ArrayList<>();
 
         for (LikeArtistRequest.ArtistInfo artistInfo : request.getArtists()) {
-            // アーティストが既に存在するか確認
             Artist artist = artistRepository.findByArtistApiId(artistInfo.getSpotifyId())
                 .orElseGet(() -> createArtist(artistInfo));
 
-            // お気に入り登録がまだなら登録
             if (likeArtistRepository.findByUserIdAndArtistId(userId, artist.getArtistId()).isEmpty()) {
                 LikeArtist likeArtist = new LikeArtist();
                 likeArtist.setUser(user);
@@ -70,143 +90,97 @@ public class ArtistService {
         user.setInitialSetupCompleted(true);
         userRepository.save(user);
 
-        logger.info("お気に入りアーティストを登録しました: userId={}, count={}", userId, savedArtists.size());
+        logger.info("お気に入りアーティスト登録完了: userId={}, count={}", userId, savedArtists.size());
     }
 
     private Artist createArtist(LikeArtistRequest.ArtistInfo artistInfo) {
-        // 1. ジャンルIDを特定（なければ自動作成）
+        // ジャンルIDを特定（なければ自動作成）
         Long genreId = determineGenreId(artistInfo.getGenre());
-
-        LocalDateTime now = LocalDateTime.now();
-
-        // 2. artistテーブルへINSERT
-        artistRepository.insertArtistWithGenre(
-                artistInfo.getName(),
-                artistInfo.getSpotifyId(),
-                artistInfo.getImageUrl(),
-                now,
-                now,
-                true,
-                false,
-                genreId
-        );
-
-        // 3. ID取得
-        Artist savedArtist = artistRepository.findByArtistApiId(artistInfo.getSpotifyId())
-                .orElseThrow(() -> new RuntimeException("アーティストの作成に失敗しました"));
-
-        // 4. artist_genreテーブルへINSERT
-        artistRepository.insertArtistGenre(savedArtist.getArtistId(), genreId, now);
         
-        logger.info("アーティスト登録完了: name={}, genreId={}, originalGenre={}", 
-            artistInfo.getName(), genreId, artistInfo.getGenre());
+        // IDからジャンルエンティティを取得
+        Genre genre = genreRepository.findById(genreId)
+                .orElseThrow(() -> new RuntimeException("ジャンルが見つかりません: ID=" + genreId));
+
+        // Artistエンティティ作成
+        Artist newArtist = new Artist();
+        newArtist.setArtistName(artistInfo.getName());
+        newArtist.setArtistApiId(artistInfo.getSpotifyId());
+        newArtist.setImageUrl(artistInfo.getImageUrl());
+        newArtist.setGenre(genre); // ジャンルをセット
+        newArtist.setIsActive(true);
+        newArtist.setIsDeleted(false);
+        
+        // save()を実行すると自動的にIDが採番され、newArtistオブジェクトにセットされる
+        Artist savedArtist = artistRepository.save(newArtist);
+
+        // 中間テーブルへの保存
+        artistRepository.insertArtistGenre(savedArtist.getArtistId(), genreId, LocalDateTime.now());
+        
+        logger.info("新規アーティスト作成: name={}, genre={}", artistInfo.getName(), genre.getName());
 
         return savedArtist;
     }
 
     /**
      * ジャンルIDを決定するロジック
+     * 既存のジャンルになければ新規作成する
      */
     private Long determineGenreId(String genreName) {
-        // ジャンル名が空の場合は、Spotifyが情報をくれなかったということなので 'other' (または未分類) を作成して割り当て
-        if (genreName == null || genreName.isEmpty()) {
+        if (genreName == null || genreName.trim().isEmpty()) {
             return findGenreIdByNameOrAutoCreate("other");
         }
 
         String lowerName = genreName.toLowerCase();
 
-        // --- キーワードマッチング ---
-        // ヒットしたら、その「親ジャンル名」でDBを探し、なければ作る
-        if (lowerName.contains("rock") || lowerName.contains("punk") || lowerName.contains("metal") || lowerName.contains("grunge")) 
-            return findGenreIdByNameOrAutoCreate("Rock");
-            
-        if (lowerName.contains("hip hop") || lowerName.contains("rap") || lowerName.contains("trap") || lowerName.contains("drill")) 
-            return findGenreIdByNameOrAutoCreate("Hip Hop");
-            
-        if (lowerName.contains("jazz") || lowerName.contains("blues")) 
-            return findGenreIdByNameOrAutoCreate("Jazz");
-            
-        if (lowerName.contains("r&b") || lowerName.contains("soul") || lowerName.contains("funk")) 
-            return findGenreIdByNameOrAutoCreate("R&B");
-            
-        if (lowerName.contains("electronic") || lowerName.contains("dance") || lowerName.contains("techno") || lowerName.contains("house") || lowerName.contains("edm")) 
-            return findGenreIdByNameOrAutoCreate("Electronic");
-            
-        if (lowerName.contains("reggae") || lowerName.contains("ska")) 
-            return findGenreIdByNameOrAutoCreate("Reggae");
-            
-        if (lowerName.contains("latin") || lowerName.contains("reggaeton")) 
-            return findGenreIdByNameOrAutoCreate("Latin");
-            
-        if (lowerName.contains("classic") || lowerName.contains("orchestra")) 
-            return findGenreIdByNameOrAutoCreate("Classical");
-            
-        if (lowerName.contains("folk") || lowerName.contains("acoustic") || lowerName.contains("country")) 
-            return findGenreIdByNameOrAutoCreate("Country");
-            
-        if (lowerName.contains("anime") || lowerName.contains("game") || lowerName.contains("soundtrack")) 
-            return findGenreIdByNameOrAutoCreate("Anime");
-            
-        if (lowerName.contains("k-pop")) 
-            return findGenreIdByNameOrAutoCreate("K-Pop");
-            
-        if (lowerName.contains("j-pop")) 
-            return findGenreIdByNameOrAutoCreate("J-Pop");
-            
-        // Popは他のジャンルに含まれやすいので最後に判定
-        if (lowerName.contains("pop") || lowerName.contains("indie")) 
-            return findGenreIdByNameOrAutoCreate("Pop");
+        // 定義されたキーワードと照合
+        for (Map.Entry<String, List<String>> entry : GENRE_MAPPINGS.entrySet()) {
+            String parentGenre = entry.getKey();
+            List<String> keywords = entry.getValue();
 
-        // --- キーワードに当てはまらない場合 ---
-        // そのままの名前で登録（例: "Bossa Nova" など）
+            // キーワードのいずれかが含まれていれば、その親ジャンルを採用
+            for (String keyword : keywords) {
+                if (lowerName.contains(keyword)) {
+                    return findGenreIdByNameOrAutoCreate(parentGenre);
+                }
+            }
+        }
+
+        // 当てはまらない場合は、そのジャンル名で作成または取得
         return findGenreIdByNameOrAutoCreate(genreName);
     }
 
     /**
-     * ★修正ポイント: 名前で検索し、なければ「Other」ではなく「新規作成」する
+     * 指定されたジャンル名で検索し、存在しなければ新規作成してIDを返す
      */
     private Long findGenreIdByNameOrAutoCreate(String targetName) {
-        // 大文字小文字の違いによる重複を防ぐため、一旦全部小文字などで検索するか、
-        // DBに正しい表記（例: Rock）があるか確認する
-        
-        Optional<Genre> existingGenre = genreRepository.findByName(targetName);
-        if (existingGenre.isPresent()) {
-            return existingGenre.get().getId();
-        }
-
-        // DBにないので新規作成する
-        return createNewGenre(targetName);
+        return genreRepository.findByName(targetName)
+                // ★修正: getId() -> getGenreId()
+                .map(Genre::getGenreId)
+                .orElseGet(() -> createNewGenre(targetName));
     }
 
     /**
      * 新しいジャンルをDBに作成してIDを返す
      */
     private Long createNewGenre(String name) {
-        try {
-            // 名前が空文字の場合は "other" に置き換え
-            String safeName = (name == null || name.trim().isEmpty()) ? "other" : name;
+        String safeName = (name == null || name.trim().isEmpty()) ? "other" : name;
 
-            // 念のため再チェック（同時アクセスなどで作られている可能性があるため）
-            return genreRepository.findByName(safeName)
-                    .map(Genre::getId)
-                    .orElseGet(() -> {
-                        Genre newGenre = new Genre();
-                        newGenre.setName(safeName);
-                        // 先頭を大文字にするなどの整形はお好みで
-                        // newGenre.setName(StringUtils.capitalize(safeName)); 
-                        newGenre.setIsActive(true);
-                        newGenre.setIsDeleted(false);
-                        newGenre.setCreatedAt(LocalDateTime.now());
-                        
-                        Genre saved = genreRepository.save(newGenre);
-                        logger.info("ジャンルを自動作成しました: id={}, name={}", saved.getId(), saved.getName());
-                        return saved.getId();
-                    });
-        } catch (Exception e) {
-            logger.error("ジャンル作成中にエラーが発生: {}", name, e);
-            // 本当にどうしようもない時だけ 1 を返す（通常ここには来ないはず）
-            return 1L; 
-        }
+        // DBに存在するか確認し、なければ作成する
+        return genreRepository.findByName(safeName)
+                // ★修正: getId() -> getGenreId()
+                .map(Genre::getGenreId)
+                .orElseGet(() -> {
+                    Genre newGenre = new Genre();
+                    newGenre.setName(safeName);
+                    newGenre.setIsActive(true);
+                    newGenre.setIsDeleted(false);
+                    newGenre.setCreatedAt(LocalDateTime.now());
+                    
+                    Genre saved = genreRepository.save(newGenre);
+                    // ★修正: getId() -> getGenreId()
+                    logger.info("ジャンル自動作成: id={}, name={}", saved.getGenreId(), saved.getName());
+                    return saved.getGenreId();
+                });
     }
 
     public List<Artist> getLikeArtists(Long userId) {

@@ -32,8 +32,10 @@ public class AdminGenreService {
     public AdminGenreResponse.ListResponse getGenres(
             int page, int size, String idSearch, String name, Boolean isActive,
             LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
+        
         Sort.Direction direction = parseSortDirection(sortDirection);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "id"));
+        // ★修正: ソート対象のカラム名を "id" から "genreId" に変更
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "genreId"));
 
         Specification<Genre> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -43,7 +45,8 @@ public class AdminGenreService {
                 predicates.add(cb.like(root.get("name"), "%" + name + "%"));
             }
             if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.equal(root.get("id").as(String.class), idSearch));
+                // ★修正: 検索条件のフィールド名を "id" から "genreId" に変更
+                predicates.add(cb.equal(root.get("genreId").as(String.class), idSearch));
             }
             if (isActive != null) {
                 predicates.add(cb.equal(root.get("isActive"), isActive));
@@ -79,7 +82,9 @@ public class AdminGenreService {
         genre.setName(request.getName());
         genre.setIsActive(request.getIsActive());
         genre = genreRepository.save(genre);
-        logger.info("ジャンル作成: {}", genre.getId());
+        
+        // ★修正: getId() -> getGenreId()
+        logger.info("ジャンル作成: {}", genre.getGenreId());
         return toResponse(genre);
     }
 
@@ -131,7 +136,8 @@ public class AdminGenreService {
 
     private AdminGenreResponse toResponse(Genre genre) {
         AdminGenreResponse response = new AdminGenreResponse();
-        response.setId(genre.getId());
+        // ★修正: getId() -> getGenreId()
+        response.setId(genre.getGenreId());
         response.setName(genre.getName());
         response.setIsActive(genre.getIsActive());
         response.setCreatedAt(genre.getCreatedAt());

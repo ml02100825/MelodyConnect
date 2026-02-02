@@ -87,7 +87,10 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
       if (mounted) {
         setState(() {
           _availableGenres = genresData.map((data) {
-            final id = data['genreId'] ?? data['id'] ?? 0;
+            // ★修正: バックエンドのフィールド名変更に合わせて 'genreId' を取得
+            // 以前の曖昧な処理 (data['genreId'] ?? data['id']) を廃止し明確化
+            final id = data['genreId'] as int? ?? 0;
+            
             final name = data['name'] as String? ?? 'Unknown';
             return GenreInfo(
               id: id,
@@ -140,11 +143,10 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
     return term;
   }
 
-  /// ★修正: 'genre:' を付けずにキーワード検索を実行するように変更
+  /// ジャンルタップ時の検索処理
   void _onGenreTap(GenreInfo genre) {
     String searchTerm = _convertToSpotifySearchTerm(genre.name);
 
-    // スペースを含む場合などはダブルクォートで囲むと、一塊のフレーズとして検索されやすくなります
     if (searchTerm.contains(' ')) {
       _searchController.text = '"$searchTerm"';
     } else {
@@ -153,7 +155,6 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
 
     _searchFocusNode.requestFocus();
     
-    // テキストボックスの値をそのまま使って検索
     _searchArtists();
   }
 

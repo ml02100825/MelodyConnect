@@ -34,7 +34,6 @@ public class Artist {
     @Column(name = "artist_name", length = 50)
     private String artistName;
 
-
     /**
      * 画像URL
      */
@@ -48,20 +47,26 @@ public class Artist {
     private LocalDateTime createdAt;
 
     /**
+     * 更新日時
+     */
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    /**
      * アーティストAPIID
      * SpotifyAPIで使用されるID
      */
     @Column(name = "artist_api_id", length = 50)
     private String artistApiId;
 
-        /**
+    /**
      * アーティストの楽曲を最後に同期した日時
      * nullの場合は未同期
      */
     @Column(name = "last_synced_at")
     private LocalDateTime lastSyncedAt;
 
-      /**
+    /**
      * 有効フラグ
      */
     @Column(name = "is_active", nullable = false)
@@ -74,13 +79,28 @@ public class Artist {
     private Boolean isDeleted = false;
 
     /**
+     * メインジャンルID
+     * Artistテーブルのgenre_idカラムとマッピング
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "genre_id")
+    private Genre genre;
+
     /**
-     * エンティティ保存前に自動的に追加日時を設定
+     * エンティティ保存前に自動的に日時を設定
      */
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        if (updatedAt == null) {
+            updatedAt = LocalDateTime.now();
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }
