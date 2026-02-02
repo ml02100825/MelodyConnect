@@ -1,6 +1,7 @@
 package com.example.api.controller;
 
 import com.example.api.dto.AuthResponse;
+import com.example.api.dto.ConfirmEmailChangeRequest;
 import com.example.api.dto.LoginRequest;
 import com.example.api.dto.RefreshTokenRequest;
 import com.example.api.dto.RegisterRequest;
@@ -184,6 +185,56 @@ public class AuthController {
             logger.error("パスワード更新エラー", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("パスワード更新中にエラーが発生しました"));
+        }
+    }
+
+    /**
+     * メールアドレス変更要求エンドポイント
+     * 現在のメールアドレスに変更コードを送信します。
+     * @param user 認証済みユーザー
+     * @return 送信完了メッセージ
+     */
+    @PostMapping("/request-email-change")
+    public ResponseEntity<?> requestEmailChange(@AuthenticationPrincipal User user) {
+        try {
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("認証が必要です"));
+            }
+
+            logger.info("メールアドレス変更要求受信: UserID {}", user.getId());
+            authService.requestEmailChange(user);
+
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "現在のメールアドレスに変更コードを送信しました");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("メールアドレス変更要求エラー", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("処理中にエラーが発生しました"));
+        }
+    }
+
+    /**
+     * メールアドレス変更実行エンドポイント
+     * 変更コードと新しいメールアドレスを受け取り、メールアドレスを更新します。
+     * @param request トークンと新メールアドレスを含むリクエスト
+     * @return 更新完了メッセージ
+     */
+    @PostMapping("/confirm-email-change")
+    public ResponseEntity<?> confirmEmailChange(@Valid @RequestBody ConfirmEmailChangeRequest request) {
+        try {
+            authService.confirmEmailChange(request.getToken(), request.getNewEmail());
+
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "メールアドレスを更新しました。新しいメールアドレスでログインしてください。");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("メールアドレス変更エラー", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("メールアドレス変更中にエラーが発生しました"));
         }
     }
 

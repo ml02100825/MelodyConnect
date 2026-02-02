@@ -53,6 +53,9 @@ public class AuthService {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
+    private EmailChangeTokenRepository emailChangeTokenRepository;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     @Autowired
@@ -423,7 +426,78 @@ public class AuthService {
         logout(user);
 
         passwordResetTokenRepository.delete(resetToken);
-        
+
         logger.info("パスワードリセット完了: UserID {}", user.getId());
+    }
+
+    /**
+     * メールアドレス変更要求（現在のメールアドレスにコード送信）
+     */
+    @Transactional
+    public void requestEmailChange(User user) {
+        // 既存のトークンを削除
+        emailChangeTokenRepository.deleteByUser(user);
+
+        // トークン生成（有効期限1時間）
+        String tokenStr = UUID.randomUUID().toString();
+        EmailChangeToken token = new EmailChangeToken(
+                tokenStr,
+                user,
+                LocalDateTime.now().plusHours(1),
+                "" // 新しいメールアドレスは後で設定
+        );
+        emailChangeTokenRepository.save(token);
+
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(user.getMailaddress());
+            message.setSubject("【MelodyConnect】メールアドレス変更");
+            message.setText(
+                    "メールアドレス変更のリクエストを受け付けました。\n" +
+                    "以下のコードをアプリに入力して、新しいメールアドレスを設定してください。\n\n" +
+                    "変更コード: " + tokenStr + "\n\n" +
+                    "※このコードの有効期限は1時間です。\n" +
+                    "※心当たりがない場合はこのメールを無視してください。"
+            );
+
+            mailSender.send(message);
+            logger.info("メールアドレス変更メール送信完了: {}", user.getMailaddress());
+
+        } catch (MailException e) {
+            logger.error("メール送信失敗: {}", e.getMessage(), e);
+            throw new RuntimeException("メールの送信に失敗しました。しばらく待ってから再試行してください。");
+        }
+    }
+
+    /**
+     * メールアドレス変更実行
+     */
+    @Transactional
+    public void confirmEmailChange(String tokenStr, String newEmail) {
+        EmailChangeToken token = emailChangeTokenRepository.findByToken(tokenStr)
+                .orElseThrow(() -> new IllegalArgumentException("無効な変更コードです"));
+
+        if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
+            emailChangeTokenRepository.delete(token);
+            throw new IllegalArgumentException("変更コードの有効期限が切れています");
+        }
+
+        // 新しいメールアドレスが既に使用されていないかチェック
+        Optional<User> existingUser = userRepository.findByMailaddress(newEmail);
+        if (existingUser.isPresent() && !existingUser.get().getId().equals(token.getUser().getId())) {
+            throw new IllegalArgumentException("このメールアドレスは既に使用されています");
+        }
+
+        User user = token.getUser();
+        user.setMailaddress(newEmail);
+        userRepository.save(user);
+
+        // 全セッションを無効化（セキュリティのため）
+        logout(user);
+
+        emailChangeTokenRepository.delete(token);
+
+        logger.info("メールアドレス変更完了: UserID {}, 新メール {}", user.getId(), newEmail);
     }
 }

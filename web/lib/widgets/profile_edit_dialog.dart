@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../services/s3_image_upload_service.dart';
 import 'package:image_picker/image_picker.dart';
 /// ========================================
 /// プロフィール編集ダイアログ
@@ -64,10 +65,43 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
   }
 
   /// ========================================
+  /// 画像を選択
+  /// ========================================
+  /// ImagePickerを使用してギャラリーから画像を選択します。
+  /// ========================================
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        setState(() {
+          _selectedImageFile = pickedFile;
+          _imageBytes = bytes;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('画像の選択に失敗しました: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// ========================================
   /// プロフィールを更新
   /// ========================================
   /// ProfileApiServiceを使用してバックエンドに
   /// プロフィール更新リクエストを送信します。
+  /// 画像がある場合は先にS3にアップロードします。
   /// ========================================
   Future<void> _submitProfile() async {
     if (!_formKey.currentState!.validate()) {
@@ -86,14 +120,24 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
         throw Exception('認証情報が見つかりません');
       }
 
-      await _profileApiService.updateProfileMultipart(
-      userId: userId,
-      username: _usernameController.text.trim(),
-      userUuid: _userUuidController.text.trim(),
-      imageBytes: _imageBytes,
-      filename: _selectedImageFile?.name,
-      accessToken: accessToken,
-    );
+      String? imageUrl = widget.currentImageUrl; // 既存のURLを保持
+
+      // 画像が選択されている場合は先にS3にアップロード
+      if (_imageBytes != null && _selectedImageFile != null) {
+        imageUrl = await S3ImageUploadService().uploadImage(
+          imageBytes: _imageBytes!,
+          filename: _selectedImageFile!.name,
+        );
+      }
+
+      // プロフィール更新API呼び出し（JSONリクエスト）
+      await _profileApiService.updateProfile(
+        userId: userId,
+        username: _usernameController.text.trim(),
+        userUuid: _userUuidController.text.trim(),
+        imageUrl: imageUrl,
+        accessToken: accessToken,
+      );
 
       // TokenStorageのユーザー名も更新
       await _tokenStorage.saveUsername(_usernameController.text.trim());
@@ -111,9 +155,11 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
         );
       }
     } finally {
-      setState(() {
-        _isSubmitting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
@@ -150,24 +196,65 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
               const SizedBox(height: 24),
 
               // ========================================
-              // アイコンプレビュー
+              // アイコン画像選択
               // ========================================
               Center(
                 child: Column(
                   children: [
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundColor: Colors.grey[200],
-                      backgroundImage: _imageUrlController.text.isNotEmpty
-                          ? NetworkImage(_imageUrlController.text)
-                          : null,
-                      child: _imageUrlController.text.isEmpty
-                          ? const Icon(Icons.person, size: 50, color: Colors.grey)
-                          : null,
+                    GestureDetector(
+                      onTap: _isSubmitting ? null : _pickImage,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _imageBytes != null ? Colors.blue : Colors.grey,
+                            width: 3,
+                          ),
+                        ),
+                        child: _imageBytes != null
+                            ? ClipOval(
+                                child: Image.memory(
+                                  _imageBytes!,
+                                  fit: BoxFit.cover,
+                                  width: 150,
+                                  height: 150,
+                                ),
+                              )
+                            : (widget.currentImageUrl != null && widget.currentImageUrl!.isNotEmpty
+                                ? ClipOval(
+                                    child: Image.network(
+                                      widget.currentImageUrl!,
+                                      fit: BoxFit.cover,
+                                      width: 150,
+                                      height: 150,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return const Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.add_a_photo, size: 48, color: Colors.grey),
+                                            SizedBox(height: 8),
+                                            Text('画像を選択', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  )
+                                : const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_a_photo, size: 48, color: Colors.grey),
+                                      SizedBox(height: 8),
+                                      Text('画像を選択', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                                    ],
+                                  )),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'アイコンプレビュー',
+                      'タップして画像を選択（最大5MB）',
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
@@ -227,35 +314,6 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
                   }
                   if (value.trim().length > 36) {
                     return 'ユーザーIDは36文字以下で入力してください';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // ========================================
-              // アイコンURL入力フィールド
-              // ========================================
-              TextFormField(
-                controller: _imageUrlController,
-                decoration: InputDecoration(
-                  labelText: 'アイコンURL（オプション）',
-                  hintText: 'https://example.com/image.png',
-                  prefixIcon: const Icon(Icons.image),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  helperText: '画像のURLを入力してください',
-                ),
-                onChanged: (value) {
-                  // URLが変更されたらプレビューを更新
-                  setState(() {});
-                },
-                validator: (value) {
-                  if (value != null && value.trim().isNotEmpty) {
-                    if (value.trim().length > 200) {
-                      return 'URLは200文字以下で入力してください';
-                    }
                   }
                   return null;
                 },

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 import '../bottom_nav.dart';
 import '../services/token_storage_service.dart';
 import 'payment_management_screen.dart';
@@ -19,7 +20,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   DateTime? expiryDate;
   bool _isLoading = true;
   
-  static const String baseUrl = 'http://localhost:8080/api/payments';
+  String get _baseUrl => AppConfig.apiBaseUrl;
+  String get baseUrl => '$_baseUrl/api/payments';
   List<Map<String, dynamic>> _myCards = [];
 
   @override

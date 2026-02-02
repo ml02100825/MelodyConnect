@@ -1,17 +1,19 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // 直接通信用
+import 'package:flutter_webapp/config/app_config.dart';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
 import '../widgets/profile_edit_dialog.dart';
 import 'contact_screen.dart';
+import 'email_change_screen.dart';
 import '../bottom_nav.dart';
 import '../services/auth_api_service.dart';
 import '../services/token_storage_service.dart';
-import 'login_screen.dart';import 'payment_management_screen.dart';
+import 'login_screen.dart';
+import 'payment_management_screen.dart';
 import 'subscription_screen.dart';
 import 'privacy_settings_screen.dart';
-import 'login_screen.dart';
 
 class OtherScreen extends StatefulWidget {
   const OtherScreen({Key? key}) : super(key: key);
@@ -21,6 +23,7 @@ class OtherScreen extends StatefulWidget {
 }
 
 class _OtherScreenState extends State<OtherScreen> {
+  String get _baseUrl => AppConfig.apiBaseUrl;
   final _profileApiService = ProfileApiService();
   final _tokenStorage = TokenStorageService();
   
@@ -118,7 +121,7 @@ class _OtherScreenState extends State<OtherScreen> {
       }
 
       // 2. サーバーへ退会リクエスト（URLにIDを含める + DELETEメソッド）
-      final url = Uri.parse('http://localhost:8080/api/auth/withdraw/$userId'); 
+      final url = Uri.parse('$_baseUrl/api/auth/withdraw/$userId'); 
       
       final response = await http.delete( // POST -> DELETE に変更
         url,
@@ -245,6 +248,18 @@ class _OtherScreenState extends State<OtherScreen> {
                   ),
                 );
               }
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.email),
+            title: const Text('メールアドレス変更'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EmailChangeScreen()),
+              );
             },
           ),
 

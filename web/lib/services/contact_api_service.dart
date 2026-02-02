@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 import 'token_storage_service.dart';
 
 class ContactApiService {
   // 環境に合わせてURLを変更してください
-  static const String _baseUrl = 'http://localhost:8080/api/contacts';
+  String get _baseUrl => AppConfig.apiBaseUrl;
   final TokenStorageService _tokenStorage = TokenStorageService();
 
   Future<void> submitContact({
@@ -18,7 +19,7 @@ class ContactApiService {
     }
 
     final response = await http.post(
-      Uri.parse(_baseUrl),
+      Uri.parse('$_baseUrl/api/contacts'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',

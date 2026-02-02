@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 import '../services/contact_api_service.dart';
 import '../services/token_storage_service.dart';
 
@@ -15,6 +16,7 @@ class ContactScreen extends StatefulWidget {
 }
 
 class _ContactScreenState extends State<ContactScreen> {
+  String get _baseUrl => AppConfig.apiBaseUrl;
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _detailController = TextEditingController();
@@ -40,8 +42,7 @@ class _ContactScreenState extends State<ContactScreen> {
   Future<String?> _uploadImage(XFile image) async {
     try {
       final token = await TokenStorageService().getAccessToken();
-      // 環境に合わせてURLを変更 (Androidエミュレータなら10.0.2.2, 実機/WebならローカルIP)
-      final uri = Uri.parse('http://localhost:8080/api/upload/image');
+      final uri = Uri.parse('$_baseUrl/api/upload/image');
       
       final request = http.MultipartRequest('POST', uri);
       request.headers['Authorization'] = 'Bearer $token';

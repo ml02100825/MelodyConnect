@@ -268,4 +268,58 @@ class AuthApiService {
       throw Exception(message);
     }
   }
+
+  /// メールアドレス変更要求 (現在のメールアドレスにコード送信)
+  ///
+  /// [accessToken] - アクセストークン
+  Future<void> requestEmailChange(String accessToken) async {
+    final uri = Uri.parse('$baseUrl/request-email-change');
+
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      String message = '送信に失敗しました';
+      try {
+        final body = jsonDecode(utf8.decode(response.bodyBytes));
+        if (body['error'] != null) {
+          message = body['error'];
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+  }
+
+  /// メールアドレス変更実行
+  ///
+  /// [token] - メール(ログ)で受け取った変更コード
+  /// [newEmail] - 新しいメールアドレス
+  Future<void> confirmEmailChange(String token, String newEmail) async {
+    final uri = Uri.parse('$baseUrl/confirm-email-change');
+
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'token': token,
+        'newEmail': newEmail,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      String message = 'メールアドレス変更に失敗しました';
+      try {
+        final body = jsonDecode(utf8.decode(response.bodyBytes));
+        if (body['error'] != null) {
+          message = body['error'];
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+  }
 }

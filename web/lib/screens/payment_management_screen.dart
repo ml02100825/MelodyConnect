@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 import '../services/token_storage_service.dart';
 
 // APIサービス（DBと通信するクラス）
 class PaymentApiService {
-  // 環境に合わせてURLを変更してください (例: localhost, 10.0.2.2 など)
-  static const String baseUrl = 'http://localhost:8080/api/payments';
+  static String get _baseUrl => AppConfig.apiBaseUrl;
+  static String get baseUrl => '$_baseUrl/api/payments';
 
   static Future<List<dynamic>> getPaymentMethods() async {
     final token = await TokenStorageService().getAccessToken(); // 修正済み
