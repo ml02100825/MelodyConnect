@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_webapp/config/app_config.dart';
 import '../bottom_nav.dart';
 import '../services/token_storage_service.dart';
-import 'payment_management_screen.dart';
+import 'payment_management_screen.dart'; // PaymentApiServiceを利用するためにインポート
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({Key? key}) : super(key: key);
@@ -22,6 +22,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   
   String get _baseUrl => AppConfig.apiBaseUrl;
   String get baseUrl => '$_baseUrl/api/payments';
+  
+  // カード情報を格納するリスト
   List<Map<String, dynamic>> _myCards = [];
 
   @override
@@ -40,10 +42,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         return;
       }
 
+      // サブスク状態の取得
       final response = await http.get(
         Uri.parse('$baseUrl/subscription-status'),
         headers: {'Authorization': 'Bearer $token'},
       );
+
+      // カード情報の取得 (並行して行うか、順次行う)
+      await _fetchMyCards();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -63,7 +69,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             subscribeFlag = sFlag;
             cancellationFlag = cFlag;
             expiryDate = parsedDate;
-            _mockRefreshCards();
             _isLoading = false;
           });
         }
@@ -75,17 +80,27 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
+  // 実際のAPIからカード情報を取得するメソッド
+  Future<void> _fetchMyCards() async {
+    try {
+      final cards = await PaymentApiService.getPaymentMethods();
+      if (mounted) {
+        setState(() {
+          // List<dynamic> を List<Map<String, dynamic>> にキャスト
+          _myCards = cards.map((e) => e as Map<String, dynamic>).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('カード情報の取得に失敗: $e');
+      // エラー時はリストを空のままにする（モックデータは入れない）
+    }
+  }
+
   int _getRemainingDays() {
     if (expiryDate == null) return 0;
     final now = DateTime.now();
     final difference = expiryDate!.difference(now);
     return difference.inDays >= 0 ? difference.inDays : 0;
-  }
-
-  void _mockRefreshCards() {
-    setState(() {
-      if (_myCards.isEmpty) _myCards = [{'brand': 'VISA', 'last4': '1234'}];
-    });
   }
 
   @override
@@ -101,7 +116,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     // 未契約: Sub=0
     bool isUnsubscribed = (subscribeFlag == 0);
 
-    final primaryCard = _myCards.isNotEmpty ? _myCards.first : null;
     final remainingDays = _getRemainingDays();
 
     return Scaffold(
@@ -132,7 +146,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   else if (isCanceledButActive)
                     _buildCanceledView(remainingDays)
                   else 
-                    _buildUnsubscribedView(primaryCard),
+                    _buildUnsubscribedView(),
                   
                   const SizedBox(height: 24),
                   _buildBenefitsList(),
@@ -193,9 +207,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  // 以下、_buildSubscribedView などのUIパーツは前回と同じです
-  // ボタン押下時にAPIを呼び出し、完了後に _fetchStatusFromServer() を呼ぶことで画面が更新されます
-  
   Widget _buildSubscribedView() {
     return Column(
       children: [
@@ -259,65 +270,137 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  Widget _buildUnsubscribedView(Map<String, dynamic>? primaryCard) {
-    if (primaryCard != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("お支払い方法", style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[300]!),
+  // 未登録時のビュー。カード情報はここでは表示せず、ボタン押下時に選択させる
+  Widget _buildUnsubscribedView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'プレミアム機能で学習効率をアップさせましょう！',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey, fontSize: 14),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _handlePurchasePress,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.credit_card, color: Colors.blueGrey, size: 30),
-                const SizedBox(width: 16),
-                Text('${primaryCard['brand']} •••• ${primaryCard['last4']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _goToCardManagement,
-              child: const Text('カードの確認・変更はこちら', style: TextStyle(color: Colors.blue)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _showSubscribeDialog(primaryCard),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('¥500/月で登録する', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            ),
-          ),
-        ],
-      );
-    } else {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: _goToCardManagement,
-          icon: const Icon(Icons.add_card, color: Colors.white),
-          label: const Text('支払い方法を登録して購入', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: const Text('¥500/月で登録する', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
           ),
         ),
-      );
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.center,
+          child: TextButton.icon(
+            onPressed: _goToCardManagement,
+            icon: const Icon(Icons.credit_card, size: 20, color: Colors.blueGrey),
+            label: const Text('支払い方法の確認・変更', style: TextStyle(color: Colors.blueGrey)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 購入ボタン押下時の処理
+  void _handlePurchasePress() async {
+    // 最新のカード情報を取得してから判定
+    await _fetchMyCards();
+
+    if (_myCards.isEmpty) {
+      _showCardRegisterDialog();
+    } else {
+      _showCardSelectionDialog();
     }
+  }
+
+  // カード未登録時のダイアログ
+  void _showCardRegisterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('カード未登録'),
+        content: const Text('サブスクリプションを購入するにはクレジットカードの登録が必要です。\n登録画面へ移動しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _goToCardManagement();
+            },
+            child: const Text('登録画面へ'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 登録済みカード選択ダイアログ
+  void _showCardSelectionDialog() {
+    if (_myCards.isEmpty) return;
+    
+    // デフォルトで最初のカードを選択
+    int? selectedPaymentMethodId = _myCards.first['id'];
+    String groupValue = selectedPaymentMethodId.toString();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('支払いカードの選択'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _myCards.length,
+                itemBuilder: (context, index) {
+                  final card = _myCards[index];
+                  final brand = card['brand'] ?? 'Unknown';
+                  final last4 = card['last4'] ?? '????';
+                  final id = card['id'];
+                  final idStr = id.toString();
+
+                  return RadioListTile<String>(
+                    title: Text('$brand •••• $last4'),
+                    value: idStr,
+                    groupValue: groupValue,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() {
+                          groupValue = value;
+                          selectedPaymentMethodId = id;
+                        });
+                      }
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('キャンセル'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _processSubscribe(selectedPaymentMethodId);
+                },
+                child: const Text('購入する'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildBenefitsList() {
@@ -355,37 +438,30 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Future<void> _goToCardManagement() async {
+    // 戻ってきたらカード情報を再取得する
     await Navigator.push(context, MaterialPageRoute(builder: (context) => const PaymentManagementScreen()));
-    _mockRefreshCards();
+    _fetchMyCards();
   }
 
-  void _showSubscribeDialog(Map<String, dynamic> card) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('購入確認'),
-        content: const Text('ConnectPlusを¥500/月で購入しますか？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _processSubscribe();
-            },
-            child: const Text('購入する'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _processSubscribe() async {
+  // 購入処理
+  // バックエンドAPIがカードIDを受け取る仕様と仮定し、bodyに含める
+  Future<void> _processSubscribe([int? paymentMethodId]) async {
     setState(() => _isLoading = true);
     try {
       final token = await TokenStorageService().getAccessToken();
+      
+      // カードIDがある場合はリクエストボディに含める
+      final body = paymentMethodId != null 
+          ? jsonEncode({'paymentMethodId': paymentMethodId}) 
+          : null;
+
       final response = await http.post(
         Uri.parse('$baseUrl/subscribe'),
-        headers: {'Authorization': 'Bearer $token'},
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json', // JSONを送るため追加
+        },
+        body: body,
       );
       
       if (response.statusCode == 200) {
