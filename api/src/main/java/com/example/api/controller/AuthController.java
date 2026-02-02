@@ -4,9 +4,9 @@ import com.example.api.dto.AuthResponse;
 import com.example.api.dto.LoginRequest;
 import com.example.api.dto.RefreshTokenRequest;
 import com.example.api.dto.RegisterRequest;
+import com.example.api.dto.LogoutRequest;
+import com.example.api.dto.ResetPasswordRequest;
 import com.example.api.entity.User;
-import com.example.api.entity.User;
-import com.example.api.repository.UserRepository;
 import com.example.api.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -16,8 +16,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -191,6 +191,8 @@ public class AuthController {
     public ResponseEntity<?> withdraw(@AuthenticationPrincipal User user) {
         authService.withdraw(user);
         return ResponseEntity.ok(Map.of("message", "退会しました"));
+    }
+
     /**
      * セッション検証エンドポイント
      * アプリ起動時などに、リフレッシュトークンが有効かを確認します。

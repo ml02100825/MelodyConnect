@@ -53,6 +53,17 @@ public class Contact {
         }
     }
 
+    // ====== コンストラクタ ======
+    public Contact() {
+    }
+
+    public Contact(User user, String title, String contactDetail, String imageUrl) {
+        this.user = user;
+        this.title = title;
+        this.contactDetail = contactDetail;
+        this.imageUrl = imageUrl;
+    }
+
     // ====== getters / setters ======
     public Long getContactId() {
         return contactId;
@@ -61,18 +72,18 @@ public class Contact {
         this.contactId = contactId;
     }
 
-    public String getContact_detail() {
-        return contact_detail;
+    public String getContactDetail() {
+        return contactDetail;
     }
-    public void setContact_detail(String contact_detail) {
-        this.contact_detail = contact_detail;
+    public void setContactDetail(String contactDetail) {
+        this.contactDetail = contactDetail;
     }
 
-    public String getImage_url() {
-        return image_url;
+    public String getImageUrl() {
+        return imageUrl;
     }
-    public void setImage_url(String image_url) {
-        this.image_url = image_url;
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public User getUser() {
@@ -80,6 +91,12 @@ public class Contact {
     }
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+    public void setTitle(String title) {
         this.title = title;
     }
 

@@ -77,8 +77,8 @@ public class AdminContactService {
         response.setUserId(contact.getUser().getId());
         response.setUserEmail(contact.getUser().getMailaddress());
         response.setTitle(contact.getTitle());
-        response.setContactDetail(contact.getContact_detail());
-        response.setImageUrl(contact.getImage_url());
+        response.setContactDetail(contact.getContactDetail());
+        response.setImageUrl(contact.getImageUrl());
         response.setStatus(contact.getStatus());
         response.setAdminMemo(contact.getAdminMemo());
         response.setCreatedAt(contact.getCreatedAt());

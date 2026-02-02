@@ -91,13 +91,6 @@ public class AuthService {
     private void validatePasswordPolicy(String password) {
         if (password == null || password.isBlank()) {
             throw new IllegalArgumentException("パスワードを入力してください");
-     * ユーザー登録
-     */
-    @Transactional
-    public AuthResponse register(RegisterRequest request, String userAgent, String ip) {
-        // メールアドレスの重複チェック
-        if (userRepository.existsByMailaddress(request.getEmail())) {
-            throw new IllegalArgumentException("このメールアドレスは既に登録されています");
         }
         if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new IllegalArgumentException("パスワードは72バイト以下である必要があります");
@@ -114,33 +107,6 @@ public class AuthService {
      * 共通処理: セッション作成とレスポンス生成
      */
     private AuthResponse createSessionAndResponse(User user, String userAgent, String ip) {
-
-        // パスワードをハッシュ化
-        String passwordHash = passwordEncoder.encode(request.getPassword());
-
-        // ユーザーを作成
-        User user = new User();
-        user.setMailaddress(request.getEmail());
-        user.setPassword(passwordHash);
-        user.setUsername("user_" + System.currentTimeMillis()); 
-
-        // [修正] サブスク初期状態設定
-        user.setSubscribeFlag(0);    // 未契約
-        user.setCancellationFlag(0); // 未解約
-
-        user = userRepository.save(user);
-
-        // 現在のシーズンを取得
-        Integer currentSeason = seasonCalculator.getCurrentSeason();
-
-        // Rate初期レコードを作成
-        Rate rate = new Rate(user, currentSeason);
-        rateRepository.save(rate);
-
-        // WeeklyLessons初期レコードを作成
-        WeeklyLessons weeklyLessons = new WeeklyLessons(user);
-        weeklyLessonsRepository.save(weeklyLessons);
-
         // トークンを生成
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
@@ -178,6 +144,11 @@ public class AuthService {
         user.setMailaddress(request.getEmail());
         user.setPassword(passwordHash);
         user.setUsername("user_" + System.currentTimeMillis());
+
+        // サブスク初期状態設定
+        user.setSubscribeFlag(0);    // 未契約
+        user.setCancellationFlag(0); // 未解約
+
         user = userRepository.save(user);
 
         Integer currentSeason = seasonCalculator.getCurrentSeason();
@@ -230,25 +201,6 @@ public class AuthService {
         logger.info("ログイン成功: ID {}", user.getId());
 
         return createSessionAndResponse(user, userAgent, ip);
-        // トークンを生成
-        String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getMailaddress());
-        String refreshToken = jwtUtil.generateRefreshToken(user.getId());
-
-        // セッションを作成
-        String refreshHash = hashWithSHA256(refreshToken);
-        LocalDateTime expiresAt = LocalDateTime.now().plusDays(30);
-        Session session = new Session(user, refreshHash, expiresAt, userAgent, ip);
-        sessionRepository.save(session);
-
-        // レスポンスを返す
-        return new AuthResponse(
-                user.getId(),
-                user.getUsername(),
-                user.getMailaddress(),
-                accessToken,
-                refreshToken,
-                jwtUtil.getAccessTokenExpiration()
-        );
     }
 
     /**
@@ -329,6 +281,18 @@ public class AuthService {
     /**
      * ログアウト（ユーザーの全セッションを削除）
      * パスワードリセット時や強制ログアウトで使用
+     */
+    @Transactional
+    public void logout(User user) {
+        if (user == null || user.getId() == null || !userRepository.existsById(user.getId())) {
+            throw new IllegalArgumentException("ユーザーが見つかりません");
+        }
+        sessionRepository.revokeAllUserSessions(user);
+        updateOfflineAtIfNoActiveSessions(user);
+    }
+
+    /**
+     * 退会処理
      */
     @Transactional
     public void withdraw(User user) {
