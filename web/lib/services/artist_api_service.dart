@@ -19,14 +19,17 @@ class SpotifyArtist {
   });
 
   factory SpotifyArtist.fromJson(Map<String, dynamic> json) {
+    final rawGenres = json['genres'];
+    final parsedGenres = rawGenres is List
+        ? rawGenres.map((e) => e.toString()).toList()
+        : rawGenres is String
+            ? [rawGenres]
+            : <String>[];
     return SpotifyArtist(
       spotifyId: json['spotifyId'] ?? '',
       name: json['name'] ?? '',
       imageUrl: json['imageUrl'],
-      genres: (json['genres'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      genres: parsedGenres,
       popularity: json['popularity'] ?? 0,
     );
   }
@@ -36,8 +39,7 @@ class SpotifyArtist {
       'spotifyId': spotifyId,
       'name': name,
       'imageUrl': imageUrl,
-      // バックエンドの自動振り分けに任せるため、空の場合は空文字を送る
-      'genre': genres.isNotEmpty ? genres.first : '',
+      'genres': List<String>.from(genres),
     };
   }
 }
@@ -155,6 +157,39 @@ class ArtistApiService {
       return data['initialSetupCompleted'] ?? false;
     } else {
       throw Exception('初期設定状態の確認に失敗しました: ${response.statusCode}');
+    }
+  }
+
+  /// お気に入りアーティスト一覧を取得
+  Future<List<Map<String, dynamic>>> getLikeArtists(String accessToken) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/artist/like'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('お気に入りアーティスト取得に失敗しました: ${response.statusCode}');
+    }
+  }
+
+  /// お気に入りアーティストを削除
+  Future<void> deleteLikeArtist(int artistId, String accessToken) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/artist/like/$artistId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('お気に入りアーティスト削除に失敗しました: ${response.statusCode}');
     }
   }
 }

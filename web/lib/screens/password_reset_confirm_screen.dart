@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_api_service.dart';
+import '../services/token_storage_service.dart';
+import 'login_screen.dart';
 
 class PasswordResetConfirmScreen extends StatefulWidget {
   const PasswordResetConfirmScreen({Key? key}) : super(key: key);
@@ -43,6 +45,11 @@ class _PasswordResetConfirmScreenState extends State<PasswordResetConfirmScreen>
 
       if (!mounted) return;
 
+      // バックエンドで全セッション無効になっているため、クライアント側も認証データを削除
+      await TokenStorageService().clearAuthData();
+
+      if (!mounted) return;
+
       // 成功メッセージ
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -51,8 +58,11 @@ class _PasswordResetConfirmScreenState extends State<PasswordResetConfirmScreen>
         ),
       );
 
-      // ログイン画面まで戻る (ナビゲーションスタックを全クリア)
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // ログイン画面へ（全ルートを削除）
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
 
     } catch (e) {
       if (!mounted) return;

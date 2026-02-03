@@ -3,7 +3,11 @@ import '../services/auth_api_service.dart';
 import 'password_reset_confirm_screen.dart'; // ★このあと作成するファイルをインポート
 
 class PasswordResetScreen extends StatefulWidget {
-  const PasswordResetScreen({Key? key}) : super(key: key);
+  /// ログイン済みユーザーから呼び出す場合に設定する。
+  /// 値があればメール入力画面をスキップし、自動でコード送信する。
+  final String? initialEmail;
+
+  const PasswordResetScreen({Key? key, this.initialEmail}) : super(key: key);
 
   @override
   State<PasswordResetScreen> createState() => _PasswordResetScreenState();
@@ -18,26 +22,34 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
   bool _isEmailSent = false; // メール送信成功フラグ
 
   @override
+  void initState() {
+    super.initState();
+    // 設定画面から遷移した場合は自動でコード送信
+    if (widget.initialEmail != null) {
+      _emailController.text = widget.initialEmail!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _sendResetCode(widget.initialEmail!);
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
   }
 
-  /// 送信ボタン押下時の処理
-  Future<void> _handleRequest() async {
-    if (!_formKey.currentState!.validate()) return;
-
+  /// API呼び出し本体（フォーム送信・自動送信の両方で共有）
+  Future<void> _sendResetCode(String email) async {
     setState(() => _isLoading = true);
 
     try {
-      await _authApiService.requestPasswordReset(_emailController.text.trim());
-      
+      await _authApiService.requestPasswordReset(email);
+
       if (!mounted) return;
-      // 成功したら画面を切り替え
       setState(() {
         _isEmailSent = true;
       });
-      
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -51,6 +63,12 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  /// 送信ボタン押下時の処理
+  Future<void> _handleRequest() async {
+    if (!_formKey.currentState!.validate()) return;
+    await _sendResetCode(_emailController.text.trim());
   }
 
   @override
