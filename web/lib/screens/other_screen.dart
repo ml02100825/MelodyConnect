@@ -14,6 +14,7 @@ import 'login_screen.dart';
 import 'payment_management_screen.dart';
 import 'subscription_screen.dart';
 import 'privacy_settings_screen.dart';
+import 'password_reset_screen.dart';
 
 class OtherScreen extends StatefulWidget {
   const OtherScreen({Key? key}) : super(key: key);
@@ -259,6 +260,28 @@ class _OtherScreenState extends State<OtherScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const EmailChangeScreen()),
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.lock_reset),
+            title: const Text('パスワードリセット'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final email = await _tokenStorage.getEmail();
+              if (!mounted) return;
+              if (email == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('認証情報が見つかりません')),
+                );
+                return;
+              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PasswordResetScreen(initialEmail: email),
+                ),
               );
             },
           ),
