@@ -290,10 +290,30 @@ class _OtherScreenState extends State<OtherScreen> {
                 );
                 return;
               }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PasswordResetScreen(initialEmail: email),
+              // 確認ダイアログを表示
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('確認'),
+                  content: const Text('パスワードをリセットしますか？\n登録されているメールアドレスにリセット用コードを送信します。'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('キャンセル'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PasswordResetScreen(initialEmail: email),
+                          ),
+                        );
+                      },
+                      child: const Text('リセットする'),
+                    ),
+                  ],
                 ),
               );
             },

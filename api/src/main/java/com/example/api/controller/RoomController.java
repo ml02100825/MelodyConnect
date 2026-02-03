@@ -305,12 +305,19 @@ public class RoomController {
                 friendInfo.put("username", friendUser.getUsername());
                 friendInfo.put("imageUrl", friendUser.getImageUrl());
 
-                // ユーザー状態を判定
-                String status = getUserStatus(friendUserId);
+                // プライバシー設定チェック: privacy=2（非公開）の場合は強制オフライン
+                String status;
+                boolean canInvite;
+                if (friendUser.getPrivacy() == 2) {
+                    status = "offline";
+                    canInvite = false;
+                } else {
+                    // ユーザー状態を判定
+                    status = getUserStatus(friendUserId);
+                    // 招待可能かどうかを判定
+                    canInvite = canInviteUser(friendUserId, f);
+                }
                 friendInfo.put("status", status);
-
-                // 招待可能かどうかを判定
-                boolean canInvite = canInviteUser(friendUserId, f);
                 friendInfo.put("canInvite", canInvite);
 
                 // 既に招待済みかどうか
