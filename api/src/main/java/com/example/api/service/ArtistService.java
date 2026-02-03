@@ -99,12 +99,12 @@ public class ArtistService {
     }
 
     private Artist createArtist(LikeArtistRequest.ArtistInfo artistInfo) {
-        // ジャンルIDを特定（なければ自動作成）
-        Long genreId = determineGenreId(artistInfo.getGenre());
+        List<Long> genreIds = determineGenreIds(artistInfo.getGenres());
+        Long primaryGenreId = genreIds.get(0);
         
         // IDからジャンルエンティティを取得
-        Genre genre = genreRepository.findById(genreId)
-                .orElseThrow(() -> new RuntimeException("ジャンルが見つかりません: ID=" + genreId));
+        Genre genre = genreRepository.findById(primaryGenreId)
+                .orElseThrow(() -> new RuntimeException("ジャンルが見つかりません: ID=" + primaryGenreId));
 
         // Artistエンティティ作成
         Artist newArtist = new Artist();
@@ -119,11 +119,33 @@ public class ArtistService {
         Artist savedArtist = artistRepository.save(newArtist);
 
         // 中間テーブルへの保存
-        artistRepository.insertArtistGenre(savedArtist.getArtistId(), genreId, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        for (Long genreId : genreIds) {
+            artistRepository.insertArtistGenre(savedArtist.getArtistId(), genreId, now);
+        }
         
         logger.info("新規アーティスト作成: name={}, genre={}", artistInfo.getName(), genre.getName());
 
         return savedArtist;
+    }
+
+    private List<Long> determineGenreIds(List<String> genres) {
+        List<String> resolvedGenres = genres == null ? List.of() : genres;
+        if (resolvedGenres.isEmpty()) {
+            return List.of(findGenreIdByNameOrAutoCreate("other"));
+        }
+
+        List<Long> genreIds = new ArrayList<>();
+        for (String genreName : resolvedGenres) {
+            Long genreId = determineGenreId(genreName);
+            if (!genreIds.contains(genreId)) {
+                genreIds.add(genreId);
+            }
+        }
+        if (genreIds.isEmpty()) {
+            genreIds.add(findGenreIdByNameOrAutoCreate("other"));
+        }
+        return genreIds;
     }
 
     /**

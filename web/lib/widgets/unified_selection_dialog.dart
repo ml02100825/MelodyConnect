@@ -276,6 +276,8 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
           );
           _selectedPendingArtists.clear();
         });
+
+        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {

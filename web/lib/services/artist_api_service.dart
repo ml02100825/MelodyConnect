@@ -36,8 +36,7 @@ class SpotifyArtist {
       'spotifyId': spotifyId,
       'name': name,
       'imageUrl': imageUrl,
-      // バックエンドの自動振り分けに任せるため、空の場合は空文字を送る
-      'genre': genres.isNotEmpty ? genres.first : '',
+      'genres': genres,
     };
   }
 }
