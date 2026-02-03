@@ -1,9 +1,9 @@
 package com.example.api.controller;
 
-import com.example.api.entity.User;
 import com.example.api.entity.UserPaymentMethod;
 import com.example.api.repository.UserPaymentMethodRepository;
 import com.example.api.repository.UserRepository;
+import com.example.api.service.SubscriptionService; // 作成したサービス
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,11 +23,15 @@ public class PaymentController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private SubscriptionService subscriptionService; // ここでサービスを注入
+
+    // ... (getMethods, addMethod, updateMethod, deleteMethod は変更なしのため省略) ...
     @GetMapping
     public List<UserPaymentMethod> getMethods(@AuthenticationPrincipal Long userId) {
         return paymentRepository.findByUserId(userId);
     }
-
+    
     @PostMapping
     public ResponseEntity<?> addMethod(@RequestBody Map<String, String> request, @AuthenticationPrincipal Long userId) {
         savePaymentMethod(userId, request, new UserPaymentMethod());
@@ -80,17 +84,26 @@ public class PaymentController {
 
     @PostMapping("/subscribe")
     public ResponseEntity<?> subscribe(@AuthenticationPrincipal Long userId) {
+        // 支払い方法チェック
         List<UserPaymentMethod> methods = paymentRepository.findByUserId(userId);
         if (methods.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "支払い方法が登録されていません"));
         }
+
         return userRepository.findById(userId)
             .map(user -> {
-                user.setSubscribeFlag(1);
-                user.setCancellationFlag(0);
-                user.setExpiresAt(LocalDateTime.now().plusDays(31));
-                userRepository.save(user);
-                return ResponseEntity.ok(Map.of("message", "ConnectPlusに登録しました", "subscribeFlag", 1));
+                // サービス層のメソッドを呼び出す（ここで登録・更新・アイテム付与を一括実行）
+                try {
+                    subscriptionService.activateSubscription(user);
+                    
+                    return ResponseEntity.ok(Map.of(
+                        "message", "ConnectPlusに登録しました。特典アイテム(10個)を付与しました！",
+                        "subscribeFlag", 1
+                    ));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return ResponseEntity.status(500).body(Map.of("error", "処理中にエラーが発生しました: " + e.getMessage()));
+                }
             })
             .orElse(ResponseEntity.notFound().build());
     }
