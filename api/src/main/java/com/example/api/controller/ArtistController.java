@@ -1,8 +1,8 @@
 package com.example.api.controller;
 
 import com.example.api.dto.LikeArtistRequest;
+import com.example.api.dto.LikeArtistResponse;
 import com.example.api.dto.SpotifyArtistDto;
-import com.example.api.entity.Artist;
 import com.example.api.service.ArtistService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,11 +78,31 @@ public class ArtistController {
      * GET /api/artist/like
      */
     @GetMapping("/like")
-    public ResponseEntity<List<Artist>> getLikeArtists(Authentication authentication) {
+    public ResponseEntity<List<LikeArtistResponse>> getLikeArtists(Authentication authentication) {
         Long userId = Long.parseLong(authentication.getName());
         logger.info("お気に入りアーティスト取得リクエスト: userId={}", userId);
-        List<Artist> artists = artistService.getLikeArtists(userId);
+        List<LikeArtistResponse> artists = artistService.getLikeArtists(userId);
         return ResponseEntity.ok(artists);
+    }
+
+    /**
+     * お気に入りアーティストを削除
+     * DELETE /api/artist/like/{artistId}
+     */
+    @DeleteMapping("/like/{artistId}")
+    public ResponseEntity<?> removeLikeArtist(
+            @PathVariable Long artistId,
+            Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getName());
+        logger.info("お気に入りアーティスト削除リクエスト: userId={}, artistId={}", userId, artistId);
+        try {
+            artistService.removeLikeArtist(userId, artistId);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "お気に入りアーティストを削除しました");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /**

@@ -1,12 +1,15 @@
-import 'dart:async';
+﻿import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 import '../services/auth_api_service.dart';
 import '../services/artist_api_service.dart';
 import '../services/presence_websocket_service.dart';
 import '../services/token_storage_service.dart';
 import '../services/life_api_service.dart';
-// ★修正: 統合されたダイアログをインポート
-import '../widgets/unified_selection_dialog.dart'; 
+import '../services/profile_api_service.dart';
+import '../widgets/unified_selection_dialog.dart';
 import '../bottom_nav.dart';
 import 'login_screen.dart';
 import 'my_profile.dart';
@@ -35,12 +38,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isLoading = true;
   bool _showedArtistDialog = false;
   int? _userId;
+  String? _imageUrl;
 
   // ライフ関連
   int _currentLife = 5;
   int _maxLife = 5;
   int _nextRecoveryInSeconds = 0;
   Timer? _recoveryTimer;
+
+  // バッジ数
+  int? _earnedBadges;
+  int? _totalBadges;
 
   @override
   void initState() {
@@ -62,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       // バックグラウンドから戻ったら再取得
       _fetchLifeStatus();
+      _fetchBadgeCounts();
     }
   }
 
@@ -76,8 +85,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _isLoading = false;
       });
 
+      // プロフィール画像を取得
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (_userId != null && accessToken != null) {
+        final profileService = ProfileApiService();
+        final profile = await profileService.getProfile(
+          userId: _userId!,
+          accessToken: accessToken,
+        );
+        if (mounted) {
+          setState(() {
+            _imageUrl = profile['imageUrl'];
+          });
+        }
+      }
+
       // ライフ状態を取得
       _fetchLifeStatus();
+
+      // バッジ数を取得
+      _fetchBadgeCounts();
 
       // 初期設定完了状態をチェックし、未完了ならダイアログを表示
       _checkInitialSetup();
@@ -113,6 +140,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// バッジの獲得数/総数を取得
+  Future<void> _fetchBadgeCounts() async {
+    try {
+      final userId = await _tokenStorage.getUserId();
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (userId == null || accessToken == null) return;
+
+      final uri = Uri.parse(
+          '${AppConfig.apiBaseUrl}/api/v1/badges?userId=$userId&mode=all');
+      final res = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      if (res.statusCode == 200) {
+        final List<dynamic> body = json.decode(utf8.decode(res.bodyBytes));
+        final total = body.length;
+        final earned = body.where((e) {
+          final progress = e is Map<String, dynamic> ? e['progress'] : null;
+          return progress is num && progress >= 1;
+        }).length;
+
+        if (mounted) {
+          setState(() {
+            _earnedBadges = earned;
+            _totalBadges = total;
+          });
+        }
+      } else {
+        debugPrint('バッジ数取得エラー: ${res.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('バッジ数取得エラー: $e');
+    }
+  }
+
   /// 回復タイマーを開始
   void _startRecoveryTimer() {
     _recoveryTimer?.cancel();
@@ -137,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
-  /// 秒数を分:秒形式にフォーマット
+  /// 秒数を「分:秒」形式にフォーマット
   String _formatRecoveryTime(int seconds) {
     final minutes = seconds ~/ 60;
     final secs = seconds % 60;
@@ -157,7 +224,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       if (!isCompleted && mounted) {
         _showedArtistDialog = true;
-        // ★修正: 統合ダイアログを表示するメソッドを呼び出し
         _showUnifiedSelectionDialog();
       }
     } catch (e) {
@@ -165,17 +231,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// ★修正: 統合された選択ダイアログを表示
+  /// 統合された選択ダイアログを表示
   Future<void> _showUnifiedSelectionDialog() async {
     await showDialog(
       context: context,
-      barrierDismissible: false, // 閉じるボタン以外で閉じないようにする
+      barrierDismissible: false,
       builder: (context) => const UnifiedSelectionDialog(),
     );
-    
-    // ダイアログが閉じられたら（初期設定完了とみなす場合など）、必要ならデータを再取得
+
     if (mounted) {
       _fetchLifeStatus();
+      _fetchBadgeCounts();
     }
   }
 
@@ -263,20 +329,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         MaterialPageRoute(
                           builder: (context) => const MyProfile(),
                         ),
-                      ).then((_) => _fetchLifeStatus());
+                      ).then((_) {
+                        _fetchLifeStatus();
+                        _fetchBadgeCounts();
+                      });
                     },
-                    child: Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.purple[100],
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.person,
-                        color: Colors.purple[300],
-                        size: 45,
-                      ),
+                    child: CircleAvatar(
+                      radius: 40,
+                      backgroundColor: Colors.blue.shade50,
+                      backgroundImage: _imageUrl != null && _imageUrl!.isNotEmpty
+                          ? NetworkImage(_imageUrl!)
+                          : null,
+                      child: _imageUrl == null || _imageUrl!.isEmpty
+                          ? const Icon(Icons.person,
+                              size: 45, color: Colors.purple)
+                          : null,
                     ),
                   ),
                 ),
@@ -299,9 +366,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const BattleModeSelectionScreen(),
+                                      builder: (context) =>
+                                          const BattleModeSelectionScreen(),
                                     ),
-                                  ).then((_) => _fetchLifeStatus());
+                                  ).then((_) {
+                                    _fetchLifeStatus();
+                                    _fetchBadgeCounts();
+                                  });
                                 },
                               ),
                               const SizedBox(width: 12),
@@ -313,9 +384,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => VocabularyScreen(userId: _userId!),
+                                        builder: (context) =>
+                                            VocabularyScreen(userId: _userId!),
                                       ),
-                                    ).then((_) => _fetchLifeStatus());
+                                    ).then((_) {
+                                      _fetchLifeStatus();
+                                      _fetchBadgeCounts();
+                                    });
                                   }
                                 },
                               ),
@@ -334,21 +409,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     MaterialPageRoute(
                                       builder: (context) => const ShopScreen(),
                                     ),
-                                  ).then((_) => _fetchLifeStatus());
+                                  ).then((_) {
+                                    _fetchLifeStatus();
+                                    _fetchBadgeCounts();
+                                  });
                                 },
                               ),
                               const SizedBox(width: 12),
                               _buildMenuCard(
                                 icon: Icons.local_florist,
                                 label: 'バッジ',
-                                subtitle: '12/49',
+                                subtitle: _earnedBadges != null &&
+                                        _totalBadges != null
+                                    ? '${_earnedBadges!}/${_totalBadges!}'
+                                    : '0/0',
                                 onTap: () {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => const BadgeScreen(),
                                     ),
-                                  ).then((_) => _fetchLifeStatus());
+                                  ).then((_) {
+                                    _fetchLifeStatus();
+                                    _fetchBadgeCounts();
+                                  });
                                 },
                               ),
                             ],
@@ -361,7 +445,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 MaterialPageRoute(
                                   builder: (context) => const RankingScreen(),
                                 ),
-                              ).then((_) => _fetchLifeStatus());
+                              ).then((_) {
+                                _fetchLifeStatus();
+                                _fetchBadgeCounts();
+                              });
                             },
                           ),
                         ],

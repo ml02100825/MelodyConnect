@@ -1,20 +1,31 @@
 package com.example.api.service;
 
+import com.example.api.dto.BadgeResponse;
 import com.example.api.dto.ProfileUpdateRequest;
-import com.example.api.entity.User;
-import com.example.api.repository.UserRepository;
+import com.example.api.entity.*;
+import com.example.api.repository.*;
+import com.example.api.util.SeasonCalculator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ProfileService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private RateRepository rateRepository;
+
+    @Autowired
+    private GotBadgeRepository gotBadgeRepository;
+
+    @Autowired
+    private SeasonCalculator seasonCalculator;
 
     /**
      * プロフィール更新（ステップ2: ユーザー名、アイコン、ユーザーID設定）
@@ -54,6 +65,36 @@ public class ProfileService {
 
     public User getUserProfile(Long userId) {
         return getUserOrThrow(userId);
+    }
+
+    /**
+     * プロフィールのレート・バッジ情報を取得
+     * @param user ユーザー
+     * @return rate と badges を含むMap
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getProfileExtras(User user) {
+        Integer currentSeason = seasonCalculator.getCurrentSeason();
+        Integer rate = rateRepository.findByUserAndSeason(user, currentSeason)
+                .map(Rate::getRate)
+                .orElse(null);
+
+        List<GotBadge> gotBadges = gotBadgeRepository.findByUser(user);
+        List<BadgeResponse> badges = gotBadges.stream().map(gotBadge -> {
+            Badge badge = gotBadge.getBadge();
+            return new BadgeResponse(
+                    badge.getId(),
+                    badge.getBadgeName(),
+                    badge.getAcquisitionCondition(),
+                    badge.getImageUrl(),
+                    gotBadge.getAcquired_at()
+            );
+        }).collect(Collectors.toList());
+
+        Map<String, Object> extras = new HashMap<>();
+        extras.put("rate", rate);
+        extras.put("badges", badges);
+        return extras;
     }
 
     private User getUserOrThrow(Long userId) {

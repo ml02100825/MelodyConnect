@@ -39,8 +39,8 @@ public class LikeArtistRequest {
         private String imageUrl;
 
         /**
-         * ジャンル（最初の1つ）
+         * ジャンル一覧
          */
-        private String genre;
+        private List<String> genres;
     }
 }
