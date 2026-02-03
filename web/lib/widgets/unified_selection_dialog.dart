@@ -19,7 +19,8 @@ class GenreInfo {
 }
 
 class UnifiedSelectionDialog extends StatefulWidget {
-  const UnifiedSelectionDialog({Key? key}) : super(key: key);
+  final Set<String>? excludeArtistSpotifyIds;
+  const UnifiedSelectionDialog({Key? key, this.excludeArtistSpotifyIds}) : super(key: key);
 
   @override
   State<UnifiedSelectionDialog> createState() => _UnifiedSelectionDialogState();
@@ -175,7 +176,9 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
       
       if (mounted) {
         setState(() {
-          _searchResults = results;
+          _searchResults = widget.excludeArtistSpotifyIds != null
+              ? results.where((a) => !widget.excludeArtistSpotifyIds!.contains(a.spotifyId)).toList()
+              : results;
           _isGenreSearchResults = true;
           _currentGenrePage = 0;
         });
@@ -213,7 +216,9 @@ class _UnifiedSelectionDialogState extends State<UnifiedSelectionDialog> {
       
       if (mounted) {
         setState(() {
-          _searchResults = results;
+          _searchResults = widget.excludeArtistSpotifyIds != null
+              ? results.where((a) => !widget.excludeArtistSpotifyIds!.contains(a.spotifyId)).toList()
+              : results;
           _isGenreSearchResults = false;
           _currentGenrePage = 0;
         });

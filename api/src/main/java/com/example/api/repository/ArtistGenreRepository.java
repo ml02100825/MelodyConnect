@@ -101,4 +101,10 @@ public interface ArtistGenreRepository extends JpaRepository<ArtistGenre, Long> 
                    "WHERE g.name = :genreName",
            nativeQuery = true)
     List<Long> findArtistIdsByGenreName(@Param("genreName") String genreName);
+
+    /**
+     * アーティストIDに紐づく全ジャンル名を取得
+     */
+    @Query("SELECT ag.genre.name FROM ArtistGenre ag WHERE ag.artist.artistId = :artistId")
+    List<String> findGenreNamesByArtistId(@Param("artistId") Long artistId);
 }

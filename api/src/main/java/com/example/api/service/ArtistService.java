@@ -251,7 +251,7 @@ public class ArtistService {
             dto.setArtistName(artist.getArtistName());
             dto.setImageUrl(artist.getImageUrl());
             dto.setArtistApiId(artist.getArtistApiId());
-            dto.setGenreName(artist.getGenre() != null ? artist.getGenre().getName() : null);
+            dto.setGenreNames(artistGenreRepository.findGenreNamesByArtistId(artist.getArtistId()));
             dto.setCreatedAt(la.getCreatedAt());
             responses.add(dto);
         }

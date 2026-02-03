@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * お気に入りアーティスト一覧レスポンスDTO
@@ -26,8 +27,8 @@ public class LikeArtistResponse {
     /** Spotify ID（Flutter側の除外セット構築に使用） */
     private String artistApiId;
 
-    /** ジャンル名（Genre.name） */
-    private String genreName;
+    /** ジャンル名一覧（ArtistGenre から取得） */
+    private List<String> genreNames;
 
     /** お気に入り追加日時（LikeArtist.createdAt） */
     private LocalDateTime createdAt;

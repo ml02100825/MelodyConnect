@@ -46,9 +46,7 @@ class _LikeArtistEditScreenState extends State<LikeArtistEditScreen> {
         setState(() {
           _allArtists = data;
           _genreNames = data
-              .map((a) => a['genreName'] as String?)
-              .where((g) => g != null)
-              .cast<String>()
+              .expand((a) => (a['genreNames'] as List<dynamic>).cast<String>())
               .toSet()
               .toList()
             ..sort();
@@ -71,7 +69,7 @@ class _LikeArtistEditScreenState extends State<LikeArtistEditScreen> {
     var list = List<Map<String, dynamic>>.from(_allArtists);
 
     if (_selectedGenre != null) {
-      list = list.where((a) => a['genreName'] == _selectedGenre).toList();
+      list = list.where((a) => (a['genreNames'] as List<dynamic>).contains(_selectedGenre)).toList();
     }
 
     if (_searchQuery.isNotEmpty) {
@@ -288,10 +286,22 @@ class _LikeArtistEditScreenState extends State<LikeArtistEditScreen> {
                         child: Text('アーティストがいません',
                             style: TextStyle(color: Colors.grey)),
                       )
-                    : ListView.builder(
-                        itemCount: _filteredArtists.length,
-                        itemBuilder: (context, index) =>
-                            _buildArtistTile(_filteredArtists[index]),
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.black, width: 1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: ListView.builder(
+                              itemCount: _filteredArtists.length,
+                              itemBuilder: (context, index) =>
+                                  _buildArtistTile(_filteredArtists[index]),
+                            ),
+                          ),
+                        ),
                       ),
           ),
         ],
@@ -302,41 +312,54 @@ class _LikeArtistEditScreenState extends State<LikeArtistEditScreen> {
   Widget _buildArtistTile(Map<String, dynamic> artist) {
     final imageUrl = artist['imageUrl'] as String?;
     final name = artist['artistName'] as String;
-    final genre = artist['genreName'] as String?;
+    final genres = (artist['genreNames'] as List<dynamic>).cast<String>();
     final createdAt = artist['createdAt'] as String;
 
-    return ListTile(
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          width: 48,
-          height: 48,
-          color: Colors.grey[200],
-          child: imageUrl != null
-              ? Image.network(
-                  imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.person, color: Colors.grey),
-                )
-              : const Icon(Icons.person, color: Colors.grey),
+    return Column(
+      children: [
+        ListTile(
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              width: 48,
+              height: 48,
+              color: Colors.grey[200],
+              child: imageUrl != null
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.person, color: Colors.grey),
+                    )
+                  : const Icon(Icons.person, color: Colors.grey),
+            ),
+          ),
+          title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (genres.isNotEmpty)
+                Wrap(
+                  spacing: 4,
+                  children: genres
+                      .map((g) => Chip(
+                            label: Text(g, style: const TextStyle(fontSize: 11)),
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ))
+                      .toList(),
+                ),
+              Text(_formatDate(createdAt),
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: () => _deleteArtist(artist),
+          ),
         ),
-      ),
-      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (genre != null)
-            Text(genre,
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          Text(_formatDate(createdAt),
-              style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        ],
-      ),
-      trailing: IconButton(
-        icon: const Icon(Icons.delete_outline, color: Colors.red),
-        onPressed: () => _deleteArtist(artist),
-      ),
+        const Divider(height: 1),
+      ],
     );
   }
 }
