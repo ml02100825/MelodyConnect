@@ -1,12 +1,9 @@
 package com.example.api.entity;
  
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-import java.time.LocalDateTime;
-
+import lombok.Data;
+import lombok.NoArgsConstructor;
  
 import java.time.LocalDateTime;
  
@@ -16,12 +13,10 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "user_item")
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserItem {
-
  
     /**
      * ユーザーアイテムID（主キー）
@@ -62,8 +57,12 @@ public class UserItem {
      */
     @PrePersist
     protected void onCreate() {
-        if (obtainedAt == null) obtainedAt = LocalDateTime.now();
-        if (quantity == null) quantity = 0;
+        if (obtainedAt == null) {
+            obtainedAt = LocalDateTime.now();
+        }
+        if (quantity == null) {
+            quantity = 0;
+        }
     }
  
     /**
@@ -71,7 +70,9 @@ public class UserItem {
      * @param amount 増やす数
      */
     public void addQuantity(int amount) {
-        if (this.quantity == null) this.quantity = 0;
+        if (amount < 0) {
+            throw new IllegalArgumentException("増加量は0以上でなければなりません");
+        }
         this.quantity += amount;
     }
  
