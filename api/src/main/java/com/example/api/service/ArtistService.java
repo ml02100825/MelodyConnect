@@ -5,10 +5,12 @@ import com.example.api.dto.LikeArtistRequest;
 import com.example.api.dto.LikeArtistResponse;
 import com.example.api.dto.SpotifyArtistDto;
 import com.example.api.entity.Artist;
+import com.example.api.entity.ArtistGenre;
 import com.example.api.entity.Genre;
 import com.example.api.entity.LikeArtist;
 import com.example.api.entity.User;
 import com.example.api.repository.ArtistRepository;
+import com.example.api.repository.ArtistGenreRepository;
 import com.example.api.repository.GenreRepository;
 import com.example.api.repository.LikeArtistRepository;
 import com.example.api.repository.UserRepository;
@@ -57,6 +59,9 @@ public class ArtistService {
     private ArtistRepository artistRepository;
 
     @Autowired
+    private ArtistGenreRepository artistGenreRepository;
+
+    @Autowired
     private LikeArtistRepository likeArtistRepository;
 
     @Autowired
@@ -81,8 +86,12 @@ public class ArtistService {
         List<LikeArtist> savedArtists = new ArrayList<>();
 
         for (LikeArtistRequest.ArtistInfo artistInfo : request.getArtists()) {
+            List<Long> genreIds = determineGenreIds(artistInfo.getGenres());
             Artist artist = artistRepository.findByArtistApiId(artistInfo.getSpotifyId())
-                .orElseGet(() -> createArtist(artistInfo));
+                .orElseGet(() -> createArtist(artistInfo, genreIds));
+
+            ensureArtistGenreLinks(artist, genreIds);
+            updatePrimaryGenreIfMissing(artist, genreIds);
 
             if (likeArtistRepository.findByUserIdAndArtistId(userId, artist.getArtistId()).isEmpty()) {
                 LikeArtist likeArtist = new LikeArtist();
@@ -98,8 +107,7 @@ public class ArtistService {
         logger.info("お気に入りアーティスト登録完了: userId={}, count={}", userId, savedArtists.size());
     }
 
-    private Artist createArtist(LikeArtistRequest.ArtistInfo artistInfo) {
-        List<Long> genreIds = determineGenreIds(artistInfo.getGenres());
+    private Artist createArtist(LikeArtistRequest.ArtistInfo artistInfo, List<Long> genreIds) {
         Long primaryGenreId = genreIds.get(0);
         
         // IDからジャンルエンティティを取得
@@ -117,16 +125,38 @@ public class ArtistService {
         
         // save()を実行すると自動的にIDが採番され、newArtistオブジェクトにセットされる
         Artist savedArtist = artistRepository.save(newArtist);
-
-        // 中間テーブルへの保存
-        LocalDateTime now = LocalDateTime.now();
-        for (Long genreId : genreIds) {
-            artistRepository.insertArtistGenre(savedArtist.getArtistId(), genreId, now);
-        }
         
         logger.info("新規アーティスト作成: name={}, genre={}", artistInfo.getName(), genre.getName());
 
         return savedArtist;
+    }
+
+    private void ensureArtistGenreLinks(Artist artist, List<Long> genreIds) {
+        if (genreIds == null || genreIds.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        for (Long genreId : genreIds) {
+            Genre genre = genreRepository.findById(genreId)
+                .orElseThrow(() -> new RuntimeException("ジャンルが見つかりません: ID=" + genreId));
+            if (!artistGenreRepository.existsByArtistAndGenre(artist, genre)) {
+                ArtistGenre artistGenre = new ArtistGenre();
+                artistGenre.setArtist(artist);
+                artistGenre.setGenre(genre);
+                artistGenre.setCreatedAt(now);
+                artistGenreRepository.save(artistGenre);
+            }
+        }
+    }
+
+    private void updatePrimaryGenreIfMissing(Artist artist, List<Long> genreIds) {
+        if (artist.getGenre() != null || genreIds == null || genreIds.isEmpty()) {
+            return;
+        }
+        Genre primaryGenre = genreRepository.findById(genreIds.get(0))
+            .orElseThrow(() -> new RuntimeException("ジャンルが見つかりません: ID=" + genreIds.get(0)));
+        artist.setGenre(primaryGenre);
+        artistRepository.save(artist);
     }
 
     private List<Long> determineGenreIds(List<String> genres) {

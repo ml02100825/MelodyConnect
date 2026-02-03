@@ -19,14 +19,17 @@ class SpotifyArtist {
   });
 
   factory SpotifyArtist.fromJson(Map<String, dynamic> json) {
+    final rawGenres = json['genres'];
+    final parsedGenres = rawGenres is List
+        ? rawGenres.map((e) => e.toString()).toList()
+        : rawGenres is String
+            ? [rawGenres]
+            : <String>[];
     return SpotifyArtist(
       spotifyId: json['spotifyId'] ?? '',
       name: json['name'] ?? '',
       imageUrl: json['imageUrl'],
-      genres: (json['genres'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      genres: parsedGenres,
       popularity: json['popularity'] ?? 0,
     );
   }
@@ -36,7 +39,7 @@ class SpotifyArtist {
       'spotifyId': spotifyId,
       'name': name,
       'imageUrl': imageUrl,
-      'genres': genres,
+      'genres': List<String>.from(genres),
     };
   }
 }
