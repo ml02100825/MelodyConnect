@@ -30,7 +30,9 @@ public class ProfileController {
     public ResponseEntity<?> getProfile(@PathVariable Long userId) {
         try {
             User user = profileService.getUserProfile(userId);
-            return ResponseEntity.ok(createProfileResponse(user));
+            Map<String, Object> response = createProfileResponse(user);
+            response.putAll(profileService.getProfileExtras(user));
+            return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(createError(e.getMessage()));
         }

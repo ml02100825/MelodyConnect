@@ -29,13 +29,15 @@ public class UserItem {
     /**
      * ユーザーID（外部キー）
      */
-    @Column(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
     private User userId;
 
     /**
      * アイテムID（外部キー）
      */
-    @Column(name = "item_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "item_id", nullable = false)
     private Item itemId;
 
     /**
