@@ -20,6 +20,20 @@ class _EmailChangeScreenState extends State<EmailChangeScreen> {
 
   bool _isLoading = false;
   bool _isEmailSent = false; // メール送信成功フラグ
+  String? _currentEmail; // 現在のメールアドレス
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentEmail();
+  }
+
+  Future<void> _loadCurrentEmail() async {
+    final email = await _tokenStorage.getEmail();
+    if (mounted) {
+      setState(() => _currentEmail = email);
+    }
+  }
 
   /// 変更要求処理
   Future<void> _handleRequest() async {
@@ -89,8 +103,34 @@ class _EmailChangeScreenState extends State<EmailChangeScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
+        // 現在のメールアドレスを表示
+        if (_currentEmail != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.mail_outline, size: 20, color: Colors.grey),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _currentEmail!,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         const Text(
-          '現在登録されているメールアドレスに\n変更用のコードを送信します。',
+          '上記のメールアドレスに\n変更用のコードを送信します。',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 16),
         ),

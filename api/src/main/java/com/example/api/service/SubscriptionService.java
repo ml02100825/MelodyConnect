@@ -78,8 +78,8 @@ public class SubscriptionService {
         } else {
             // 持っていない場合、新規作成
             userItem = new UserItem();
-            userItem.setUserId(user);
-            userItem.setItemId(recoveryItem);
+            userItem.setUser(user);
+            userItem.setItem(recoveryItem);
             userItem.setQuantity(0);
             System.out.println("アイテム所持データを新規作成します");
         }
