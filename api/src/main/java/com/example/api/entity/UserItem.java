@@ -30,13 +30,13 @@ public class UserItem {
      * ユーザーID（外部キー）
      */
     @Column(name = "user_id", nullable = false)
-    private Integer userId;
+    private User userId;
 
     /**
      * アイテムID（外部キー）
      */
     @Column(name = "item_id", nullable = false)
-    private Integer itemId;
+    private Item itemId;
 
     /**
      * 所持数
