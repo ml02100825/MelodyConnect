@@ -2,6 +2,7 @@ package com.example.api.service;
 
 import com.example.api.client.SpotifyApiClient;
 import com.example.api.dto.LikeArtistRequest;
+import com.example.api.dto.LikeArtistResponse;
 import com.example.api.dto.SpotifyArtistDto;
 import com.example.api.entity.Artist;
 import com.example.api.entity.Genre;
@@ -187,13 +188,31 @@ public class ArtistService {
                 });
     }
 
-    public List<Artist> getLikeArtists(Long userId) {
+    @Transactional(readOnly = true)
+    public List<LikeArtistResponse> getLikeArtists(Long userId) {
         List<LikeArtist> likeArtists = likeArtistRepository.findByUserId(userId);
-        List<Artist> artists = new ArrayList<>();
+        List<LikeArtistResponse> responses = new ArrayList<>();
         for (LikeArtist la : likeArtists) {
-            artists.add(la.getArtist());
+            Artist artist = la.getArtist();
+            LikeArtistResponse dto = new LikeArtistResponse();
+            dto.setArtistId(artist.getArtistId());
+            dto.setArtistName(artist.getArtistName());
+            dto.setImageUrl(artist.getImageUrl());
+            dto.setArtistApiId(artist.getArtistApiId());
+            dto.setGenreName(artist.getGenre() != null ? artist.getGenre().getName() : null);
+            dto.setCreatedAt(la.getCreatedAt());
+            responses.add(dto);
         }
-        return artists;
+        return responses;
+    }
+
+    @Transactional
+    public void removeLikeArtist(Long userId, Long artistId) {
+        LikeArtist likeArtist = likeArtistRepository.findByUserIdAndArtistId(userId, artistId)
+            .orElseThrow(() -> new IllegalArgumentException(
+                "お気に入りアーティストが見つかりません: userId=" + userId + ", artistId=" + artistId));
+        likeArtistRepository.delete(likeArtist);
+        logger.info("お気に入りアーティスト削除: userId={}, artistId={}", userId, artistId);
     }
 
     public boolean isInitialSetupCompleted(Long userId) {

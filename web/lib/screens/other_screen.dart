@@ -15,6 +15,7 @@ import 'payment_management_screen.dart';
 import 'subscription_screen.dart';
 import 'privacy_settings_screen.dart';
 import 'password_reset_screen.dart';
+import 'like_artist_edit_screen.dart';
 
 class OtherScreen extends StatefulWidget {
   const OtherScreen({Key? key}) : super(key: key);
@@ -234,6 +235,18 @@ class _OtherScreenState extends State<OtherScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text('アプリ設定', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.library_music),
+            title: const Text('アーティスト編集'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LikeArtistEditScreen()),
+              );
+            },
           ),
 
           ListTile(

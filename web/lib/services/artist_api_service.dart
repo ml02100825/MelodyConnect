@@ -157,4 +157,37 @@ class ArtistApiService {
       throw Exception('初期設定状態の確認に失敗しました: ${response.statusCode}');
     }
   }
+
+  /// お気に入りアーティスト一覧を取得
+  Future<List<Map<String, dynamic>>> getLikeArtists(String accessToken) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/artist/like'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('お気に入りアーティスト取得に失敗しました: ${response.statusCode}');
+    }
+  }
+
+  /// お気に入りアーティストを削除
+  Future<void> deleteLikeArtist(int artistId, String accessToken) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/artist/like/$artistId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('お気に入りアーティスト削除に失敗しました: ${response.statusCode}');
+    }
+  }
 }
