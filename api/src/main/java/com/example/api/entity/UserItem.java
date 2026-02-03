@@ -1,12 +1,12 @@
 package com.example.api.entity;
-
+ 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
+ 
 import java.time.LocalDateTime;
-
+ 
 /**
  * UserItemエンティティ
  * ユーザーのアイテム所持情報を管理するテーブル
@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserItem {
-
+ 
     /**
      * ユーザーアイテムID（主キー）
      */
@@ -25,31 +25,33 @@ public class UserItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_item_id", nullable = false)
     private Integer userItemId;
-
+ 
     /**
      * ユーザーID（外部キー）
      */
-    @Column(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
     private User userId;
-
+ 
     /**
      * アイテムID（外部キー）
      */
-    @Column(name = "item_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "item_id", nullable = false)
     private Item itemId;
-
+ 
     /**
      * 所持数
      */
     @Column(name = "quantity", nullable = false)
     private Integer quantity = 0;
-
+ 
     /**
      * 取得日時
      */
     @Column(name = "obtained_at")
     private LocalDateTime obtainedAt;
-
+ 
     /**
      * エンティティ保存前にデフォルト値を設定
      */
@@ -62,7 +64,7 @@ public class UserItem {
             quantity = 0;
         }
     }
-
+ 
     /**
      * 所持数を増やす
      * @param amount 増やす数
@@ -73,7 +75,7 @@ public class UserItem {
         }
         this.quantity += amount;
     }
-
+ 
     /**
      * 所持数を減らす
      * @param amount 減らす数
@@ -88,7 +90,7 @@ public class UserItem {
         }
         this.quantity -= amount;
     }
-
+ 
     /**
      * 所持数を設定
      * @param quantity 設定する数
@@ -99,7 +101,7 @@ public class UserItem {
         }
         this.quantity = quantity;
     }
-
+ 
     /**
      * アイテムを所持しているかチェック
      * @return 1個以上所持している場合true
@@ -107,7 +109,7 @@ public class UserItem {
     public boolean hasItem() {
         return this.quantity != null && this.quantity > 0;
     }
-
+ 
     /**
      * 指定数以上所持しているかチェック
      * @param amount チェックする数
