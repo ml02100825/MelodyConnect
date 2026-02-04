@@ -39,7 +39,13 @@ public class Item {
      */
     @Column(name = "heal_amount", nullable = false)
     private Integer healAmount;
- 
+
+    /**
+     * 購入価格（円）
+     */
+    @Column(name = "price", nullable = false)
+    private Integer price;
+
     /**
      * 利用可否フラグ（管理者が停止する場合に使用）
      */
