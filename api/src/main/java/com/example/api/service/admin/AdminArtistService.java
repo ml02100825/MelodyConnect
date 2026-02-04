@@ -5,21 +5,20 @@ import com.example.api.dto.admin.AdminArtistResponse;
 import com.example.api.entity.Artist;
 import com.example.api.repository.ArtistGenreRepository;
 import com.example.api.repository.ArtistRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,50 +32,68 @@ public class AdminArtistService {
     @Autowired
     private ArtistGenreRepository artistGenreRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     public AdminArtistResponse.ListResponse getArtists(
             int page, int size, String idSearch, String artistName, String genreName, Boolean isActive,
             LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
         Sort.Direction direction = parseSortDirection(sortDirection);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "artistId"));
 
-        Specification<Artist> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("isDeleted"), false));
+        StringBuilder fromClause = new StringBuilder(" FROM artist a WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
 
-            if (artistName != null && !artistName.isEmpty()) {
-                predicates.add(cb.like(root.get("artistName"), "%" + artistName + "%"));
+        if (artistName != null && !artistName.isEmpty()) {
+            fromClause.append(" AND a.artist_name LIKE :artistName");
+            params.put("artistName", "%" + artistName + "%");
+        }
+        if (idSearch != null && !idSearch.isEmpty()) {
+            fromClause.append(" AND CAST(a.artist_id AS CHAR) = :artistId");
+            params.put("artistId", idSearch);
+        }
+        if (genreName != null && !genreName.isEmpty()) {
+            List<Long> artistIds = artistGenreRepository.findArtistIdsByGenreName(genreName);
+            if (artistIds.isEmpty()) {
+                return new AdminArtistResponse.ListResponse(List.of(), page, size, 0, 0);
             }
-            if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.equal(root.get("artistId").as(String.class), idSearch));
-            }
-            if (genreName != null && !genreName.isEmpty()) {
-                List<Long> artistIds = artistGenreRepository.findArtistIdsByGenreName(genreName);
-                if (artistIds.isEmpty()) {
-                    predicates.add(cb.disjunction());
-                } else {
-                    predicates.add(root.get("artistId").in(artistIds));
-                }
-            }
-            if (isActive != null) {
-                predicates.add(cb.equal(root.get("isActive"), isActive));
-            }
-            if (createdFrom != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), createdFrom));
-            }
-            if (createdTo != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), createdTo));
-            }
+            fromClause.append(" AND a.artist_id IN (:artistIds)");
+            params.put("artistIds", artistIds);
+        }
+        if (isActive != null) {
+            fromClause.append(" AND a.is_active = :isActive");
+            params.put("isActive", isActive);
+        }
+        if (createdFrom != null) {
+            fromClause.append(" AND a.created_at >= :createdFrom");
+            params.put("createdFrom", createdFrom);
+        }
+        if (createdTo != null) {
+            fromClause.append(" AND a.created_at <= :createdTo");
+            params.put("createdTo", createdTo);
+        }
 
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        String orderBy = " ORDER BY a.artist_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
+        String selectSql = "SELECT a.*" + fromClause + orderBy;
+        String countSql = "SELECT COUNT(*)" + fromClause;
 
-        Page<Artist> artistPage = artistRepository.findAll(spec, pageable);
+        Query dataQuery = entityManager.createNativeQuery(selectSql, Artist.class);
+        Query countQuery = entityManager.createNativeQuery(countSql);
+        params.forEach((key, value) -> {
+            dataQuery.setParameter(key, value);
+            countQuery.setParameter(key, value);
+        });
+        dataQuery.setFirstResult(page * size);
+        dataQuery.setMaxResults(size);
 
-        List<AdminArtistResponse> artists = artistPage.getContent().stream()
+        List<Artist> artists = dataQuery.getResultList();
+        List<AdminArtistResponse> responses = artists.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
 
-        return new AdminArtistResponse.ListResponse(artists, page, size, artistPage.getTotalElements(), artistPage.getTotalPages());
+        long totalElements = ((Number) countQuery.getSingleResult()).longValue();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        return new AdminArtistResponse.ListResponse(responses, page, size, totalElements, totalPages);
     }
 
     public AdminArtistResponse getArtist(Long artistId) {
