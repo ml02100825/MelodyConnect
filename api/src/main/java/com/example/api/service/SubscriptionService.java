@@ -1,6 +1,7 @@
 package com.example.api.service;
 
 import com.example.api.entity.Item;
+import com.example.api.entity.ItemStatus;
 import com.example.api.entity.User;
 import com.example.api.entity.UserItem;
 import com.example.api.repository.ItemRepository;
@@ -64,8 +65,9 @@ public class SubscriptionService {
      */
     private void grantRecoveryItem(User user) {
         // アイテムマスタから取得
-        Item recoveryItem = itemRepository.findById(RECOVERY_ITEM_ID)
-                .orElseThrow(() -> new RuntimeException("致命的エラー: アイテム(ID:" + RECOVERY_ITEM_ID + ")がDBに存在しません。itemテーブルを確認してください。"));
+        Item recoveryItem = itemRepository.findByItemIdAndStatus(RECOVERY_ITEM_ID, ItemStatus.ACTIVE)
+                .orElseThrow(() -> new RuntimeException(
+                        "致命的エラー: アイテム(ID:" + RECOVERY_ITEM_ID + ")がDBに存在しません。itemテーブルを確認してください。"));
 
         // ユーザーの所持情報を検索
         Optional<UserItem> existingUserItem = userItemRepository.findByUserAndItem(user, recoveryItem);

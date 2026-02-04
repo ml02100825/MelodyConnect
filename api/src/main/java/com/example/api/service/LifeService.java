@@ -4,6 +4,7 @@ import com.example.api.dto.LifeStatusResponse;
 import com.example.api.dto.RecoveryItemResponse;
 import com.example.api.dto.UseItemResponse;
 import com.example.api.entity.Item;
+import com.example.api.entity.ItemStatus;
 import com.example.api.entity.User;
 import com.example.api.entity.UserItem;
 import com.example.api.repository.ItemRepository;
@@ -306,7 +307,7 @@ public class LifeService {
                 .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: " + userId));
 
         // 回復アイテム（itemId=1）を取得
-        Item item = itemRepository.findById(RECOVERY_ITEM_ID)
+        Item item = itemRepository.findByItemIdAndStatus(RECOVERY_ITEM_ID, ItemStatus.ACTIVE)
                 .orElseThrow(() -> new IllegalArgumentException("回復アイテムが見つかりません"));
 
         // ユーザーの所持数を取得
@@ -348,7 +349,7 @@ public class LifeService {
         }
 
         // アイテム取得
-        Item item = itemRepository.findById(itemId)
+        Item item = itemRepository.findByItemIdAndStatus(itemId, ItemStatus.ACTIVE)
                 .orElseThrow(() -> new IllegalArgumentException("アイテムが見つかりません: " + itemId));
 
         // ユーザーの所持数を確認
