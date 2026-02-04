@@ -95,6 +95,19 @@ public class AdminSongController {
         }
     }
 
+    @PutMapping("/{id}/restore")
+    public ResponseEntity<?> restoreSong(@PathVariable Long id) {
+        try {
+            adminSongService.restoreSong(id);
+            return ResponseEntity.ok(createSuccessResponse("楽曲の削除を解除しました"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("楽曲削除解除エラー", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("楽曲の削除解除に失敗しました"));
+        }
+    }
+
     @PostMapping("/enable")
     public ResponseEntity<?> enableSongs(@Valid @RequestBody BulkLongActionRequest request) {
         try {

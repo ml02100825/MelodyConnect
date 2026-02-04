@@ -4,21 +4,20 @@ import com.example.api.dto.admin.AdminVocabularyRequest;
 import com.example.api.dto.admin.AdminVocabularyResponse;
 import com.example.api.entity.Vocabulary;
 import com.example.api.repository.VocabularyRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +31,9 @@ public class AdminVocabularyService {
     @Autowired
     private VocabularyRepository vocabularyRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /**
      * 単語一覧取得
      */
@@ -40,53 +42,74 @@ public class AdminVocabularyService {
             LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
 
         Sort.Direction direction = parseSortDirection(sortDirection);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "vocabId"));
+        StringBuilder whereClause = new StringBuilder(" FROM vocabulary WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
 
-        Specification<Vocabulary> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
+        if (word != null && !word.isEmpty()) {
+            whereClause.append(" AND word LIKE :word");
+            params.put("word", "%" + word + "%");
+        }
+        if (idSearch != null && !idSearch.isEmpty()) {
+            whereClause.append(" AND CAST(vocab_id AS CHAR) = :idSearch");
+            params.put("idSearch", idSearch);
+        }
+        if (partOfSpeech != null && !partOfSpeech.isEmpty()) {
+            whereClause.append(" AND part_of_speech = :partOfSpeech");
+            params.put("partOfSpeech", partOfSpeech);
+        }
+        if (isActive != null) {
+            whereClause.append(" AND is_active = :isActive");
+            params.put("isActive", isActive);
+        }
+        if (createdFrom != null) {
+            whereClause.append(" AND created_at >= :createdFrom");
+            params.put("createdFrom", createdFrom);
+        }
+        if (createdTo != null) {
+            whereClause.append(" AND created_at <= :createdTo");
+            params.put("createdTo", createdTo);
+        }
 
-            // @Whereアノテーションを無視するため、削除フラグは明示的にチェック
-            predicates.add(cb.equal(root.get("isDeleted"), false));
+        String orderBy = " ORDER BY vocab_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
 
-            if (word != null && !word.isEmpty()) {
-                predicates.add(cb.like(root.get("word"), "%" + word + "%"));
-            }
-            if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.equal(root.get("vocabId").as(String.class), idSearch));
-            }
-            if (partOfSpeech != null && !partOfSpeech.isEmpty()) {
-                predicates.add(cb.equal(root.get("part_of_speech"), partOfSpeech));
-            }
-            if (isActive != null) {
-                predicates.add(cb.equal(root.get("isActive"), isActive));
-            }
-            if (createdFrom != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("created_at"), createdFrom));
-            }
-            if (createdTo != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("created_at"), createdTo));
-            }
+        Query dataQuery = entityManager.createNativeQuery("SELECT *" + whereClause + orderBy, Vocabulary.class);
+        params.forEach(dataQuery::setParameter);
+        dataQuery.setFirstResult(page * size);
+        dataQuery.setMaxResults(size);
 
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        @SuppressWarnings("unchecked")
+        List<Vocabulary> vocabResults = dataQuery.getResultList();
 
-        Page<Vocabulary> vocabPage = vocabularyRepository.findAll(spec, pageable);
+        Query countQuery = entityManager.createNativeQuery("SELECT COUNT(*)" + whereClause);
+        params.forEach(countQuery::setParameter);
+        Number totalElements = (Number) countQuery.getSingleResult();
 
-        List<AdminVocabularyResponse> vocabularies = vocabPage.getContent().stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        List<AdminVocabularyResponse> vocabularies = vocabResults.stream()
+            .map(this::toResponse)
+            .collect(Collectors.toList());
+
+        int totalPages = (int) Math.ceil(totalElements.doubleValue() / size);
 
         return new AdminVocabularyResponse.ListResponse(
-                vocabularies, page, size, vocabPage.getTotalElements(), vocabPage.getTotalPages());
+            vocabularies, page, size, totalElements.longValue(), totalPages);
     }
 
     /**
      * 単語詳細取得
      */
     public AdminVocabularyResponse getVocabulary(Integer vocabId) {
-        Vocabulary vocab = vocabularyRepository.findById(vocabId)
-                .orElseThrow(() -> new IllegalArgumentException("単語が見つかりません: " + vocabId));
-        return toResponse(vocab);
+        Query query = entityManager.createNativeQuery(
+            "SELECT * FROM vocabulary WHERE vocab_id = :vocabId",
+            Vocabulary.class
+        );
+        query.setParameter("vocabId", vocabId);
+
+        @SuppressWarnings("unchecked")
+        List<Vocabulary> results = query.getResultList();
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException("単語が見つかりません: " + vocabId);
+        }
+        return toResponse(results.get(0));
     }
 
     /**
@@ -106,8 +129,7 @@ public class AdminVocabularyService {
      */
     @Transactional
     public AdminVocabularyResponse updateVocabulary(Integer vocabId, AdminVocabularyRequest request) {
-        Vocabulary vocab = vocabularyRepository.findById(vocabId)
-                .orElseThrow(() -> new IllegalArgumentException("単語が見つかりません: " + vocabId));
+        Vocabulary vocab = findVocabularyIncludingInactive(vocabId);
         updateFromRequest(vocab, request);
         vocab = vocabularyRepository.save(vocab);
         logger.info("単語更新: {}", vocabId);
@@ -119,11 +141,26 @@ public class AdminVocabularyService {
      */
     @Transactional
     public void deleteVocabulary(Integer vocabId) {
-        Vocabulary vocab = vocabularyRepository.findById(vocabId)
-                .orElseThrow(() -> new IllegalArgumentException("単語が見つかりません: " + vocabId));
-        vocab.setIsDeleted(true);
-        vocabularyRepository.save(vocab);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE vocabulary SET is_deleted = true WHERE vocab_id = :vocabId")
+            .setParameter("vocabId", vocabId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("単語が見つかりません: " + vocabId);
+        }
         logger.info("単語削除: {}", vocabId);
+    }
+
+    @Transactional
+    public void restoreVocabulary(Integer vocabId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE vocabulary SET is_deleted = false WHERE vocab_id = :vocabId")
+            .setParameter("vocabId", vocabId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("単語が見つかりません: " + vocabId);
+        }
+        logger.info("単語削除解除: {}", vocabId);
     }
 
     /**
@@ -133,10 +170,9 @@ public class AdminVocabularyService {
     public int enableVocabularies(List<Integer> ids) {
         int count = 0;
         for (Integer id : ids) {
-            vocabularyRepository.findById(id).ifPresent(vocab -> {
-                vocab.setIsActive(true);
-                vocabularyRepository.save(vocab);
-            });
+            Vocabulary vocab = findVocabularyIncludingInactive(id);
+            vocab.setIsActive(true);
+            vocabularyRepository.save(vocab);
             count++;
         }
         logger.info("単語一括有効化: {} 件", count);
@@ -150,14 +186,28 @@ public class AdminVocabularyService {
     public int disableVocabularies(List<Integer> ids) {
         int count = 0;
         for (Integer id : ids) {
-            vocabularyRepository.findById(id).ifPresent(vocab -> {
-                vocab.setIsActive(false);
-                vocabularyRepository.save(vocab);
-            });
+            Vocabulary vocab = findVocabularyIncludingInactive(id);
+            vocab.setIsActive(false);
+            vocabularyRepository.save(vocab);
             count++;
         }
         logger.info("単語一括無効化: {} 件", count);
         return count;
+    }
+
+    private Vocabulary findVocabularyIncludingInactive(Integer vocabId) {
+        Query query = entityManager.createNativeQuery(
+            "SELECT * FROM vocabulary WHERE vocab_id = :vocabId AND is_deleted = false",
+            Vocabulary.class
+        );
+        query.setParameter("vocabId", vocabId);
+
+        @SuppressWarnings("unchecked")
+        List<Vocabulary> results = query.getResultList();
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException("単語が見つかりません: " + vocabId);
+        }
+        return results.get(0);
     }
 
     private void updateFromRequest(Vocabulary vocab, AdminVocabularyRequest request) {
@@ -188,6 +238,7 @@ public class AdminVocabularyService {
         response.setAudioUrl(vocab.getAudio_url());
         response.setLanguage(vocab.getLanguage());
         response.setIsActive(vocab.getIsActive());
+        response.setIsDeleted(vocab.getIsDeleted());
         response.setCreatedAt(vocab.getCreated_at());
         response.setUpdatedAt(vocab.getUpdated_at());
         return response;

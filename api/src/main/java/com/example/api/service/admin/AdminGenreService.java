@@ -4,21 +4,20 @@ import com.example.api.dto.admin.AdminGenreRequest;
 import com.example.api.dto.admin.AdminGenreResponse;
 import com.example.api.entity.Genre;
 import com.example.api.repository.GenreRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,51 +28,72 @@ public class AdminGenreService {
     @Autowired
     private GenreRepository genreRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     public AdminGenreResponse.ListResponse getGenres(
             int page, int size, String idSearch, String name, Boolean isActive,
             LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
         
         Sort.Direction direction = parseSortDirection(sortDirection);
-        // ★修正: ソート対象のカラム名を "id" から "genreId" に変更
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "genreId"));
+        StringBuilder fromClause = new StringBuilder(" FROM genre g WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
 
-        Specification<Genre> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("isDeleted"), false));
+        if (name != null && !name.isEmpty()) {
+            fromClause.append(" AND g.name LIKE :name");
+            params.put("name", "%" + name + "%");
+        }
+        if (idSearch != null && !idSearch.isEmpty()) {
+            fromClause.append(" AND CAST(g.genre_id AS CHAR) = :genreId");
+            params.put("genreId", idSearch);
+        }
+        if (isActive != null) {
+            fromClause.append(" AND g.is_active = :isActive");
+            params.put("isActive", isActive);
+        }
+        if (createdFrom != null) {
+            fromClause.append(" AND g.created_at >= :createdFrom");
+            params.put("createdFrom", createdFrom);
+        }
+        if (createdTo != null) {
+            fromClause.append(" AND g.created_at <= :createdTo");
+            params.put("createdTo", createdTo);
+        }
 
-            if (name != null && !name.isEmpty()) {
-                predicates.add(cb.like(root.get("name"), "%" + name + "%"));
-            }
-            if (idSearch != null && !idSearch.isEmpty()) {
-                // ★修正: 検索条件のフィールド名を "id" から "genreId" に変更
-                predicates.add(cb.equal(root.get("genreId").as(String.class), idSearch));
-            }
-            if (isActive != null) {
-                predicates.add(cb.equal(root.get("isActive"), isActive));
-            }
-            if (createdFrom != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), createdFrom));
-            }
-            if (createdTo != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), createdTo));
-            }
+        String orderBy = " ORDER BY g.genre_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
+        String selectSql = "SELECT g.*" + fromClause + orderBy;
+        String countSql = "SELECT COUNT(*)" + fromClause;
 
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        Query dataQuery = entityManager.createNativeQuery(selectSql, Genre.class);
+        Query countQuery = entityManager.createNativeQuery(countSql);
+        params.forEach((key, value) -> {
+            dataQuery.setParameter(key, value);
+            countQuery.setParameter(key, value);
+        });
+        dataQuery.setFirstResult(page * size);
+        dataQuery.setMaxResults(size);
 
-        Page<Genre> genrePage = genreRepository.findAll(spec, pageable);
-
-        List<AdminGenreResponse> genres = genrePage.getContent().stream()
+        List<Genre> genres = dataQuery.getResultList();
+        List<AdminGenreResponse> responses = genres.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
 
-        return new AdminGenreResponse.ListResponse(genres, page, size, genrePage.getTotalElements(), genrePage.getTotalPages());
+        long totalElements = ((Number) countQuery.getSingleResult()).longValue();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        return new AdminGenreResponse.ListResponse(responses, page, size, totalElements, totalPages);
     }
 
     public AdminGenreResponse getGenre(Long genreId) {
-        Genre genre = genreRepository.findById(genreId)
-                .orElseThrow(() -> new IllegalArgumentException("ジャンルが見つかりません: " + genreId));
-        return toResponse(genre);
+        Query dataQuery = entityManager.createNativeQuery(
+                "SELECT * FROM genre WHERE genre_id = :genreId", Genre.class);
+        dataQuery.setParameter("genreId", genreId);
+        @SuppressWarnings("unchecked")
+        List<Genre> genres = dataQuery.getResultList();
+        if (genres.isEmpty()) {
+            throw new IllegalArgumentException("ジャンルが見つかりません: " + genreId);
+        }
+        return toResponse(genres.get(0));
     }
 
     @Transactional
@@ -101,11 +121,26 @@ public class AdminGenreService {
 
     @Transactional
     public void deleteGenre(Long genreId) {
-        Genre genre = genreRepository.findById(genreId)
-                .orElseThrow(() -> new IllegalArgumentException("ジャンルが見つかりません: " + genreId));
-        genre.setIsDeleted(true);
-        genreRepository.save(genre);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE genre SET is_deleted = true WHERE genre_id = :genreId")
+            .setParameter("genreId", genreId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("ジャンルが見つかりません: " + genreId);
+        }
         logger.info("ジャンル削除: {}", genreId);
+    }
+
+    @Transactional
+    public void restoreGenre(Long genreId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE genre SET is_deleted = false WHERE genre_id = :genreId")
+            .setParameter("genreId", genreId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("ジャンルが見つかりません: " + genreId);
+        }
+        logger.info("ジャンル削除解除: {}", genreId);
     }
 
     @Transactional
@@ -140,6 +175,7 @@ public class AdminGenreService {
         response.setId(genre.getGenreId());
         response.setName(genre.getName());
         response.setIsActive(genre.getIsActive());
+        response.setIsDeleted(genre.getIsDeleted());
         response.setCreatedAt(genre.getCreatedAt());
         return response;
     }

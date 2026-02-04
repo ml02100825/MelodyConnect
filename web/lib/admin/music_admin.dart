@@ -88,6 +88,7 @@ class _MusicAdminState extends State<MusicAdmin> {
           'geniusSongId': json['geniusSongId'] ?? '',
           'language': json['language'] ?? '',
           'isActive': json['isActive'] ?? false,
+          'isDeleted': json['isDeleted'] ?? false,
           'createdAt': json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
           'status': (json['isActive'] == true) ? '有効' : '無効',
         };
@@ -521,6 +522,14 @@ class _MusicAdminState extends State<MusicAdmin> {
                     textAlign: TextAlign.center,
                   ),
                 ),
+                const Expanded(
+                  flex: 1,
+                  child: Text(
+                    '削除フラグ',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ],
             ),
           ),
@@ -586,6 +595,7 @@ class _MusicAdminState extends State<MusicAdmin> {
                                                   'status': item['status'],
                                                   'addedDate': item['createdAt']?.toString(),
                                                   'geniusSongId': item['geniusSongId']?.toString(),
+                                                  'isDeleted': item['isDeleted'],
                                                 },
                                               ),
                                             ),
@@ -620,6 +630,14 @@ class _MusicAdminState extends State<MusicAdmin> {
                                           fontSize: 13,
                                           color: item['status'] == '有効' ? Colors.black : Colors.grey[400],
                                         ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        item['isDeleted'] == true ? '有効' : '無効',
+                                        style: const TextStyle(fontSize: 13),
                                         textAlign: TextAlign.center,
                                       ),
                                     ),

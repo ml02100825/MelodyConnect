@@ -10,6 +10,8 @@ class User {
   DateTime? subscriptionCancelled;
   String subscription;
   bool isFrozen;
+  int totalPlay;
+  bool deleteFlag;
 
   User({
     required this.numericId,
@@ -23,6 +25,8 @@ class User {
     this.subscriptionCancelled,
     required this.subscription,
     required this.isFrozen,
+    required this.totalPlay,
+    required this.deleteFlag,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -46,6 +50,8 @@ class User {
           : null,
       subscription: json['subscribeFlag'] == true ? '加入中' : '×',
       isFrozen: json['banFlag'] == true,
+      totalPlay: json['totalPlay'] ?? 0,
+      deleteFlag: json['deleteFlag'] == true,
     );
   }
 

@@ -121,6 +121,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
           'translationJa': json['translationJa'] ?? '',
           'audioUrl': json['audioUrl'] ?? '',
           'isActive': json['isActive'] ?? false,
+          'isDeleted': json['isDeleted'] ?? false,
           'addingAt': json['addingAt'] != null
               ? DateTime.tryParse(json['addingAt']) ?? DateTime.now()
               : DateTime.now(),
@@ -613,6 +614,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                 _buildListHeader('正答', 150),
                 _buildListHeader('楽曲名\nアーティスト名', 180),
                 _buildListHeader('状態', 80),
+                _buildListHeader('削除フラグ', 80),
               ],
             ),
           ),
@@ -695,6 +697,7 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                                   'audioUrl': question['audioUrl'],
                                                   'language': question['language'],
                                                   'isActive': question['isActive'],
+                                                  'isDeleted': question['isDeleted'],
                                                   'songId': question['songId'],
                                                   'artistId': question['artistId'],
                                                 },
@@ -778,6 +781,15 @@ class _MondaiAdminState extends State<MondaiAdmin> {
                                             fontSize: 13,
                                             color: question['status'] == '有効' ? Colors.black : Colors.grey[400],
                                           ),
+                                        ),
+                                      ),
+                                      80,
+                                    ),
+                                    _buildListCell(
+                                      Center(
+                                        child: Text(
+                                          question['isDeleted'] == true ? '有効' : '無効',
+                                          style: const TextStyle(fontSize: 13),
                                         ),
                                       ),
                                       80,

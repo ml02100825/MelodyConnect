@@ -742,6 +742,9 @@ class _UserListAdminState extends State<UserListAdmin> {
 
                 // 停止中列
                 _buildTableHeader('有効', 2),
+
+                // 削除フラグ列
+                _buildTableHeader('削除フラグ', 2),
               ],
             ),
           ),
@@ -845,6 +848,13 @@ class _UserListAdminState extends State<UserListAdmin> {
                                             child: _buildFreezeIndicator(user.isFrozen),
                                           ),
                                         ),
+                                      ),
+
+                                      // 削除フラグ
+                                      _buildTableCell(
+                                        user.deleteFlag ? '有効' : '無効',
+                                        2,
+                                        TextAlign.center,
                                       ),
                                     ],
                                   ),

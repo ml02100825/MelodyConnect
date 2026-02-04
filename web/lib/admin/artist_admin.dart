@@ -10,6 +10,7 @@ class Artist {
   final String genre;
   final String status;
   final bool isActive;
+  final bool isDeleted;
   final DateTime addedDate;
   final DateTime? updatedDate;
   final String? artistApiId;
@@ -22,6 +23,7 @@ class Artist {
     required this.genre,
     required this.status,
     required this.isActive,
+    required this.isDeleted,
     required this.addedDate,
     this.updatedDate,
     this.artistApiId,
@@ -36,6 +38,7 @@ class Artist {
       genre: json['genreName'] ?? '',
       status: (json['isActive'] == true) ? '有効' : '無効',
       isActive: json['isActive'] == true,
+      isDeleted: json['isDeleted'] == true,
       addedDate: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
           : DateTime.now(),
@@ -54,6 +57,7 @@ class Artist {
     String? genre,
     String? status,
     bool? isActive,
+    bool? isDeleted,
     DateTime? addedDate,
     DateTime? updatedDate,
     String? artistApiId,
@@ -66,6 +70,7 @@ class Artist {
       genre: genre ?? this.genre,
       status: status ?? this.status,
       isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
       addedDate: addedDate ?? this.addedDate,
       updatedDate: updatedDate ?? this.updatedDate,
       artistApiId: artistApiId ?? this.artistApiId,
@@ -712,6 +717,7 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                   _buildTableHeader('アーティスト', 2),
                   _buildTableHeader('ジャンル', 2),
                   _buildTableHeader('状態', 1),
+                  _buildTableHeader('削除フラグ', 1),
                 ],
               ),
             ),
@@ -754,6 +760,11 @@ class _ArtistAdminState extends State<ArtistAdmin> {
                                       _buildTableCell(artist.genre, 2, TextAlign.left),
                                       _buildTableCell('', 1, TextAlign.center,
                                           child: _buildStatusIndicator(artist.status)),
+                                      _buildTableCell(
+                                        artist.isDeleted ? '有効' : '無効',
+                                        1,
+                                        TextAlign.center,
+                                      ),
                                     ],
                                   ),
                                 ),

@@ -106,6 +106,19 @@ public class AdminQuestionController {
         }
     }
 
+    @PutMapping("/{id}/restore")
+    public ResponseEntity<?> restoreQuestion(@PathVariable Integer id) {
+        try {
+            adminQuestionService.restoreQuestion(id);
+            return ResponseEntity.ok(createSuccessResponse("問題の削除を解除しました"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("問題削除解除エラー", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("問題の削除解除に失敗しました"));
+        }
+    }
+
     @PostMapping("/enable")
     public ResponseEntity<?> enableQuestions(@Valid @RequestBody BulkActionRequest request) {
         try {

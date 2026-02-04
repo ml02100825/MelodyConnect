@@ -4,21 +4,21 @@ import com.example.api.dto.admin.AdminBadgeRequest;
 import com.example.api.dto.admin.AdminBadgeResponse;
 import com.example.api.entity.Badge;
 import com.example.api.repository.BadgeRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,54 +29,81 @@ public class AdminBadgeService {
     @Autowired
     private BadgeRepository badgeRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     public AdminBadgeResponse.ListResponse getBadges(
             int page, int size, String idSearch, String badgeName, String acquisitionCondition,
             Integer mode, Boolean isActive, LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
         Sort.Direction direction = parseSortDirection(sortDirection);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "id"));
 
-        Specification<Badge> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("isDeleted"), false));
+        StringBuilder fromClause = new StringBuilder(" FROM badge b WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
 
-            if (badgeName != null && !badgeName.isEmpty()) {
-                predicates.add(cb.like(root.get("badgeName"), "%" + badgeName + "%"));
-            }
-            if (acquisitionCondition != null && !acquisitionCondition.isEmpty()) {
-                predicates.add(cb.like(root.get("acquisitionCondition"), "%" + acquisitionCondition + "%"));
-            }
-            if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.equal(root.get("id").as(String.class), idSearch));
-            }
-            if (mode != null) {
-                predicates.add(cb.equal(root.get("mode"), mode));
-            }
-            if (isActive != null) {
-                predicates.add(cb.equal(root.get("isActive"), isActive));
-            }
-            if (createdFrom != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), createdFrom));
-            }
-            if (createdTo != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), createdTo));
-            }
+        if (badgeName != null && !badgeName.isEmpty()) {
+            fromClause.append(" AND b.badge_name LIKE :badgeName");
+            params.put("badgeName", "%" + badgeName + "%");
+        }
+        if (acquisitionCondition != null && !acquisitionCondition.isEmpty()) {
+            fromClause.append(" AND b.acq_cond LIKE :acquisitionCondition");
+            params.put("acquisitionCondition", "%" + acquisitionCondition + "%");
+        }
+        if (idSearch != null && !idSearch.isEmpty()) {
+            fromClause.append(" AND CAST(b.badge_id AS CHAR) = :badgeId");
+            params.put("badgeId", idSearch);
+        }
+        if (mode != null) {
+            fromClause.append(" AND b.mode = :mode");
+            params.put("mode", mode);
+        }
+        if (isActive != null) {
+            fromClause.append(" AND b.is_active = :isActive");
+            params.put("isActive", isActive);
+        }
+        if (createdFrom != null) {
+            fromClause.append(" AND b.created_at >= :createdFrom");
+            params.put("createdFrom", createdFrom);
+        }
+        if (createdTo != null) {
+            fromClause.append(" AND b.created_at <= :createdTo");
+            params.put("createdTo", createdTo);
+        }
 
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        String orderBy = " ORDER BY b.badge_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
+        String selectSql = "SELECT b.badge_id, b.badge_name, b.acq_cond, b.image_url, b.mode, " +
+                "b.is_active, b.is_deleted, b.created_at" + fromClause + orderBy;
+        String countSql = "SELECT COUNT(*)" + fromClause;
 
-        Page<Badge> badgePage = badgeRepository.findAll(spec, pageable);
+        Query dataQuery = entityManager.createNativeQuery(selectSql);
+        Query countQuery = entityManager.createNativeQuery(countSql);
+        params.forEach((key, value) -> {
+            dataQuery.setParameter(key, value);
+            countQuery.setParameter(key, value);
+        });
+        dataQuery.setFirstResult(page * size);
+        dataQuery.setMaxResults(size);
 
-        List<AdminBadgeResponse> badges = badgePage.getContent().stream()
+        List<Object[]> rows = dataQuery.getResultList();
+        List<AdminBadgeResponse> badges = rows.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
 
-        return new AdminBadgeResponse.ListResponse(badges, page, size, badgePage.getTotalElements(), badgePage.getTotalPages());
+        long totalElements = ((Number) countQuery.getSingleResult()).longValue();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        return new AdminBadgeResponse.ListResponse(badges, page, size, totalElements, totalPages);
     }
 
     public AdminBadgeResponse getBadge(Long badgeId) {
-        Badge badge = badgeRepository.findById(badgeId)
-                .orElseThrow(() -> new IllegalArgumentException("バッジが見つかりません: " + badgeId));
-        return toResponse(badge);
+        Query dataQuery = entityManager.createNativeQuery(
+                "SELECT * FROM badge WHERE badge_id = :badgeId", Badge.class);
+        dataQuery.setParameter("badgeId", badgeId);
+        @SuppressWarnings("unchecked")
+        List<Badge> badges = dataQuery.getResultList();
+        if (badges.isEmpty()) {
+            throw new IllegalArgumentException("バッジが見つかりません: " + badgeId);
+        }
+        return toResponse(badges.get(0));
     }
 
     @Transactional
@@ -100,11 +127,26 @@ public class AdminBadgeService {
 
     @Transactional
     public void deleteBadge(Long badgeId) {
-        Badge badge = badgeRepository.findById(badgeId)
-                .orElseThrow(() -> new IllegalArgumentException("バッジが見つかりません: " + badgeId));
-        badge.setIsDeleted(true);
-        badgeRepository.save(badge);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE badge SET is_deleted = true WHERE badge_id = :badgeId")
+            .setParameter("badgeId", badgeId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("バッジが見つかりません: " + badgeId);
+        }
         logger.info("バッジ削除: {}", badgeId);
+    }
+
+    @Transactional
+    public void restoreBadge(Long badgeId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE badge SET is_deleted = false WHERE badge_id = :badgeId")
+            .setParameter("badgeId", badgeId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("バッジが見つかりません: " + badgeId);
+        }
+        logger.info("バッジ削除解除: {}", badgeId);
     }
 
     @Transactional
@@ -149,8 +191,38 @@ public class AdminBadgeService {
         response.setImageUrl(badge.getImageUrl());
         response.setMode(badge.getMode());
         response.setIsActive(badge.isActiveFlag());
+        response.setIsDeleted(badge.getIsDeleted());
         response.setCreatedAt(badge.getCreatedAt());
         return response;
+    }
+
+    private AdminBadgeResponse toResponse(Object[] row) {
+        AdminBadgeResponse response = new AdminBadgeResponse();
+        response.setId(row[0] != null ? ((Number) row[0]).longValue() : null);
+        response.setBadgeName((String) row[1]);
+        response.setAcquisitionCondition((String) row[2]);
+        response.setImageUrl((String) row[3]);
+        response.setMode(row[4] != null ? ((Number) row[4]).intValue() : null);
+        response.setIsActive(row[5] != null ? (Boolean) row[5] : null);
+        response.setIsDeleted(row[6] != null ? (Boolean) row[6] : null);
+        response.setCreatedAt(toLocalDateTime(row[7]));
+        return response;
+    }
+
+    private LocalDateTime toLocalDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime) {
+            return (LocalDateTime) value;
+        }
+        if (value instanceof java.sql.Timestamp) {
+            return ((java.sql.Timestamp) value).toLocalDateTime();
+        }
+        if (value instanceof java.util.Date) {
+            return ((java.util.Date) value).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        }
+        throw new IllegalArgumentException("Unsupported date type: " + value.getClass());
     }
 
     private Sort.Direction parseSortDirection(String sortDirection) {

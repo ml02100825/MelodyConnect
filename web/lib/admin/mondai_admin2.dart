@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'mondai_edit_admin.dart';
+import 'services/admin_api_service.dart';
 
 class MondaiDetailPage extends StatefulWidget {
   final Map<String, dynamic> vocab;
@@ -14,6 +15,10 @@ class MondaiDetailPage extends StatefulWidget {
 class _MondaiDetailPageState extends State<MondaiDetailPage> {
   late Map<String, dynamic> _question;
   late String status;
+  bool _isUpdating = false;
+  bool _isDeleting = false;
+  bool _shouldRefresh = false;
+  bool get _isDeleted => _question['isDeleted'] == true;
 
   @override
   void initState() {
@@ -23,24 +28,121 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
   }
 
   void toggleStatus() {
+    _updateStatus();
+  }
+
+  int _resolveQuestionId() {
+    final numericId = _question['numericId'];
+    if (numericId is int) {
+      return numericId;
+    }
+    return int.tryParse(_question['id']?.toString() ?? '') ?? 0;
+  }
+
+  Future<void> _updateStatus() async {
+    if (_isUpdating) return;
+    final questionId = _resolveQuestionId();
+    if (questionId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('問題IDが不正です。')),
+      );
+      return;
+    }
+
+    final nextStatus = status == '有効' ? '無効' : '有効';
     setState(() {
-      status = (status == '有効') ? '無効' : '有効';
+      _isUpdating = true;
     });
+
+    try {
+      if (nextStatus == '有効') {
+        await AdminApiService.enableQuestions([questionId]);
+      } else {
+        await AdminApiService.disableQuestions([questionId]);
+      }
+      if (!mounted) return;
+      setState(() {
+        status = nextStatus;
+        _question['isActive'] = nextStatus == '有効';
+        _question['status'] = nextStatus;
+        _shouldRefresh = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('問題を$nextStatusに更新しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('問題の状態更新に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteQuestion() async {
+    if (_isDeleting) return;
+    final questionId = _resolveQuestionId();
+    if (questionId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('問題IDが不正です。')),
+      );
+      return;
+    }
+    setState(() {
+      _isDeleting = true;
+    });
+    try {
+      if (_isDeleted) {
+        await AdminApiService.restoreQuestion(questionId);
+      } else {
+        await AdminApiService.deleteQuestion(questionId);
+      }
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isDeleted ? '問題の削除を解除しました' : '問題を削除しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('問題の削除に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
   }
 
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return MondaiDeleteConfirmationDialog(
-          question: _question,
-          onDelete: () {
-            // 削除処理
-            Navigator.pop(context); // ダイアログを閉じる
-            Navigator.pop(context); // 詳細画面を閉じる
-          },
-        );
-      },
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteQuestion();
+            },
+            child: const Text('はい'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -54,6 +156,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
     if (updated != null && mounted) {
       setState(() {
         _question = Map<String, dynamic>.from(updated as Map);
+        _shouldRefresh = true;
       });
     }
   }
@@ -125,7 +228,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _shouldRefresh ? true : null),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey,
                     foregroundColor: Colors.white,
@@ -136,7 +239,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
                 ),
                 const Spacer(),
                 ElevatedButton(
-                  onPressed: toggleStatus,
+                  onPressed: _isUpdating ? null : toggleStatus,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: status == '有効' ? Colors.orange : Colors.green,
                     foregroundColor: Colors.white,
@@ -147,14 +250,14 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _showDeleteDialog,
+                  onPressed: _isDeleting ? null : _showDeleteDialog,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                     elevation: 0,
                   ),
-                  child: const Text('問題削除'),
+                  child: Text(_isDeleted ? '問題削除解除' : '問題削除'),
                 ),
               ],
             ),
@@ -188,133 +291,6 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class MondaiDeleteConfirmationDialog extends StatefulWidget {
-  final Map<String, dynamic> question;
-  final VoidCallback onDelete;
-
-  const MondaiDeleteConfirmationDialog({
-    Key? key,
-    required this.question,
-    required this.onDelete,
-  }) : super(key: key);
-
-  @override
-  State<MondaiDeleteConfirmationDialog> createState() => _MondaiDeleteConfirmationDialogState();
-}
-
-class _MondaiDeleteConfirmationDialogState extends State<MondaiDeleteConfirmationDialog> {
-  bool deleteId = false;
-  bool deleteQuestion = false;
-  bool deleteAnswer = false;
-  bool deleteCategory = false;
-
-  bool get canDelete => deleteId && deleteQuestion && deleteAnswer && deleteCategory;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      backgroundColor: Colors.white,
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.warning_rounded,
-              color: Colors.red,
-              size: 64,
-            ),
-            const SizedBox(height: 24),
-            _buildCheckboxRow('ID', widget.question['id'], deleteId, (value) {
-              setState(() {
-                deleteId = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('問題', widget.question['question']?.toString().split('\n')[0] ?? '', deleteQuestion, (value) {
-              setState(() {
-                deleteQuestion = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('問題形式', widget.question['category'] ?? '', deleteCategory, (value) {
-              setState(() {
-                deleteCategory = value ?? false;
-              });
-            }),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: canDelete ? widget.onDelete : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canDelete ? Colors.red : Colors.grey[300],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                elevation: 0,
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text('問題を削除する', style: TextStyle(fontSize: 16)),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey[600],
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text('キャンセル', style: TextStyle(fontSize: 16)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckboxRow(String label, String value, bool checked, Function(bool?) onChanged) {
-    return Row(
-      children: [
-        Checkbox(
-          value: checked,
-          onChanged: onChanged,
-          activeColor: Colors.blue,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  label,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  value,
-                  style: const TextStyle(fontSize: 14),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

@@ -93,6 +93,19 @@ public class AdminGenreController {
         }
     }
 
+    @PutMapping("/{id}/restore")
+    public ResponseEntity<?> restoreGenre(@PathVariable Long id) {
+        try {
+            adminGenreService.restoreGenre(id);
+            return ResponseEntity.ok(createSuccessResponse("ジャンルの削除を解除しました"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("ジャンル削除解除エラー", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("ジャンルの削除解除に失敗しました"));
+        }
+    }
+
     @PostMapping("/enable")
     public ResponseEntity<?> enableGenres(@Valid @RequestBody BulkLongActionRequest request) {
         try {

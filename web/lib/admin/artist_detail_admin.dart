@@ -42,14 +42,13 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
 
   // 選択用状態
   late String selectedStatus;
+  bool _isUpdatingStatus = false;
+  bool _isDeleting = false;
+  bool _shouldRefresh = false;
 
   // ジャンルオプション（APIから取得）
   List<String> genreOptions = [];
   
-  // 削除確認用チェックボックス
-  bool idChecked = false;
-  bool nameChecked = false;
-  bool genreChecked = false;
 
   @override
   void initState() {
@@ -401,7 +400,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
         // 一覧へ戻るボタン
         OutlinedButton(
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pop(context, _shouldRefresh ? true : null);
           },
           style: OutlinedButton.styleFrom(
             backgroundColor: Colors.grey,
@@ -419,7 +418,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
         // 状態変更ボタン
         if (!_isEditing && selectedStatus == '有効')
           ElevatedButton(
-            onPressed: _toggleStatus,
+            onPressed: _isUpdatingStatus ? null : _toggleStatus,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -433,7 +432,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
         
         if (!_isEditing && selectedStatus == '無効')
           ElevatedButton(
-            onPressed: _toggleStatus,
+            onPressed: _isUpdatingStatus ? null : _toggleStatus,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -449,7 +448,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
         
         // 削除ボタン
         ElevatedButton(
-          onPressed: _showDeleteDialog,
+          onPressed: _isDeleting ? null : _showDeleteDialog,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -458,7 +457,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
             ),
             elevation: 0,
           ),
-          child: const Text('アーティスト削除', style: TextStyle(color: Colors.white)),
+          child: Text(_isDeleted ? 'アーティスト削除解除' : 'アーティスト削除', style: const TextStyle(color: Colors.white)),
         ),
       ],
     );
@@ -493,11 +492,23 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     );
   }
 
-  void _toggleStatus() {
+  Future<void> _toggleStatus() async {
+    if (_isUpdatingStatus) return;
+    final nextStatus = selectedStatus == '有効' ? '無効' : '有効';
     setState(() {
-      selectedStatus = selectedStatus == '有効' ? '無効' : '有効';
-
-      // 状態変更を通知
+      _isUpdatingStatus = true;
+    });
+    try {
+      if (nextStatus == '有効') {
+        await AdminApiService.enableArtists([widget.artist.numericId]);
+      } else {
+        await AdminApiService.disableArtists([widget.artist.numericId]);
+      }
+      if (!mounted) return;
+      setState(() {
+        selectedStatus = nextStatus;
+        _shouldRefresh = true;
+      });
       if (widget.onStatusChanged != null) {
         final updatedArtist = Artist(
           id: widget.artist.id,
@@ -505,6 +516,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
           genre: genreController.text,
           status: selectedStatus,
           isActive: selectedStatus == '有効',
+          isDeleted: widget.artist.isDeleted,
           addedDate: widget.artist.addedDate,
           updatedDate: DateTime.now(),
           artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
@@ -513,11 +525,22 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
         );
         widget.onStatusChanged!(updatedArtist, 'status_changed');
       }
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('状態を${selectedStatus}に変更しました')),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('状態を$selectedStatusに変更しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('状態の変更に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingStatus = false;
+        });
+      }
+    }
   }
 
   void _saveChanges() {
@@ -527,6 +550,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       genre: genreController.text,
       status: selectedStatus,
       isActive: selectedStatus == '有効',
+      isDeleted: widget.artist.isDeleted,
       addedDate: widget.artist.addedDate,
       updatedDate: DateTime.now(),
       artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
@@ -555,154 +579,60 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     );
   }
 
+  bool get _isDeleted => widget.artist.isDeleted;
+
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          // すべてのチェックボックスがチェックされているか確認
-          final allChecked = idChecked && nameChecked && genreChecked;
-          
-          return AlertDialog(
-            title: Container(
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 100,
-              ),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '削除確認',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '以下の項目をすべてチェックして、削除を確認してください:',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  Column(
-                    children: [
-                      CheckboxListTile(
-                        title: Text(
-                          'ID: ${widget.artist.id}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: idChecked,
-                        onChanged: (value) => setDialogState(() => idChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      CheckboxListTile(
-                        title: Text(
-                          'アーティスト: ${nameController.text}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: nameChecked,
-                        onChanged: (value) => setDialogState(() => nameChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      CheckboxListTile(
-                        title: Text(
-                          'ジャンル: ${genreController.text}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: genreChecked,
-                        onChanged: (value) => setDialogState(() => genreChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (!allChecked)
-                    Text(
-                      '※すべての項目にチェックを入れてください',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 12,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton(
-                    onPressed: allChecked
-                        ? () {
-                            _deleteArtist();
-                            Navigator.pop(context);
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    child: const Text('アーティストを削除する', style: TextStyle(color: Colors.white)),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                    child: const Text('キャンセル', style: TextStyle(color: Colors.grey)),
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteArtist();
+            },
+            child: const Text('はい'),
+          ),
+        ],
       ),
     );
   }
 
-  void _deleteArtist() {
-    final deletedArtist = Artist(
-      id: widget.artist.id,
-      name: nameController.text,
-      genre: genreController.text,
-      status: selectedStatus,
-      isActive: selectedStatus == '有効',
-      addedDate: widget.artist.addedDate,
-      artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
-      imageUrl: imageUrlController.text.isEmpty ? null : imageUrlController.text,
-      numericId: widget.artist.numericId,
-    );
-
-    Navigator.pop(context, {
-      'action': 'delete',
-      'artist': deletedArtist,
+  Future<void> _deleteArtist() async {
+    if (_isDeleting) return;
+    setState(() {
+      _isDeleting = true;
     });
+    try {
+      if (_isDeleted) {
+        await AdminApiService.restoreArtist(widget.artist.numericId);
+      } else {
+        await AdminApiService.deleteArtist(widget.artist.numericId);
+      }
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isDeleted ? 'アーティストの削除を解除しました' : 'アーティストを削除しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('アーティストの削除に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
   }
 
   @override

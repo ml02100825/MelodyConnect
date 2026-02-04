@@ -13,6 +13,10 @@ class MusicDetailPage extends StatefulWidget {
 
 class _MusicDetailPageState extends State<MusicDetailPage> {
   late String status;
+  bool _isUpdating = false;
+  bool _isDeleting = false;
+  bool _shouldRefresh = false;
+  bool get _isDeleted => widget.music['isDeleted'] == true;
 
   @override
   void initState() {
@@ -21,40 +25,113 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
   }
 
   void toggleStatus() {
+    _updateStatus();
+  }
+
+  int _resolveSongId() {
+    return int.tryParse(widget.music['id']?.toString() ?? '') ?? 0;
+  }
+
+  Future<void> _updateStatus() async {
+    if (_isUpdating) return;
+    final songId = _resolveSongId();
+    if (songId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('楽曲IDが不正です。')),
+      );
+      return;
+    }
+    final nextStatus = status == '有効' ? '無効' : '有効';
     setState(() {
-      status = (status == '有効') ? '無効' : '有効';
+      _isUpdating = true;
     });
+    try {
+      if (nextStatus == '有効') {
+        await AdminApiService.enableSongs([songId]);
+      } else {
+        await AdminApiService.disableSongs([songId]);
+      }
+      if (!mounted) return;
+      setState(() {
+        status = nextStatus;
+        _shouldRefresh = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('楽曲を$nextStatusに更新しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('楽曲の状態更新に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteSong() async {
+    if (_isDeleting) return;
+    final songId = _resolveSongId();
+    if (songId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('楽曲IDが不正です。')),
+      );
+      return;
+    }
+    setState(() {
+      _isDeleting = true;
+    });
+    try {
+      if (_isDeleted) {
+        await AdminApiService.restoreSong(songId);
+      } else {
+        await AdminApiService.deleteSong(songId);
+      }
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isDeleted ? '楽曲の削除を解除しました' : '楽曲を削除しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('削除に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
   }
 
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return DeleteConfirmationDialog(
-          music: widget.music,
-          onDelete: () async {
-            try {
-              final songId = int.tryParse(widget.music['id']?.toString() ?? '');
-              if (songId != null) {
-                await AdminApiService.disableSongs([songId]);
-              }
-              if (context.mounted) {
-                Navigator.pop(context); // ダイアログを閉じる
-              }
-              if (this.context.mounted) {
-                Navigator.pop(this.context, true); // 詳細画面を閉じる（リロード通知）
-              }
-            } catch (e) {
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text('削除に失敗しました: $e')),
-                );
-              }
-            }
-          },
-        );
-      },
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteSong();
+            },
+            child: const Text('はい'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -141,7 +218,7 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _shouldRefresh ? true : null),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey[400],
                     foregroundColor: Colors.black,
@@ -152,25 +229,25 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
                 ),
                 const Spacer(),
                 ElevatedButton(
-                  onPressed: toggleStatus,
+                  onPressed: _isUpdating ? null : toggleStatus,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
+                    backgroundColor: status == '有効' ? Colors.orange : Colors.green,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                     elevation: 0,
                   ),
-                  child: const Text('楽曲無効化'),
+                  child: Text(status == '有効' ? '楽曲無効化' : '楽曲有効化'),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _showDeleteDialog,
+                  onPressed: _isDeleting ? null : _showDeleteDialog,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                     elevation: 0,
                   ),
-                  child: const Text('楽曲削除'),
+                  child: Text(_isDeleted ? '楽曲削除解除' : '楽曲削除'),
                 ),
               ],
             ),
@@ -197,128 +274,6 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
           child: Text(
             value?.toString() ?? '',
             style: const TextStyle(fontSize: 16),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class DeleteConfirmationDialog extends StatefulWidget {
-  final Map<String, dynamic> music;
-  final VoidCallback onDelete;
-
-  const DeleteConfirmationDialog({
-    Key? key,
-    required this.music,
-    required this.onDelete,
-  }) : super(key: key);
-
-  @override
-  State<DeleteConfirmationDialog> createState() => _DeleteConfirmationDialogState();
-}
-
-class _DeleteConfirmationDialogState extends State<DeleteConfirmationDialog> {
-  bool deleteId = false;
-  bool deleteSongName = false;
-  bool deleteArtist = false;
-
-  bool get canDelete => deleteId && deleteSongName && deleteArtist;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      backgroundColor: Colors.white,
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.warning_rounded,
-              color: Colors.red,
-              size: 64,
-            ),
-            const SizedBox(height: 24),
-            _buildCheckboxRow('ID', widget.music['id'], deleteId, (value) {
-              setState(() {
-                deleteId = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('楽曲名', widget.music['songName'], deleteSongName, (value) {
-              setState(() {
-                deleteSongName = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('アーティスト', widget.music['artistId'] ?? '', deleteArtist, (value) {
-              setState(() {
-                deleteArtist = value ?? false;
-              });
-            }),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: canDelete ? widget.onDelete : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canDelete ? Colors.red : Colors.grey[300],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                elevation: 0,
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text('楽曲を削除する', style: TextStyle(fontSize: 16)),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey[600],
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text('キャンセル', style: TextStyle(fontSize: 16)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckboxRow(String label, String value, bool checked, Function(bool?) onChanged) {
-    return Row(
-      children: [
-        Checkbox(
-          value: checked,
-          onChanged: onChanged,
-          activeColor: Colors.blue,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  label,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
           ),
         ),
       ],

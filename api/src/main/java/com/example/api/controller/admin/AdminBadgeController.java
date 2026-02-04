@@ -97,6 +97,19 @@ public class AdminBadgeController {
         }
     }
 
+    @PutMapping("/{id}/restore")
+    public ResponseEntity<?> restoreBadge(@PathVariable Long id) {
+        try {
+            adminBadgeService.restoreBadge(id);
+            return ResponseEntity.ok(createSuccessResponse("バッジの削除を解除しました"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("バッジ削除解除エラー", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("バッジの削除解除に失敗しました"));
+        }
+    }
+
     @PostMapping("/enable")
     public ResponseEntity<?> enableBadges(@Valid @RequestBody BulkLongActionRequest request) {
         try {

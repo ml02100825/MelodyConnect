@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'genre_admin.dart';
+import 'services/admin_api_service.dart';
 
 class GenreDetailAdmin extends StatefulWidget {
   final Genre genre;
@@ -35,10 +36,10 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
   
   // 選択用状態
   late String selectedStatus;
+  bool _isUpdatingStatus = false;
+  bool _isDeleting = false;
+  bool _shouldRefresh = false;
   
-  // 削除確認用チェックボックス
-  bool idChecked = false;
-  bool nameChecked = false;
 
   @override
   void initState() {
@@ -310,7 +311,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
         // 一覧へ戻るボタン
         OutlinedButton(
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pop(context, _shouldRefresh ? true : null);
           },
           style: OutlinedButton.styleFrom(
             backgroundColor: Colors.grey,
@@ -328,7 +329,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
         // 状態変更ボタン
         if (!_isEditing && selectedStatus == '有効')
           ElevatedButton(
-            onPressed: _toggleStatus,
+            onPressed: _isUpdatingStatus ? null : _toggleStatus,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -342,7 +343,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
         
         if (!_isEditing && selectedStatus == '無効')
           ElevatedButton(
-            onPressed: _toggleStatus,
+            onPressed: _isUpdatingStatus ? null : _toggleStatus,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -358,7 +359,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
         
         // 削除ボタン
         ElevatedButton(
-          onPressed: _showDeleteDialog,
+          onPressed: _isDeleting ? null : _showDeleteDialog,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -367,7 +368,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
             ),
             elevation: 0,
           ),
-          child: const Text('ジャンル削除', style: TextStyle(color: Colors.white)),
+          child: Text(_isDeleted ? 'ジャンル削除解除' : 'ジャンル削除', style: const TextStyle(color: Colors.white)),
         ),
       ],
     );
@@ -399,28 +400,52 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
     );
   }
 
-  void _toggleStatus() {
+  Future<void> _toggleStatus() async {
+    if (_isUpdatingStatus) return;
+    final nextStatus = selectedStatus == '有効' ? '無効' : '有効';
     setState(() {
-      selectedStatus = selectedStatus == '有効' ? '無効' : '有効';
-
-      // 状態変更を通知
+      _isUpdatingStatus = true;
+    });
+    try {
+      if (nextStatus == '有効') {
+        await AdminApiService.enableGenres([widget.genre.numericId]);
+      } else {
+        await AdminApiService.disableGenres([widget.genre.numericId]);
+      }
+      if (!mounted) return;
+      setState(() {
+        selectedStatus = nextStatus;
+        _shouldRefresh = true;
+      });
       if (widget.onStatusChanged != null) {
         final updatedGenre = Genre(
           id: widget.genre.id,
           name: nameController.text,
           status: selectedStatus,
           isActive: selectedStatus == '有効',
+          isDeleted: widget.genre.isDeleted,
           addedDate: widget.genre.addedDate,
           updatedDate: DateTime.now(),
           numericId: widget.genre.numericId,
         );
         widget.onStatusChanged!(updatedGenre, 'status_changed');
       }
-    });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('状態を${selectedStatus}に変更しました')),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('状態を$selectedStatusに変更しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('状態の変更に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingStatus = false;
+        });
+      }
+    }
   }
 
   void _saveChanges() {
@@ -429,6 +454,7 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
       name: nameController.text,
       status: selectedStatus,
       isActive: selectedStatus == '有効',
+      isDeleted: widget.genre.isDeleted,
       addedDate: widget.genre.addedDate,
       updatedDate: DateTime.now(),
       numericId: widget.genre.numericId,
@@ -452,138 +478,60 @@ class _GenreDetailAdminState extends State<GenreDetailAdmin> {
     );
   }
 
+  bool get _isDeleted => widget.genre.isDeleted;
+
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          // すべてのチェックボックスがチェックされているか確認
-          final allChecked = idChecked && nameChecked;
-          
-          return AlertDialog(
-            title: Container(
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 100,
-              ),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '削除確認',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '以下の項目をすべてチェックして、削除を確認してください:',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  Column(
-                    children: [
-                      CheckboxListTile(
-                        title: Text(
-                          'ID: ${widget.genre.id}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: idChecked,
-                        onChanged: (value) => setDialogState(() => idChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      CheckboxListTile(
-                        title: Text(
-                          'ジャンル名: ${nameController.text}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: nameChecked,
-                        onChanged: (value) => setDialogState(() => nameChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (!allChecked)
-                    Text(
-                      '※すべての項目にチェックを入れてください',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 12,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton(
-                    onPressed: allChecked
-                        ? () {
-                            _deleteGenre();
-                            Navigator.pop(context);
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    child: const Text('ジャンルを削除する', style: TextStyle(color: Colors.white)),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                    child: const Text('キャンセル', style: TextStyle(color: Colors.grey)),
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteGenre();
+            },
+            child: const Text('はい'),
+          ),
+        ],
       ),
     );
   }
 
-  void _deleteGenre() {
-    final deletedGenre = Genre(
-      id: widget.genre.id,
-      name: nameController.text,
-      status: selectedStatus,
-      isActive: selectedStatus == '有効',
-      addedDate: widget.genre.addedDate,
-      numericId: widget.genre.numericId,
-    );
-    
-    Navigator.pop(context, {
-      'action': 'delete',
-      'genre': deletedGenre,
+  Future<void> _deleteGenre() async {
+    if (_isDeleting) return;
+    setState(() {
+      _isDeleting = true;
     });
+    try {
+      if (_isDeleted) {
+        await AdminApiService.restoreGenre(widget.genre.numericId);
+      } else {
+        await AdminApiService.deleteGenre(widget.genre.numericId);
+      }
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isDeleted ? 'ジャンルの削除を解除しました' : 'ジャンルを削除しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ジャンルの削除に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
   }
 
   @override

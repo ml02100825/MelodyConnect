@@ -22,6 +22,7 @@ public class AdminQuestionResponse {
     private String translationJa;
     private String audioUrl;
     private Boolean isActive;
+    private Boolean isDeleted;
     private LocalDateTime addingAt;
 
     // Getters and Setters
@@ -53,6 +54,8 @@ public class AdminQuestionResponse {
     public void setAudioUrl(String audioUrl) { this.audioUrl = audioUrl; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public Boolean getIsDeleted() { return isDeleted; }
+    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
     public LocalDateTime getAddingAt() { return addingAt; }
     public void setAddingAt(LocalDateTime addingAt) { this.addingAt = addingAt; }
 

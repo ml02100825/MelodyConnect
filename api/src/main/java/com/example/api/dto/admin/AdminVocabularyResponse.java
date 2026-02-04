@@ -20,6 +20,7 @@ public class AdminVocabularyResponse {
     private String audioUrl;
     private String language;
     private Boolean isActive;
+    private Boolean isDeleted;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -47,6 +48,8 @@ public class AdminVocabularyResponse {
     public void setLanguage(String language) { this.language = language; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public Boolean getIsDeleted() { return isDeleted; }
+    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
