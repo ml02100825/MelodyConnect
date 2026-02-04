@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'mondai_edit_admin.dart';
+import 'services/admin_api_service.dart';
 
 class MondaiDetailPage extends StatefulWidget {
   final Map<String, dynamic> vocab;
@@ -14,6 +15,8 @@ class MondaiDetailPage extends StatefulWidget {
 class _MondaiDetailPageState extends State<MondaiDetailPage> {
   late Map<String, dynamic> _question;
   late String status;
+  bool _isUpdating = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -23,9 +26,94 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
   }
 
   void toggleStatus() {
+    _updateStatus();
+  }
+
+  int _resolveQuestionId() {
+    final numericId = _question['numericId'];
+    if (numericId is int) {
+      return numericId;
+    }
+    return int.tryParse(_question['id']?.toString() ?? '') ?? 0;
+  }
+
+  Future<void> _updateStatus() async {
+    if (_isUpdating) return;
+    final questionId = _resolveQuestionId();
+    if (questionId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('問題IDが不正です。')),
+      );
+      return;
+    }
+
+    final nextStatus = status == '有効' ? '無効' : '有効';
     setState(() {
-      status = (status == '有効') ? '無効' : '有効';
+      _isUpdating = true;
     });
+
+    try {
+      if (nextStatus == '有効') {
+        await AdminApiService.enableQuestions([questionId]);
+      } else {
+        await AdminApiService.disableQuestions([questionId]);
+      }
+      if (!mounted) return;
+      setState(() {
+        status = nextStatus;
+        _question['isActive'] = nextStatus == '有効';
+        _question['status'] = nextStatus;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('問題を$nextStatusに更新しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('問題の状態更新に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteQuestion() async {
+    if (_isDeleting) return;
+    final questionId = _resolveQuestionId();
+    if (questionId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('問題IDが不正です。')),
+      );
+      return;
+    }
+    setState(() {
+      _isDeleting = true;
+    });
+    try {
+      await AdminApiService.deleteQuestion(questionId);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('問題を削除しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('問題の削除に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
   }
 
   void _showDeleteDialog() {
@@ -34,10 +122,9 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
       builder: (BuildContext context) {
         return MondaiDeleteConfirmationDialog(
           question: _question,
-          onDelete: () {
-            // 削除処理
-            Navigator.pop(context); // ダイアログを閉じる
-            Navigator.pop(context); // 詳細画面を閉じる
+          onDelete: () async {
+            Navigator.pop(context);
+            await _deleteQuestion();
           },
         );
       },
@@ -136,7 +223,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
                 ),
                 const Spacer(),
                 ElevatedButton(
-                  onPressed: toggleStatus,
+                  onPressed: _isUpdating ? null : toggleStatus,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: status == '有効' ? Colors.orange : Colors.green,
                     foregroundColor: Colors.white,
@@ -147,7 +234,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _showDeleteDialog,
+                  onPressed: _isDeleting ? null : _showDeleteDialog,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
@@ -194,7 +281,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
 
 class MondaiDeleteConfirmationDialog extends StatefulWidget {
   final Map<String, dynamic> question;
-  final VoidCallback onDelete;
+  final Future<void> Function() onDelete;
 
   const MondaiDeleteConfirmationDialog({
     Key? key,
@@ -256,7 +343,7 @@ class _MondaiDeleteConfirmationDialogState extends State<MondaiDeleteConfirmatio
             }),
             const SizedBox(height: 32),
             ElevatedButton(
-              onPressed: canDelete ? widget.onDelete : null,
+              onPressed: canDelete ? () async => widget.onDelete() : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: canDelete ? Colors.red : Colors.grey[300],
                 foregroundColor: Colors.white,
