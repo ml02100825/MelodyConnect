@@ -3,6 +3,7 @@ import '../models/quiz_models.dart';
 import '../services/token_storage_service.dart';
 import 'vocabulary_screen.dart';
 import 'report_screen.dart';
+import 'quiz_selection_screen.dart';
 
 class QuizResultScreen extends StatelessWidget {
   final QuizCompleteResponse result;
@@ -476,6 +477,11 @@ class QuizResultScreen extends StatelessWidget {
 
 
   void _retryQuiz(BuildContext context) {
-    // ホーム画面に戻る（そこから再挑戦）
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // 学習設定画面に遷移
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const QuizSelectionScreen(),
+      ),
+    );
   }
