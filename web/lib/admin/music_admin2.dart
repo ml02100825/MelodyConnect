@@ -15,6 +15,7 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
   late String status;
   bool _isUpdating = false;
   bool _isDeleting = false;
+  bool _shouldRefresh = false;
 
   @override
   void initState() {
@@ -52,6 +53,7 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
       if (!mounted) return;
       setState(() {
         status = nextStatus;
+        _shouldRefresh = true;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('楽曲を$nextStatusに更新しました')),
@@ -203,7 +205,7 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _shouldRefresh ? true : null),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey[400],
                     foregroundColor: Colors.black,

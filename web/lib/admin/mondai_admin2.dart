@@ -17,6 +17,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
   late String status;
   bool _isUpdating = false;
   bool _isDeleting = false;
+  bool _shouldRefresh = false;
 
   @override
   void initState() {
@@ -63,6 +64,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
         status = nextStatus;
         _question['isActive'] = nextStatus == '有効';
         _question['status'] = nextStatus;
+        _shouldRefresh = true;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('問題を$nextStatusに更新しました')),
@@ -141,6 +143,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
     if (updated != null && mounted) {
       setState(() {
         _question = Map<String, dynamic>.from(updated as Map);
+        _shouldRefresh = true;
       });
     }
   }
@@ -212,7 +215,7 @@ class _MondaiDetailPageState extends State<MondaiDetailPage> {
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _shouldRefresh ? true : null),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey,
                     foregroundColor: Colors.white,
