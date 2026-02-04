@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_admin.dart';
 import 'vocabulary_edit_admin.dart';
+import 'services/admin_api_service.dart';
 
 class VocabularyDetailPage extends StatefulWidget {
   final Map<String, dynamic> vocab;
@@ -14,6 +15,9 @@ class VocabularyDetailPage extends StatefulWidget {
 class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
   late Map<String, dynamic> _vocab;
   late String status;
+  bool _isUpdating = false;
+  bool _isDeleting = false;
+  bool _didUpdateStatus = false;
 
   @override
   void initState() {
@@ -25,9 +29,95 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
   }
 
   void toggleStatus() {
+    _updateStatus();
+  }
+
+  int _resolveVocabId() {
+    final numericId = _vocab['numericId'];
+    if (numericId is int) {
+      return numericId;
+    }
+    return int.tryParse(_vocab['id']?.toString() ?? '') ?? 0;
+  }
+
+  Future<void> _updateStatus() async {
+    if (_isUpdating) return;
+    final vocabId = _resolveVocabId();
+    if (vocabId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('単語IDが不正です。')),
+      );
+      return;
+    }
+
+    final nextStatus = status == '有効' ? '無効' : '有効';
     setState(() {
-      status = (status == '有効') ? '無効' : '有効';
+      _isUpdating = true;
     });
+
+    try {
+      if (nextStatus == '有効') {
+        await AdminApiService.enableVocabularies([vocabId]);
+      } else {
+        await AdminApiService.disableVocabularies([vocabId]);
+      }
+      if (!mounted) return;
+      setState(() {
+        status = nextStatus;
+        _vocab['isActive'] = nextStatus == '有効';
+        _vocab['status'] = nextStatus;
+        _didUpdateStatus = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('単語を$nextStatusに更新しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('単語の状態更新に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteVocabulary() async {
+    if (_isDeleting) return;
+    final vocabId = _resolveVocabId();
+    if (vocabId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('単語IDが不正です。')),
+      );
+      return;
+    }
+    setState(() {
+      _isDeleting = true;
+    });
+    try {
+      await AdminApiService.deleteVocabulary(vocabId);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('単語を削除しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('単語の削除に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
   }
 
   void _showDeleteDialog() {
@@ -36,10 +126,9 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
       builder: (BuildContext context) {
         return VocabularyDeleteConfirmationDialog(
           vocab: _vocab,
-          onDelete: () {
-            // 削除処理
-            Navigator.pop(context); // ダイアログを閉じる
-            Navigator.pop(context); // 詳細画面を閉じる
+          onDelete: () async {
+            Navigator.pop(context);
+            await _deleteVocabulary();
           },
         );
       },
@@ -127,7 +216,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _didUpdateStatus),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey,
                     foregroundColor: Colors.white,
@@ -137,7 +226,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
                 ),
                 const Spacer(),
                 ElevatedButton(
-                  onPressed: toggleStatus,
+                  onPressed: _isUpdating ? null : toggleStatus,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: status == '有効' ? Colors.orange : Colors.green,
                     foregroundColor: Colors.white,
@@ -147,7 +236,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _showDeleteDialog,
+                  onPressed: _isDeleting ? null : _showDeleteDialog,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
@@ -193,7 +282,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
 
 class VocabularyDeleteConfirmationDialog extends StatefulWidget {
   final Map<String, dynamic> vocab;
-  final VoidCallback onDelete;
+  final Future<void> Function() onDelete;
 
   const VocabularyDeleteConfirmationDialog({
     Key? key,
@@ -255,7 +344,7 @@ class _VocabularyDeleteConfirmationDialogState extends State<VocabularyDeleteCon
             }),
             const SizedBox(height: 32),
             ElevatedButton(
-              onPressed: canDelete ? widget.onDelete : null,
+              onPressed: canDelete ? () async => widget.onDelete() : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: canDelete ? Colors.red : Colors.grey[300],
                 foregroundColor: Colors.white,

@@ -4,6 +4,21 @@ import 'admin_token_storage_service.dart';
 import 'admin_auth_service.dart';
 import '../../config/app_config.dart';
 
+class AdminApiException implements Exception {
+  final String message;
+  final int? statusCode;
+
+  AdminApiException(this.message, {this.statusCode});
+
+  @override
+  String toString() {
+    if (statusCode == null) {
+      return message;
+    }
+    return '$message (status: $statusCode)';
+  }
+}
+
 /// 管理者API共通サービス
 class AdminApiService {
   static String get _baseUrl => AppConfig.apiBaseUrl;
@@ -113,6 +128,37 @@ class AdminApiService {
     };
   }
 
+  static Map<String, dynamic> _decodeResponse(http.Response response) {
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (body.isEmpty) {
+        return {};
+      }
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      return {'data': decoded};
+    }
+
+    String message = 'リクエストに失敗しました';
+    if (body.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          message = (decoded['error'] ?? decoded['message'] ?? message).toString();
+        }
+      } catch (_) {
+        // ignore decode errors
+      }
+    }
+    throw AdminApiException(message, statusCode: response.statusCode);
+  }
+
+  static void _ensureSuccess(http.Response response) {
+    _decodeResponse(response);
+  }
+
   static String _toIsoStart(DateTime date) {
     final normalized = DateTime(date.year, date.month, date.day);
     return normalized.toIso8601String();
@@ -165,22 +211,22 @@ class AdminApiService {
     if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/users', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getUserDetail(int userId) async {
     final response = await get('/api/admin/users/$userId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> freezeUsers(List<int> userIds) async {
     final response = await post('/api/admin/users/freeze', body: {'userIds': userIds});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> unfreezeUsers(List<int> userIds) async {
     final response = await post('/api/admin/users/unfreeze', body: {'userIds': userIds});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   // ========== 単語管理API ==========
@@ -209,36 +255,37 @@ class AdminApiService {
     if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/vocabularies', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getVocabulary(int vocabId) async {
     final response = await get('/api/admin/vocabularies/$vocabId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> createVocabulary(Map<String, dynamic> data) async {
     final response = await post('/api/admin/vocabularies', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateVocabulary(int vocabId, Map<String, dynamic> data) async {
     final response = await put('/api/admin/vocabularies/$vocabId', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<void> deleteVocabulary(int vocabId) async {
-    await delete('/api/admin/vocabularies/$vocabId');
+    final response = await delete('/api/admin/vocabularies/$vocabId');
+    _ensureSuccess(response);
   }
 
   static Future<Map<String, dynamic>> enableVocabularies(List<int> ids) async {
     final response = await post('/api/admin/vocabularies/enable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> disableVocabularies(List<int> ids) async {
     final response = await post('/api/admin/vocabularies/disable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   // ========== 問題管理API ==========
@@ -279,36 +326,37 @@ class AdminApiService {
     if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/questions', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getQuestion(int questionId) async {
     final response = await get('/api/admin/questions/$questionId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> createQuestion(Map<String, dynamic> data) async {
     final response = await post('/api/admin/questions', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateQuestion(int questionId, Map<String, dynamic> data) async {
     final response = await put('/api/admin/questions/$questionId', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<void> deleteQuestion(int questionId) async {
-    await delete('/api/admin/questions/$questionId');
+    final response = await delete('/api/admin/questions/$questionId');
+    _ensureSuccess(response);
   }
 
   static Future<Map<String, dynamic>> enableQuestions(List<int> ids) async {
     final response = await post('/api/admin/questions/enable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> disableQuestions(List<int> ids) async {
     final response = await post('/api/admin/questions/disable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   // ========== 楽曲管理API ==========
@@ -337,36 +385,37 @@ class AdminApiService {
     if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/songs', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getSong(int songId) async {
     final response = await get('/api/admin/songs/$songId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> createSong(Map<String, dynamic> data) async {
     final response = await post('/api/admin/songs', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateSong(int songId, Map<String, dynamic> data) async {
     final response = await put('/api/admin/songs/$songId', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<void> deleteSong(int songId) async {
-    await delete('/api/admin/songs/$songId');
+    final response = await delete('/api/admin/songs/$songId');
+    _ensureSuccess(response);
   }
 
   static Future<Map<String, dynamic>> enableSongs(List<int> ids) async {
     final response = await post('/api/admin/songs/enable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> disableSongs(List<int> ids) async {
     final response = await post('/api/admin/songs/disable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   // ========== アーティスト管理API ==========
@@ -395,36 +444,37 @@ class AdminApiService {
     if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/artists', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getArtist(int artistId) async {
     final response = await get('/api/admin/artists/$artistId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> createArtist(Map<String, dynamic> data) async {
     final response = await post('/api/admin/artists', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateArtist(int artistId, Map<String, dynamic> data) async {
     final response = await put('/api/admin/artists/$artistId', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<void> deleteArtist(int artistId) async {
-    await delete('/api/admin/artists/$artistId');
+    final response = await delete('/api/admin/artists/$artistId');
+    _ensureSuccess(response);
   }
 
   static Future<Map<String, dynamic>> enableArtists(List<int> ids) async {
     final response = await post('/api/admin/artists/enable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> disableArtists(List<int> ids) async {
     final response = await post('/api/admin/artists/disable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   // ========== ジャンル管理API ==========
@@ -451,36 +501,37 @@ class AdminApiService {
     if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/genres', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getGenre(int genreId) async {
     final response = await get('/api/admin/genres/$genreId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> createGenre(Map<String, dynamic> data) async {
     final response = await post('/api/admin/genres', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateGenre(int genreId, Map<String, dynamic> data) async {
     final response = await put('/api/admin/genres/$genreId', body: data);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<void> deleteGenre(int genreId) async {
-    await delete('/api/admin/genres/$genreId');
+    final response = await delete('/api/admin/genres/$genreId');
+    _ensureSuccess(response);
   }
 
   static Future<Map<String, dynamic>> enableGenres(List<int> ids) async {
     final response = await post('/api/admin/genres/enable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> disableGenres(List<int> ids) async {
     final response = await post('/api/admin/genres/disable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   // ========== バッジ管理API ==========
@@ -511,12 +562,12 @@ class AdminApiService {
     if (sortDirection != null) queryParams['sortDirection'] = sortDirection;
 
     final response = await get('/api/admin/badges', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getBadge(int badgeId) async {
     final response = await get('/api/admin/badges/$badgeId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> createBadge(Map<String, dynamic> data) async {
@@ -529,7 +580,7 @@ class AdminApiService {
       }
     }
     final response = await post('/api/admin/badges', body: payload);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateBadge(int badgeId, Map<String, dynamic> data) async {
@@ -542,21 +593,22 @@ class AdminApiService {
       }
     }
     final response = await put('/api/admin/badges/$badgeId', body: payload);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<void> deleteBadge(int badgeId) async {
-    await delete('/api/admin/badges/$badgeId');
+    final response = await delete('/api/admin/badges/$badgeId');
+    _ensureSuccess(response);
   }
 
   static Future<Map<String, dynamic>> enableBadges(List<int> ids) async {
     final response = await post('/api/admin/badges/enable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> disableBadges(List<int> ids) async {
     final response = await post('/api/admin/badges/disable', body: {'ids': ids});
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   // ========== お問い合わせ管理API ==========
@@ -573,12 +625,12 @@ class AdminApiService {
     if (status != null) queryParams['status'] = status;
 
     final response = await get('/api/admin/contacts', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getContact(int contactId) async {
     final response = await get('/api/admin/contacts/$contactId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateContactStatus(int contactId, String status, String? adminMemo) async {
@@ -586,7 +638,7 @@ class AdminApiService {
       'status': status,
       if (adminMemo != null) 'adminMemo': adminMemo,
     });
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   // ========== 単語報告管理API ==========
@@ -603,12 +655,12 @@ class AdminApiService {
     if (status != null) queryParams['status'] = status;
 
     final response = await get('/api/admin/vocabulary-reports', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getVocabularyReport(int reportId) async {
     final response = await get('/api/admin/vocabulary-reports/$reportId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateVocabularyReportStatus(int reportId, String status, String? adminMemo) async {
@@ -616,11 +668,12 @@ class AdminApiService {
       'status': status,
       if (adminMemo != null) 'adminMemo': adminMemo,
     });
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<void> deleteVocabularyReport(int reportId) async {
-    await delete('/api/admin/vocabulary-reports/$reportId');
+    final response = await delete('/api/admin/vocabulary-reports/$reportId');
+    _ensureSuccess(response);
   }
 
   // ========== 問題報告管理API ==========
@@ -637,12 +690,12 @@ class AdminApiService {
     if (status != null) queryParams['status'] = status;
 
     final response = await get('/api/admin/question-reports', queryParams: queryParams);
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> getQuestionReport(int reportId) async {
     final response = await get('/api/admin/question-reports/$reportId');
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> updateQuestionReportStatus(int reportId, String status, String? adminMemo) async {
@@ -650,10 +703,11 @@ class AdminApiService {
       'status': status,
       if (adminMemo != null) 'adminMemo': adminMemo,
     });
-    return jsonDecode(response.body);
+    return _decodeResponse(response);
   }
 
   static Future<void> deleteQuestionReport(int reportId) async {
-    await delete('/api/admin/question-reports/$reportId');
+    final response = await delete('/api/admin/question-reports/$reportId');
+    _ensureSuccess(response);
   }
 }
