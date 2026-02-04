@@ -18,6 +18,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
   bool _isUpdating = false;
   bool _isDeleting = false;
   bool _shouldRefresh = false;
+  bool get _isDeleted => _vocab['isDeleted'] == true;
 
   @override
   void initState() {
@@ -99,11 +100,15 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
       _isDeleting = true;
     });
     try {
-      await AdminApiService.deleteVocabulary(vocabId);
+      if (_isDeleted) {
+        await AdminApiService.restoreVocabulary(vocabId);
+      } else {
+        await AdminApiService.deleteVocabulary(vocabId);
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('単語を削除しました')),
+        SnackBar(content: Text(_isDeleted ? '単語の削除を解除しました' : '単語を削除しました')),
       );
     } catch (e) {
       if (mounted) {
@@ -123,15 +128,23 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return VocabularyDeleteConfirmationDialog(
-          vocab: _vocab,
-          onDelete: () async {
-            Navigator.pop(context);
-            await _deleteVocabulary();
-          },
-        );
-      },
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteVocabulary();
+            },
+            child: const Text('はい'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -243,7 +256,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                   ),
-                  child: const Text('単語削除'),
+                  child: Text(_isDeleted ? '単語削除解除' : '単語削除'),
                 ),
               ],
             ),
@@ -277,133 +290,6 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class VocabularyDeleteConfirmationDialog extends StatefulWidget {
-  final Map<String, dynamic> vocab;
-  final Future<void> Function() onDelete;
-
-  const VocabularyDeleteConfirmationDialog({
-    Key? key,
-    required this.vocab,
-    required this.onDelete,
-  }) : super(key: key);
-
-  @override
-  State<VocabularyDeleteConfirmationDialog> createState() => _VocabularyDeleteConfirmationDialogState();
-}
-
-class _VocabularyDeleteConfirmationDialogState extends State<VocabularyDeleteConfirmationDialog> {
-  bool deleteId = false;
-  bool deleteWord = false;
-  bool deleteMeaning = false;
-  bool deletePartOfSpeech = false;
-
-  bool get canDelete => deleteId && deleteWord && deleteMeaning && deletePartOfSpeech;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      backgroundColor: Colors.white,
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.warning_rounded,
-              color: Colors.red,
-              size: 64,
-            ),
-            const SizedBox(height: 24),
-            _buildCheckboxRow('ID', widget.vocab['id'], deleteId, (value) {
-              setState(() {
-                deleteId = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('単語', widget.vocab['word'] ?? '', deleteWord, (value) {
-              setState(() {
-                deleteWord = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('品詞', widget.vocab['partOfSpeech'] ?? '', deletePartOfSpeech, (value) {
-              setState(() {
-                deletePartOfSpeech = value ?? false;
-              });
-            }),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: canDelete ? () async => widget.onDelete() : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canDelete ? Colors.red : Colors.grey[300],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                elevation: 0,
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text('単語を削除する', style: TextStyle(fontSize: 16)),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey[600],
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text('キャンセル', style: TextStyle(fontSize: 16)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckboxRow(String label, String value, bool checked, Function(bool?) onChanged) {
-    return Row(
-      children: [
-        Checkbox(
-          value: checked,
-          onChanged: onChanged,
-          activeColor: Colors.blue,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  label,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  value,
-                  style: const TextStyle(fontSize: 14),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

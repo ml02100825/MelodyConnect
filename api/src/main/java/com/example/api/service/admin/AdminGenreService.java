@@ -85,9 +85,15 @@ public class AdminGenreService {
     }
 
     public AdminGenreResponse getGenre(Long genreId) {
-        Genre genre = genreRepository.findById(genreId)
-                .orElseThrow(() -> new IllegalArgumentException("ジャンルが見つかりません: " + genreId));
-        return toResponse(genre);
+        Query dataQuery = entityManager.createNativeQuery(
+                "SELECT * FROM genre WHERE genre_id = :genreId", Genre.class);
+        dataQuery.setParameter("genreId", genreId);
+        @SuppressWarnings("unchecked")
+        List<Genre> genres = dataQuery.getResultList();
+        if (genres.isEmpty()) {
+            throw new IllegalArgumentException("ジャンルが見つかりません: " + genreId);
+        }
+        return toResponse(genres.get(0));
     }
 
     @Transactional
@@ -115,11 +121,26 @@ public class AdminGenreService {
 
     @Transactional
     public void deleteGenre(Long genreId) {
-        Genre genre = genreRepository.findById(genreId)
-                .orElseThrow(() -> new IllegalArgumentException("ジャンルが見つかりません: " + genreId));
-        genre.setIsDeleted(true);
-        genreRepository.save(genre);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE genre SET is_deleted = true WHERE genre_id = :genreId")
+            .setParameter("genreId", genreId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("ジャンルが見つかりません: " + genreId);
+        }
         logger.info("ジャンル削除: {}", genreId);
+    }
+
+    @Transactional
+    public void restoreGenre(Long genreId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE genre SET is_deleted = false WHERE genre_id = :genreId")
+            .setParameter("genreId", genreId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("ジャンルが見つかりません: " + genreId);
+        }
+        logger.info("ジャンル削除解除: {}", genreId);
     }
 
     @Transactional
@@ -154,6 +175,7 @@ public class AdminGenreService {
         response.setId(genre.getGenreId());
         response.setName(genre.getName());
         response.setIsActive(genre.getIsActive());
+        response.setIsDeleted(genre.getIsDeleted());
         response.setCreatedAt(genre.getCreatedAt());
         return response;
     }

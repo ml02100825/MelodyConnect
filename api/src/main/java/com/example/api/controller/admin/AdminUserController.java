@@ -113,6 +113,42 @@ public class AdminUserController {
         }
     }
 
+    /**
+     * ユーザー削除（論理削除）
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+        try {
+            adminUserService.deleteUser(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "ユーザーを削除しました");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("ユーザー削除エラー", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("ユーザーの削除に失敗しました"));
+        }
+    }
+
+    /**
+     * ユーザー削除解除
+     */
+    @PutMapping("/{id}/restore")
+    public ResponseEntity<?> restoreUser(@PathVariable Long id) {
+        try {
+            adminUserService.restoreUser(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "ユーザーの削除を解除しました");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("ユーザー削除解除エラー", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("ユーザーの削除解除に失敗しました"));
+        }
+    }
+
     private Map<String, String> createErrorResponse(String message) {
         Map<String, String> error = new HashMap<>();
         error.put("error", message);

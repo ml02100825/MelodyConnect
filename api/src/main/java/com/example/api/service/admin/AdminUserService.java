@@ -157,6 +157,30 @@ public class AdminUserService {
         return count;
     }
 
+    /**
+     * ユーザー削除（論理削除）
+     */
+    @Transactional
+    public void deleteUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: " + userId));
+        user.setDeleteFlag(true);
+        userRepository.save(user);
+        logger.info("ユーザー削除: {}", userId);
+    }
+
+    /**
+     * ユーザー削除解除
+     */
+    @Transactional
+    public void restoreUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: " + userId));
+        user.setDeleteFlag(false);
+        userRepository.save(user);
+        logger.info("ユーザー削除解除: {}", userId);
+    }
+
     private AdminUserSummary toUserSummary(User user) {
         AdminUserSummary summary = new AdminUserSummary();
         summary.setId(user.getId());
@@ -165,6 +189,8 @@ public class AdminUserService {
         summary.setEmail(user.getMailaddress());
         summary.setBanFlag(user.isBanFlag());
         summary.setSubscribeFlag(user.getSubscribeFlag() == 1 && user.getCancellationFlag() == 0);
+        summary.setDeleteFlag(user.isDeleteFlag());
+        summary.setTotalPlay(user.getTotalPlay());
         summary.setCreatedAt(user.getCreatedAt());
         summary.setOfflineAt(user.getOfflineAt());
         summary.setExpiresAt(user.getExpiresAt());

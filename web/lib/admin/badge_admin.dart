@@ -11,6 +11,7 @@ class Badge {
   final String condition;
   final String status;
   final bool isActive;
+  final bool isDeleted;
   final DateTime addedDate;
   final DateTime? updatedDate;
   final int numericId;
@@ -22,6 +23,7 @@ class Badge {
     required this.condition,
     required this.status,
     required this.isActive,
+    required this.isDeleted,
     required this.addedDate,
     this.updatedDate,
     required this.numericId,
@@ -35,6 +37,7 @@ class Badge {
       condition: json['acquisitionCondition'] ?? json['acquisitionConditions'] ?? '',
       status: (json['isActive'] == true) ? '有効' : '無効',
       isActive: json['isActive'] == true,
+      isDeleted: json['isDeleted'] == true,
       addedDate: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
           : DateTime.now(),
@@ -52,6 +55,7 @@ class Badge {
     String? condition,
     String? status,
     bool? isActive,
+    bool? isDeleted,
     DateTime? addedDate,
     DateTime? updatedDate,
     int? numericId,
@@ -63,6 +67,7 @@ class Badge {
       condition: condition ?? this.condition,
       status: status ?? this.status,
       isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
       addedDate: addedDate ?? this.addedDate,
       updatedDate: updatedDate ?? this.updatedDate,
       numericId: numericId ?? this.numericId,
@@ -608,6 +613,7 @@ class _BadgeAdminState extends State<BadgeAdmin> {
                 _buildListHeader('モード', 100),
                 _buildListHeader('取得条件', 200),
                 _buildListHeader('状態', 80),
+                _buildListHeader('削除フラグ', 90),
               ],
             ),
           ),
@@ -700,6 +706,14 @@ class _BadgeAdminState extends State<BadgeAdmin> {
                                         textAlign: TextAlign.center,
                                       ),
                                       80,
+                                    ),
+                                    _buildListCell(
+                                      Text(
+                                        badge.isDeleted ? '有効' : '無効',
+                                        style: const TextStyle(fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      90,
                                     ),
                                   ],
                                 ),

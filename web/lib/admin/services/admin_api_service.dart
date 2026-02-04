@@ -229,6 +229,16 @@ class AdminApiService {
     return _decodeResponse(response);
   }
 
+  static Future<void> deleteUser(int userId) async {
+    final response = await delete('/api/admin/users/$userId');
+    _ensureSuccess(response);
+  }
+
+  static Future<void> restoreUser(int userId) async {
+    final response = await put('/api/admin/users/$userId/restore');
+    _ensureSuccess(response);
+  }
+
   // ========== 単語管理API ==========
 
   static Future<Map<String, dynamic>> getVocabularies({
@@ -275,6 +285,11 @@ class AdminApiService {
 
   static Future<void> deleteVocabulary(int vocabId) async {
     final response = await delete('/api/admin/vocabularies/$vocabId');
+    _ensureSuccess(response);
+  }
+
+  static Future<void> restoreVocabulary(int vocabId) async {
+    final response = await put('/api/admin/vocabularies/$vocabId/restore');
     _ensureSuccess(response);
   }
 
@@ -349,6 +364,11 @@ class AdminApiService {
     _ensureSuccess(response);
   }
 
+  static Future<void> restoreQuestion(int questionId) async {
+    final response = await put('/api/admin/questions/$questionId/restore');
+    _ensureSuccess(response);
+  }
+
   static Future<Map<String, dynamic>> enableQuestions(List<int> ids) async {
     final response = await post('/api/admin/questions/enable', body: {'ids': ids});
     return _decodeResponse(response);
@@ -405,6 +425,11 @@ class AdminApiService {
 
   static Future<void> deleteSong(int songId) async {
     final response = await delete('/api/admin/songs/$songId');
+    _ensureSuccess(response);
+  }
+
+  static Future<void> restoreSong(int songId) async {
+    final response = await put('/api/admin/songs/$songId/restore');
     _ensureSuccess(response);
   }
 
@@ -467,6 +492,11 @@ class AdminApiService {
     _ensureSuccess(response);
   }
 
+  static Future<void> restoreArtist(int artistId) async {
+    final response = await put('/api/admin/artists/$artistId/restore');
+    _ensureSuccess(response);
+  }
+
   static Future<Map<String, dynamic>> enableArtists(List<int> ids) async {
     final response = await post('/api/admin/artists/enable', body: {'ids': ids});
     return _decodeResponse(response);
@@ -521,6 +551,11 @@ class AdminApiService {
 
   static Future<void> deleteGenre(int genreId) async {
     final response = await delete('/api/admin/genres/$genreId');
+    _ensureSuccess(response);
+  }
+
+  static Future<void> restoreGenre(int genreId) async {
+    final response = await put('/api/admin/genres/$genreId/restore');
     _ensureSuccess(response);
   }
 
@@ -598,6 +633,11 @@ class AdminApiService {
 
   static Future<void> deleteBadge(int badgeId) async {
     final response = await delete('/api/admin/badges/$badgeId');
+    _ensureSuccess(response);
+  }
+
+  static Future<void> restoreBadge(int badgeId) async {
+    final response = await put('/api/admin/badges/$badgeId/restore');
     _ensureSuccess(response);
   }
 

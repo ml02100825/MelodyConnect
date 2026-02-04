@@ -33,6 +33,8 @@ public class AdminUserListResponse {
         private String email;
         private boolean banFlag;
         private boolean subscribeFlag;
+        private boolean deleteFlag;
+        private int totalPlay;
         private LocalDateTime createdAt;
         private LocalDateTime offlineAt;
         private LocalDateTime expiresAt;
@@ -52,6 +54,10 @@ public class AdminUserListResponse {
         public void setBanFlag(boolean banFlag) { this.banFlag = banFlag; }
         public boolean isSubscribeFlag() { return subscribeFlag; }
         public void setSubscribeFlag(boolean subscribeFlag) { this.subscribeFlag = subscribeFlag; }
+        public boolean isDeleteFlag() { return deleteFlag; }
+        public void setDeleteFlag(boolean deleteFlag) { this.deleteFlag = deleteFlag; }
+        public int getTotalPlay() { return totalPlay; }
+        public void setTotalPlay(int totalPlay) { this.totalPlay = totalPlay; }
         public LocalDateTime getCreatedAt() { return createdAt; }
         public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
         public LocalDateTime getOfflineAt() { return offlineAt; }

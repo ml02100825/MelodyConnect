@@ -16,6 +16,7 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
   bool _isUpdating = false;
   bool _isDeleting = false;
   bool _shouldRefresh = false;
+  bool get _isDeleted => widget.music['isDeleted'] == true;
 
   @override
   void initState() {
@@ -86,11 +87,15 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
       _isDeleting = true;
     });
     try {
-      await AdminApiService.deleteSong(songId);
+      if (_isDeleted) {
+        await AdminApiService.restoreSong(songId);
+      } else {
+        await AdminApiService.deleteSong(songId);
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('楽曲を削除しました')),
+        SnackBar(content: Text(_isDeleted ? '楽曲の削除を解除しました' : '楽曲を削除しました')),
       );
     } catch (e) {
       if (mounted) {
@@ -110,15 +115,23 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return DeleteConfirmationDialog(
-          music: widget.music,
-          onDelete: () async {
-            Navigator.pop(context);
-            await _deleteSong();
-          },
-        );
-      },
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteSong();
+            },
+            child: const Text('はい'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -234,7 +247,7 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                     elevation: 0,
                   ),
-                  child: const Text('楽曲削除'),
+                  child: Text(_isDeleted ? '楽曲削除解除' : '楽曲削除'),
                 ),
               ],
             ),
@@ -261,128 +274,6 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
           child: Text(
             value?.toString() ?? '',
             style: const TextStyle(fontSize: 16),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class DeleteConfirmationDialog extends StatefulWidget {
-  final Map<String, dynamic> music;
-  final Future<void> Function() onDelete;
-
-  const DeleteConfirmationDialog({
-    Key? key,
-    required this.music,
-    required this.onDelete,
-  }) : super(key: key);
-
-  @override
-  State<DeleteConfirmationDialog> createState() => _DeleteConfirmationDialogState();
-}
-
-class _DeleteConfirmationDialogState extends State<DeleteConfirmationDialog> {
-  bool deleteId = false;
-  bool deleteSongName = false;
-  bool deleteArtist = false;
-
-  bool get canDelete => deleteId && deleteSongName && deleteArtist;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      backgroundColor: Colors.white,
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.warning_rounded,
-              color: Colors.red,
-              size: 64,
-            ),
-            const SizedBox(height: 24),
-            _buildCheckboxRow('ID', widget.music['id'], deleteId, (value) {
-              setState(() {
-                deleteId = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('楽曲名', widget.music['songName'], deleteSongName, (value) {
-              setState(() {
-                deleteSongName = value ?? false;
-              });
-            }),
-            const SizedBox(height: 16),
-            _buildCheckboxRow('アーティスト', widget.music['artistId'] ?? '', deleteArtist, (value) {
-              setState(() {
-                deleteArtist = value ?? false;
-              });
-            }),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: canDelete ? () async => widget.onDelete() : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canDelete ? Colors.red : Colors.grey[300],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                elevation: 0,
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text('楽曲を削除する', style: TextStyle(fontSize: 16)),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey[600],
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text('キャンセル', style: TextStyle(fontSize: 16)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckboxRow(String label, String value, bool checked, Function(bool?) onChanged) {
-    return Row(
-      children: [
-        Checkbox(
-          value: checked,
-          onChanged: onChanged,
-          activeColor: Colors.blue,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  label,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
           ),
         ),
       ],

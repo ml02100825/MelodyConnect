@@ -44,11 +44,6 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
   bool _isDeleting = false;
   bool _shouldRefresh = false;
   
-  // 削除確認用チェックボックス
-  bool idChecked = false;
-  bool nameChecked = false;
-  bool conditionChecked = false;
-  bool modeChecked = false;
   
   // モードオプション
   final List<String> modeOptions = [
@@ -456,7 +451,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
             ),
             elevation: 0,
           ),
-          child: const Text('バッジ削除', style: TextStyle(color: Colors.white)),
+          child: Text(_isDeleted ? 'バッジ削除解除' : 'バッジ削除', style: const TextStyle(color: Colors.white)),
         ),
       ],
     );
@@ -514,6 +509,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
           condition: conditionController.text,
           status: selectedStatus,
           isActive: selectedStatus == '有効',
+          isDeleted: widget.badge.isDeleted,
           addedDate: widget.badge.addedDate,
           updatedDate: DateTime.now(),
           numericId: widget.badge.numericId,
@@ -546,6 +542,7 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       condition: conditionController.text,
       status: selectedStatus,
       isActive: selectedStatus == '有効',
+      isDeleted: widget.badge.isDeleted,
       addedDate: widget.badge.addedDate,
       updatedDate: DateTime.now(),
       numericId: widget.badge.numericId,
@@ -570,144 +567,27 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
     );
   }
 
+  bool get _isDeleted => widget.badge.isDeleted;
+
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          // すべてのチェックボックスがチェックされているか確認
-          final allChecked = idChecked && nameChecked && conditionChecked && modeChecked;
-          
-          return AlertDialog(
-            title: Container(
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 100,
-              ),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '削除確認',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '以下の項目をすべてチェックして、削除を確認してください:',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  Column(
-                    children: [
-                      CheckboxListTile(
-                        title: Text(
-                          'ID: ${widget.badge.id}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: idChecked,
-                        onChanged: (value) => setDialogState(() => idChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      CheckboxListTile(
-                        title: Text(
-                          'バッジ名: ${nameController.text}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: nameChecked,
-                        onChanged: (value) => setDialogState(() => nameChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      CheckboxListTile(
-                        title: Text(
-                          '取得条件: ${conditionController.text}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: conditionChecked,
-                        onChanged: (value) => setDialogState(() => conditionChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      CheckboxListTile(
-                        title: Text(
-                          'モード: $selectedMode',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        value: modeChecked,
-                        onChanged: (value) => setDialogState(() => modeChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (!allChecked)
-                    Text(
-                      '※すべての項目にチェックを入れてください',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 12,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton(
-                    onPressed: allChecked
-                        ? () async {
-                            Navigator.pop(context);
-                            await _deleteBadge();
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    child: const Text('バッジを削除する', style: TextStyle(color: Colors.white)),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                    child: const Text('キャンセル', style: TextStyle(color: Colors.grey)),
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteBadge();
+            },
+            child: const Text('はい'),
+          ),
+        ],
       ),
     );
   }
@@ -718,11 +598,15 @@ class _BadgeDetailAdminState extends State<BadgeDetailAdmin> {
       _isDeleting = true;
     });
     try {
-      await AdminApiService.deleteBadge(widget.badge.numericId);
+      if (_isDeleted) {
+        await AdminApiService.restoreBadge(widget.badge.numericId);
+      } else {
+        await AdminApiService.deleteBadge(widget.badge.numericId);
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('バッジを削除しました')),
+        SnackBar(content: Text(_isDeleted ? 'バッジの削除を解除しました' : 'バッジを削除しました')),
       );
     } catch (e) {
       if (mounted) {

@@ -16,130 +16,72 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
   late User _user;
   bool _isLoading = false;
 
-  // 削除確認用チェックボックス
-  bool usernameChecked = false;
-  bool idChecked = false;
-  bool uuidChecked = false;
-  bool emailChecked = false;
-  bool refundChecked = false;
-
   @override
   void initState() {
     super.initState();
     _user = widget.user;
   }
 
+  bool get _isDeleted => _user.deleteFlag;
+
   void _showDeleteConfirmation() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Container(
-              child: Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 100,
-              ),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDeleteCheckbox(
-                    'ユーザー名: ${_user.username}',
-                    usernameChecked,
-                    (value) => setDialogState(() => usernameChecked = value ?? false),
-                  ),
-                  _buildDeleteCheckbox(
-                    'ID: ${_user.id}',
-                    idChecked,
-                    (value) => setDialogState(() => idChecked = value ?? false),
-                  ),
-                  _buildDeleteCheckbox(
-                    'UUID: ${_user.uuid}',
-                    uuidChecked,
-                    (value) => setDialogState(() => uuidChecked = value ?? false),
-                  ),
-                  _buildDeleteCheckbox(
-                    'メールアドレス: ${_user.email}',
-                    emailChecked,
-                    (value) => setDialogState(() => emailChecked = value ?? false),
-                  ),
-                  if (_user.subscription == '加入中')
-                    _buildDeleteCheckbox(
-                      'サブスク加入中のため、返金処理を行う',
-                      refundChecked,
-                      (value) => setDialogState(() => refundChecked = value ?? false),
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange[800]),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton(
-                    onPressed: (usernameChecked && idChecked && uuidChecked && emailChecked &&
-                              (_user.subscription != '加入中' || refundChecked))
-                        ? () {
-                            _deleteAccount();
-                            Navigator.pop(context);
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      minimumSize: Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text('アカウントを削除する', style: TextStyle(color: Colors.white)),
-                  ),
-
-                  SizedBox(height: 8),
-
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _resetDeleteCheckboxes();
-                    },
-                    child: Text('キャンセル', style: TextStyle(color: Colors.grey[700])),
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: _isLoading ? null : () async {
+              Navigator.pop(context);
+              await _toggleDeleteAccount();
+            },
+            child: const Text('はい'),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildDeleteCheckbox(String label, bool value, Function(bool?) onChanged, {TextStyle? style}) {
-    return CheckboxListTile(
-      title: Text(label, style: style ?? TextStyle(fontSize: 14)),
-      value: value,
-      onChanged: onChanged,
-      controlAffinity: ListTileControlAffinity.leading,
-      dense: true,
-    );
-  }
-
-  void _resetDeleteCheckboxes() {
+  Future<void> _toggleDeleteAccount() async {
+    final wasDeleted = _isDeleted;
     setState(() {
-      usernameChecked = false;
-      idChecked = false;
-      uuidChecked = false;
-      emailChecked = false;
-      refundChecked = false;
+      _isLoading = true;
     });
-  }
 
-  void _deleteAccount() {
-    // 削除前に結果を返す
-    Navigator.pop(context, {'action': 'delete', 'user': _user});
+    try {
+      if (wasDeleted) {
+        await AdminApiService.restoreUser(_user.numericId);
+        _user.deleteFlag = false;
+      } else {
+        await AdminApiService.deleteUser(_user.numericId);
+        _user.deleteFlag = true;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(wasDeleted ? 'アカウントの削除を解除しました' : 'アカウントを削除しました')),
+        );
+      }
+      if (mounted) {
+        Navigator.pop(context, {'action': wasDeleted ? 'updated' : 'delete', 'user': _user});
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('アカウントの削除に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _freezeAccount() async {
@@ -336,6 +278,7 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
               _buildInfoRow('ID', _user.id),
               _buildInfoRow('UUID', _user.uuid),
               _buildInfoRow('メールアドレス', _user.email),
+              _buildInfoRow('total_play', _user.totalPlay.toString()),
               SizedBox(height: 40),
               _buildInfoRow('サブスク', _user.subscription),
             ],
@@ -431,7 +374,7 @@ class _UserDetailAdminState extends State<UserDetailAdmin> {
                   ),
                   elevation: 0,
                 ),
-                child: Text('アカウント削除', style: TextStyle(color: Colors.white)),
+                child: Text(_isDeleted ? 'アカウント削除解除' : 'アカウント削除', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),

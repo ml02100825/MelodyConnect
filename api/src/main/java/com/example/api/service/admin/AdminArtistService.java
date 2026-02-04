@@ -97,9 +97,15 @@ public class AdminArtistService {
     }
 
     public AdminArtistResponse getArtist(Long artistId) {
-        Artist artist = artistRepository.findById(artistId)
-                .orElseThrow(() -> new IllegalArgumentException("アーティストが見つかりません: " + artistId));
-        return toResponse(artist);
+        Query dataQuery = entityManager.createNativeQuery(
+                "SELECT * FROM artist WHERE artist_id = :artistId", Artist.class);
+        dataQuery.setParameter("artistId", artistId);
+        @SuppressWarnings("unchecked")
+        List<Artist> artists = dataQuery.getResultList();
+        if (artists.isEmpty()) {
+            throw new IllegalArgumentException("アーティストが見つかりません: " + artistId);
+        }
+        return toResponse(artists.get(0));
     }
 
     @Transactional
@@ -123,11 +129,26 @@ public class AdminArtistService {
 
     @Transactional
     public void deleteArtist(Long artistId) {
-        Artist artist = artistRepository.findById(artistId)
-                .orElseThrow(() -> new IllegalArgumentException("アーティストが見つかりません: " + artistId));
-        artist.setIsDeleted(true);
-        artistRepository.save(artist);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE artist SET is_deleted = true WHERE artist_id = :artistId")
+            .setParameter("artistId", artistId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("アーティストが見つかりません: " + artistId);
+        }
         logger.info("アーティスト削除: {}", artistId);
+    }
+
+    @Transactional
+    public void restoreArtist(Long artistId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE artist SET is_deleted = false WHERE artist_id = :artistId")
+            .setParameter("artistId", artistId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("アーティストが見つかりません: " + artistId);
+        }
+        logger.info("アーティスト削除解除: {}", artistId);
     }
 
     @Transactional
@@ -172,6 +193,7 @@ public class AdminArtistService {
         response.setImageUrl(artist.getImageUrl());
         response.setArtistApiId(artist.getArtistApiId());
         response.setIsActive(artist.getIsActive());
+        response.setIsDeleted(artist.getIsDeleted());
         response.setCreatedAt(artist.getCreatedAt());
         response.setLastSyncedAt(artist.getLastSyncedAt());
         return response;

@@ -114,7 +114,7 @@ public class AdminQuestionService {
         String orderBy = " ORDER BY q.question_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
         String selectSql = "SELECT q.question_id, q.song_id, q.artist_id, q.text, q.answer, " +
                 "q.complete_sentence, q.question_format, q.difficulty_level, q.language, q.translation_ja, " +
-                "q.audio_url, q.is_active, q.adding_at, s.songname, a.artist_name" +
+                "q.audio_url, q.is_active, q.is_deleted, q.adding_at, s.songname, a.artist_name" +
                 fromClause + orderBy;
         String countSql = "SELECT COUNT(*)" + fromClause;
 
@@ -140,9 +140,22 @@ public class AdminQuestionService {
     }
     @Transactional(readOnly = true)
     public AdminQuestionResponse getQuestion(Integer questionId) {
-        Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new IllegalArgumentException("問題が見つかりません: " + questionId));
-        return toResponse(question);
+        String selectSql = "SELECT q.question_id, q.song_id, q.artist_id, q.text, q.answer, " +
+                "q.complete_sentence, q.question_format, q.difficulty_level, q.language, q.translation_ja, " +
+                "q.audio_url, q.is_active, q.is_deleted, q.adding_at, s.songname, a.artist_name " +
+                "FROM question q " +
+                "LEFT JOIN song s ON q.song_id = s.song_id " +
+                "LEFT JOIN artist a ON q.artist_id = a.artist_id " +
+                "WHERE q.question_id = :questionId";
+
+        Query dataQuery = entityManager.createNativeQuery(selectSql);
+        dataQuery.setParameter("questionId", questionId);
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = dataQuery.getResultList();
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("問題が見つかりません: " + questionId);
+        }
+        return toResponse(rows.get(0));
     }
 
     @Transactional
@@ -176,11 +189,26 @@ public class AdminQuestionService {
 
     @Transactional
     public void deleteQuestion(Integer questionId) {
-        Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new IllegalArgumentException("問題が見つかりません: " + questionId));
-        question.setIsDeleted(true);
-        questionRepository.save(question);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE question SET is_deleted = true WHERE question_id = :questionId")
+            .setParameter("questionId", questionId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("問題が見つかりません: " + questionId);
+        }
         logger.info("問題削除: {}", questionId);
+    }
+
+    @Transactional
+    public void restoreQuestion(Integer questionId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE question SET is_deleted = false WHERE question_id = :questionId")
+            .setParameter("questionId", questionId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("問題が見つかりません: " + questionId);
+        }
+        logger.info("問題削除解除: {}", questionId);
     }
 
     @Transactional
@@ -228,10 +256,16 @@ public class AdminQuestionService {
     private AdminQuestionResponse toResponse(Question question) {
         AdminQuestionResponse response = new AdminQuestionResponse();
         response.setQuestionId(question.getQuestionId());
-        response.setSongId(question.getSong().getSongId());
-        response.setSongName(question.getSong().getSongname());
-        response.setArtistId(question.getArtist().getArtistId());
-        response.setArtistName(question.getArtist().getArtistName());
+        final Song song = question.getSong();
+        if (song != null) {
+            response.setSongId(song.getSongId());
+            response.setSongName(song.getSongname());
+        }
+        final Artist artist = question.getArtist();
+        if (artist != null) {
+            response.setArtistId(artist.getArtistId());
+            response.setArtistName(artist.getArtistName());
+        }
         response.setText(question.getText());
         response.setAnswer(question.getAnswer());
         response.setCompleteSentence(question.getCompleteSentence());
@@ -241,6 +275,7 @@ public class AdminQuestionService {
         response.setTranslationJa(question.getTranslationJa());
         response.setAudioUrl(question.getAudioUrl());
         response.setIsActive(question.getIsActive());
+        response.setIsDeleted(question.getIsDeleted());
         response.setAddingAt(question.getAddingAt());
         return response;
     }
@@ -261,9 +296,10 @@ public class AdminQuestionService {
         response.setTranslationJa((String) row[9]);
         response.setAudioUrl((String) row[10]);
         response.setIsActive(row[11] != null ? (Boolean) row[11] : null);
-        response.setAddingAt(toLocalDateTime(row[12]));
-        response.setSongName((String) row[13]);
-        response.setArtistName((String) row[14]);
+        response.setIsDeleted(row[12] != null ? (Boolean) row[12] : null);
+        response.setAddingAt(toLocalDateTime(row[13]));
+        response.setSongName((String) row[14]);
+        response.setArtistName((String) row[15]);
         return response;
     }
 

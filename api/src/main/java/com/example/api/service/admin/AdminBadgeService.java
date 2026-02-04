@@ -71,7 +71,7 @@ public class AdminBadgeService {
 
         String orderBy = " ORDER BY b.badge_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
         String selectSql = "SELECT b.badge_id, b.badge_name, b.acq_cond, b.image_url, b.mode, " +
-                "b.is_active, b.created_at" + fromClause + orderBy;
+                "b.is_active, b.is_deleted, b.created_at" + fromClause + orderBy;
         String countSql = "SELECT COUNT(*)" + fromClause;
 
         Query dataQuery = entityManager.createNativeQuery(selectSql);
@@ -95,9 +95,15 @@ public class AdminBadgeService {
     }
 
     public AdminBadgeResponse getBadge(Long badgeId) {
-        Badge badge = badgeRepository.findById(badgeId)
-                .orElseThrow(() -> new IllegalArgumentException("バッジが見つかりません: " + badgeId));
-        return toResponse(badge);
+        Query dataQuery = entityManager.createNativeQuery(
+                "SELECT * FROM badge WHERE badge_id = :badgeId", Badge.class);
+        dataQuery.setParameter("badgeId", badgeId);
+        @SuppressWarnings("unchecked")
+        List<Badge> badges = dataQuery.getResultList();
+        if (badges.isEmpty()) {
+            throw new IllegalArgumentException("バッジが見つかりません: " + badgeId);
+        }
+        return toResponse(badges.get(0));
     }
 
     @Transactional
@@ -121,11 +127,26 @@ public class AdminBadgeService {
 
     @Transactional
     public void deleteBadge(Long badgeId) {
-        Badge badge = badgeRepository.findById(badgeId)
-                .orElseThrow(() -> new IllegalArgumentException("バッジが見つかりません: " + badgeId));
-        badge.setIsDeleted(true);
-        badgeRepository.save(badge);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE badge SET is_deleted = true WHERE badge_id = :badgeId")
+            .setParameter("badgeId", badgeId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("バッジが見つかりません: " + badgeId);
+        }
         logger.info("バッジ削除: {}", badgeId);
+    }
+
+    @Transactional
+    public void restoreBadge(Long badgeId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE badge SET is_deleted = false WHERE badge_id = :badgeId")
+            .setParameter("badgeId", badgeId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("バッジが見つかりません: " + badgeId);
+        }
+        logger.info("バッジ削除解除: {}", badgeId);
     }
 
     @Transactional
@@ -170,6 +191,7 @@ public class AdminBadgeService {
         response.setImageUrl(badge.getImageUrl());
         response.setMode(badge.getMode());
         response.setIsActive(badge.isActiveFlag());
+        response.setIsDeleted(badge.getIsDeleted());
         response.setCreatedAt(badge.getCreatedAt());
         return response;
     }
@@ -182,7 +204,8 @@ public class AdminBadgeService {
         response.setImageUrl((String) row[3]);
         response.setMode(row[4] != null ? ((Number) row[4]).intValue() : null);
         response.setIsActive(row[5] != null ? (Boolean) row[5] : null);
-        response.setCreatedAt(toLocalDateTime(row[6]));
+        response.setIsDeleted(row[6] != null ? (Boolean) row[6] : null);
+        response.setCreatedAt(toLocalDateTime(row[7]));
         return response;
     }
 

@@ -49,10 +49,6 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
   // ジャンルオプション（APIから取得）
   List<String> genreOptions = [];
   
-  // 削除確認用チェックボックス
-  bool idChecked = false;
-  bool nameChecked = false;
-  bool genreChecked = false;
 
   @override
   void initState() {
@@ -461,7 +457,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
             ),
             elevation: 0,
           ),
-          child: const Text('アーティスト削除', style: TextStyle(color: Colors.white)),
+          child: Text(_isDeleted ? 'アーティスト削除解除' : 'アーティスト削除', style: const TextStyle(color: Colors.white)),
         ),
       ],
     );
@@ -520,6 +516,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
           genre: genreController.text,
           status: selectedStatus,
           isActive: selectedStatus == '有効',
+          isDeleted: widget.artist.isDeleted,
           addedDate: widget.artist.addedDate,
           updatedDate: DateTime.now(),
           artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
@@ -553,6 +550,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       genre: genreController.text,
       status: selectedStatus,
       isActive: selectedStatus == '有効',
+      isDeleted: widget.artist.isDeleted,
       addedDate: widget.artist.addedDate,
       updatedDate: DateTime.now(),
       artistApiId: artistApiIdController.text.isEmpty ? null : artistApiIdController.text,
@@ -581,133 +579,27 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
     );
   }
 
+  bool get _isDeleted => widget.artist.isDeleted;
+
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          // すべてのチェックボックスがチェックされているか確認
-          final allChecked = idChecked && nameChecked && genreChecked;
-          
-          return AlertDialog(
-            title: Container(
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 100,
-              ),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '削除確認',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '以下の項目をすべてチェックして、削除を確認してください:',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  Column(
-                    children: [
-                      CheckboxListTile(
-                        title: Text(
-                          'ID: ${widget.artist.id}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: idChecked,
-                        onChanged: (value) => setDialogState(() => idChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      CheckboxListTile(
-                        title: Text(
-                          'アーティスト: ${nameController.text}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: nameChecked,
-                        onChanged: (value) => setDialogState(() => nameChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      CheckboxListTile(
-                        title: Text(
-                          'ジャンル: ${genreController.text}',
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                        value: genreChecked,
-                        onChanged: (value) => setDialogState(() => genreChecked = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (!allChecked)
-                    Text(
-                      '※すべての項目にチェックを入れてください',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 12,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton(
-                    onPressed: allChecked
-                        ? () async {
-                            Navigator.pop(context);
-                            await _deleteArtist();
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    child: const Text('アーティストを削除する', style: TextStyle(color: Colors.white)),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                    child: const Text('キャンセル', style: TextStyle(color: Colors.grey)),
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('削除確認'),
+        content: Text(_isDeleted ? '削除を解除しますか？' : '削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteArtist();
+            },
+            child: const Text('はい'),
+          ),
+        ],
       ),
     );
   }
@@ -718,11 +610,15 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       _isDeleting = true;
     });
     try {
-      await AdminApiService.deleteArtist(widget.artist.numericId);
+      if (_isDeleted) {
+        await AdminApiService.restoreArtist(widget.artist.numericId);
+      } else {
+        await AdminApiService.deleteArtist(widget.artist.numericId);
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('アーティストを削除しました')),
+        SnackBar(content: Text(_isDeleted ? 'アーティストの削除を解除しました' : 'アーティストを削除しました')),
       );
     } catch (e) {
       if (mounted) {

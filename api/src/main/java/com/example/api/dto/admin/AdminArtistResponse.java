@@ -11,6 +11,7 @@ public class AdminArtistResponse {
     private String imageUrl;
     private String artistApiId;
     private Boolean isActive;
+    private Boolean isDeleted;
     private LocalDateTime createdAt;
     private LocalDateTime lastSyncedAt;
 
@@ -26,6 +27,8 @@ public class AdminArtistResponse {
     public void setArtistApiId(String artistApiId) { this.artistApiId = artistApiId; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public Boolean getIsDeleted() { return isDeleted; }
+    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getLastSyncedAt() { return lastSyncedAt; }

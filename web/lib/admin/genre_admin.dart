@@ -9,6 +9,7 @@ class Genre {
   final String name;
   final String status;
   final bool isActive;
+  final bool isDeleted;
   final DateTime addedDate;
   final DateTime? updatedDate;
   final int numericId;
@@ -18,6 +19,7 @@ class Genre {
     required this.name,
     required this.status,
     required this.isActive,
+    required this.isDeleted,
     required this.addedDate,
     this.updatedDate,
     required this.numericId,
@@ -29,6 +31,7 @@ class Genre {
       name: json['name'] ?? '',
       status: (json['isActive'] == true) ? '有効' : '無効',
       isActive: json['isActive'] == true,
+      isDeleted: json['isDeleted'] == true,
       addedDate: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
           : DateTime.now(),
@@ -44,6 +47,7 @@ class Genre {
     String? name,
     String? status,
     bool? isActive,
+    bool? isDeleted,
     DateTime? addedDate,
     DateTime? updatedDate,
     int? numericId,
@@ -53,6 +57,7 @@ class Genre {
       name: name ?? this.name,
       status: status ?? this.status,
       isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
       addedDate: addedDate ?? this.addedDate,
       updatedDate: updatedDate ?? this.updatedDate,
       numericId: numericId ?? this.numericId,
@@ -621,6 +626,7 @@ class _GenreAdminState extends State<GenreAdmin> {
                   _buildTableHeader('ジャンル名', 3),
                   _buildTableHeader('追加日', 2),
                   _buildTableHeader('状態', 2),
+                  _buildTableHeader('削除フラグ', 2),
                 ],
               ),
             ),
@@ -666,6 +672,11 @@ class _GenreAdminState extends State<GenreAdmin> {
                                       ),
                                       _buildTableCell('', 2, TextAlign.center,
                                         child: _buildStatusIndicator(genre.status)),
+                                      _buildTableCell(
+                                        genre.isDeleted ? '有効' : '無効',
+                                        2,
+                                        TextAlign.center,
+                                      ),
                                     ],
                                   ),
                                 ),

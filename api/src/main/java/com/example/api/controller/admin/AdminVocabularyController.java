@@ -98,6 +98,19 @@ public class AdminVocabularyController {
         }
     }
 
+    @PutMapping("/{id}/restore")
+    public ResponseEntity<?> restoreVocabulary(@PathVariable Integer id) {
+        try {
+            adminVocabularyService.restoreVocabulary(id);
+            return ResponseEntity.ok(createSuccessResponse("単語の削除を解除しました"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("単語削除解除エラー", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("単語の削除解除に失敗しました"));
+        }
+    }
+
     @PostMapping("/enable")
     public ResponseEntity<?> enableVocabularies(@Valid @RequestBody BulkActionRequest request) {
         try {

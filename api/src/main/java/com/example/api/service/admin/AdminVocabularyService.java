@@ -42,7 +42,7 @@ public class AdminVocabularyService {
             LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
 
         Sort.Direction direction = parseSortDirection(sortDirection);
-        StringBuilder whereClause = new StringBuilder(" FROM vocabulary WHERE is_deleted = false");
+        StringBuilder whereClause = new StringBuilder(" FROM vocabulary WHERE 1=1");
         Map<String, Object> params = new HashMap<>();
 
         if (word != null && !word.isEmpty()) {
@@ -98,8 +98,18 @@ public class AdminVocabularyService {
      * 単語詳細取得
      */
     public AdminVocabularyResponse getVocabulary(Integer vocabId) {
-        Vocabulary vocab = findVocabularyIncludingInactive(vocabId);
-        return toResponse(vocab);
+        Query query = entityManager.createNativeQuery(
+            "SELECT * FROM vocabulary WHERE vocab_id = :vocabId",
+            Vocabulary.class
+        );
+        query.setParameter("vocabId", vocabId);
+
+        @SuppressWarnings("unchecked")
+        List<Vocabulary> results = query.getResultList();
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException("単語が見つかりません: " + vocabId);
+        }
+        return toResponse(results.get(0));
     }
 
     /**
@@ -131,10 +141,26 @@ public class AdminVocabularyService {
      */
     @Transactional
     public void deleteVocabulary(Integer vocabId) {
-        Vocabulary vocab = findVocabularyIncludingInactive(vocabId);
-        vocab.setIsDeleted(true);
-        vocabularyRepository.save(vocab);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE vocabulary SET is_deleted = true WHERE vocab_id = :vocabId")
+            .setParameter("vocabId", vocabId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("単語が見つかりません: " + vocabId);
+        }
         logger.info("単語削除: {}", vocabId);
+    }
+
+    @Transactional
+    public void restoreVocabulary(Integer vocabId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE vocabulary SET is_deleted = false WHERE vocab_id = :vocabId")
+            .setParameter("vocabId", vocabId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("単語が見つかりません: " + vocabId);
+        }
+        logger.info("単語削除解除: {}", vocabId);
     }
 
     /**
@@ -212,6 +238,7 @@ public class AdminVocabularyService {
         response.setAudioUrl(vocab.getAudio_url());
         response.setLanguage(vocab.getLanguage());
         response.setIsActive(vocab.getIsActive());
+        response.setIsDeleted(vocab.getIsDeleted());
         response.setCreatedAt(vocab.getCreated_at());
         response.setUpdatedAt(vocab.getUpdated_at());
         return response;

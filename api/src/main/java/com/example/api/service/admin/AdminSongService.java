@@ -73,7 +73,7 @@ public class AdminSongService {
 
         String orderBy = " ORDER BY s.song_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
         String selectSql = "SELECT s.song_id, s.aritst_id, s.songname, s.spotify_track_id, " +
-                "s.genius_song_id, s.language, s.is_active, s.created_at, a.artist_name" +
+                "s.genius_song_id, s.language, s.is_active, s.is_deleted, s.created_at, a.artist_name" +
                 fromClause + orderBy;
         String countSql = "SELECT COUNT(*)" + fromClause;
 
@@ -98,15 +98,18 @@ public class AdminSongService {
     }
 
     public AdminSongResponse getSong(Long songId) {
-        Song song = songRepository.findById(songId)
-                .orElseThrow(() -> new IllegalArgumentException("楽曲が見つかりません: " + songId));
-        String artistName = null;
-        if (song.getArtistId() != null) {
-            artistName = artistRepository.findById(song.getArtistId())
-                    .map(Artist::getArtistName)
-                    .orElse(null);
+        String selectSql = "SELECT s.song_id, s.aritst_id, s.songname, s.spotify_track_id, " +
+                "s.genius_song_id, s.language, s.is_active, s.is_deleted, s.created_at, a.artist_name " +
+                "FROM song s LEFT JOIN artist a ON s.aritst_id = a.artist_id " +
+                "WHERE s.song_id = :songId";
+        Query dataQuery = entityManager.createNativeQuery(selectSql);
+        dataQuery.setParameter("songId", songId);
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = dataQuery.getResultList();
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("楽曲が見つかりません: " + songId);
         }
-        return toResponse(song, artistName);
+        return toResponse(rows.get(0));
     }
 
     @Transactional
@@ -130,11 +133,26 @@ public class AdminSongService {
 
     @Transactional
     public void deleteSong(Long songId) {
-        Song song = songRepository.findById(songId)
-                .orElseThrow(() -> new IllegalArgumentException("楽曲が見つかりません: " + songId));
-        song.setIsDeleted(true);
-        songRepository.save(song);
+        int updated = entityManager.createNativeQuery(
+                "UPDATE song SET is_deleted = true WHERE song_id = :songId")
+            .setParameter("songId", songId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("楽曲が見つかりません: " + songId);
+        }
         logger.info("楽曲削除: {}", songId);
+    }
+
+    @Transactional
+    public void restoreSong(Long songId) {
+        int updated = entityManager.createNativeQuery(
+                "UPDATE song SET is_deleted = false WHERE song_id = :songId")
+            .setParameter("songId", songId)
+            .executeUpdate();
+        if (updated == 0) {
+            throw new IllegalArgumentException("楽曲が見つかりません: " + songId);
+        }
+        logger.info("楽曲削除解除: {}", songId);
     }
 
     @Transactional
@@ -182,6 +200,7 @@ public class AdminSongService {
         response.setGeniusSongId(song.getGeniusSongId());
         response.setLanguage(song.getLanguage());
         response.setIsActive(song.getIsActive());
+        response.setIsDeleted(song.getIsDeleted());
         response.setCreatedAt(song.getCreated_at());
         return response;
     }
@@ -195,8 +214,9 @@ public class AdminSongService {
         response.setGeniusSongId(row[4] != null ? ((Number) row[4]).longValue() : null);
         response.setLanguage((String) row[5]);
         response.setIsActive(row[6] != null ? (Boolean) row[6] : null);
-        response.setCreatedAt(toLocalDateTime(row[7]));
-        response.setArtistName((String) row[8]);
+        response.setIsDeleted(row[7] != null ? (Boolean) row[7] : null);
+        response.setCreatedAt(toLocalDateTime(row[8]));
+        response.setArtistName((String) row[9]);
         return response;
     }
 

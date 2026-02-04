@@ -95,6 +95,19 @@ public class AdminArtistController {
         }
     }
 
+    @PutMapping("/{id}/restore")
+    public ResponseEntity<?> restoreArtist(@PathVariable Long id) {
+        try {
+            adminArtistService.restoreArtist(id);
+            return ResponseEntity.ok(createSuccessResponse("アーティストの削除を解除しました"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("アーティスト削除解除エラー", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("アーティストの削除解除に失敗しました"));
+        }
+    }
+
     @PostMapping("/enable")
     public ResponseEntity<?> enableArtists(@Valid @RequestBody BulkLongActionRequest request) {
         try {
