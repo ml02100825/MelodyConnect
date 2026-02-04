@@ -15,6 +15,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Genius API Client の実装
  * 歌詞を取得するためのGenius API統合とWebスクレイピング
@@ -333,7 +336,7 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                 .uri(uriBuilder -> uriBuilder
                     .path("/search")
                     .queryParam("q", searchQuery)
-                    .queryParam("per_page", 10)  // 複数結果を取得
+                    .queryParam("per_page", 20)  // 複数結果を取得（日本語版を探すため多めに）
                     .build())
                 .header("Authorization", "Bearer " + apiKey)
                 .retrieve()
@@ -344,7 +347,11 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             JsonNode hits = rootNode.path("response").path("hits");
 
             if (hits.isArray() && hits.size() > 0) {
-                // 優先度順に各候補を試す
+                // 日本語版が見つからなかった場合のフォールバック用
+                LyricsResult fallbackResult = null;
+                Set<Long> triedSongIds = new HashSet<>();
+
+                // 優先度順に各候補を試す（日本語版を優先）
                 for (JsonNode hit : hits) {
                     JsonNode result = hit.path("result");
 
@@ -352,11 +359,29 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                     String primaryArtistName = result.path("primary_artist").path("name").asText();
                     Long songId = result.path("id").asLong();
 
+                    // 既に試したsongIdはスキップ
+                    if (triedSongIds.contains(songId)) {
+                        continue;
+                    }
+                    triedSongIds.add(songId);
+
                     // ローマ字版をスキップ
                     String titleLower = title.toLowerCase();
                     String artistLower = primaryArtistName.toLowerCase();
                     if (titleLower.contains("romanized") || artistLower.contains("genius romanizations")) {
                         logger.debug("ローマ字版をスキップ: title=\"{}\", artist=\"{}\"", title, primaryArtistName);
+                        continue;
+                    }
+
+                    // 曲名とアーティスト名の一致チェック
+                    if (!isTitleMatch(songTitle, title)) {
+                        logger.info("候補をスキップ（曲名不一致）: 検索=\"{}\", 結果=\"{}\"",
+                                    songTitle, title);
+                        continue;
+                    }
+                    if (!isArtistMatch(artistName, primaryArtistName)) {
+                        logger.info("候補をスキップ（アーティスト不一致）: 検索=\"{}\", 結果=\"{}\"",
+                                    artistName, primaryArtistName);
                         continue;
                     }
 
@@ -369,6 +394,17 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                         // 歌詞から言語を検出
                         String detectedLanguage = detectLanguage(lyrics);
 
+                        // 日本語の歌詞を優先（英語版はスキップして次を試す）
+                        if ("en".equals(detectedLanguage)) {
+                            logger.info("英語版をスキップ（日本語版を探します）: geniusSongId={}, title=\"{}\"",
+                                        songId, title);
+                            // 英語版を一時保存（日本語版が見つからなかった場合のフォールバック用）
+                            if (fallbackResult == null) {
+                                fallbackResult = new LyricsResult(lyrics, songId, detectedLanguage);
+                            }
+                            continue;
+                        }
+
                         logger.info("歌詞取得成功: geniusSongId={}, title=\"{}\", lyrics_length={}, language={}",
                             songId, title, lyrics.length(), detectedLanguage);
 
@@ -376,6 +412,13 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                     }
 
                     logger.debug("歌詞取得失敗（ローマ字版またはエラー）、次の候補を試します");
+                }
+
+                // 日本語版が見つからなかった場合は英語版をフォールバックとして使用
+                if (fallbackResult != null) {
+                    logger.info("日本語版が見つからないため英語版を使用: geniusSongId={}",
+                                fallbackResult.getGeniusSongId());
+                    return fallbackResult;
                 }
 
                 logger.warn("全ての候補で歌詞取得に失敗しました: title={}, artist={}", songTitle, artistName);
@@ -389,5 +432,69 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             logger.error("検索と歌詞取得中にエラーが発生しました", e);
             return null;
         }
+    }
+
+    /**
+     * 曲名が一致するかチェック
+     * 正規化後に完全一致または部分一致（どちらかが他方を含む）を判定
+     */
+    private boolean isTitleMatch(String searchTitle, String resultTitle) {
+        String normalizedSearch = normalizeForComparison(searchTitle);
+        String normalizedResult = normalizeForComparison(resultTitle);
+
+        if (normalizedSearch.isEmpty() || normalizedResult.isEmpty()) {
+            return false;
+        }
+
+        // 完全一致
+        if (normalizedSearch.equals(normalizedResult)) {
+            return true;
+        }
+
+        // 部分一致（どちらかが他方を含む）
+        return normalizedSearch.contains(normalizedResult) ||
+               normalizedResult.contains(normalizedSearch);
+    }
+
+    /**
+     * アーティスト名が一致するかチェック
+     */
+    private boolean isArtistMatch(String searchArtist, String resultArtist) {
+        String normalizedSearch = normalizeForComparison(searchArtist);
+        String normalizedResult = normalizeForComparison(resultArtist);
+
+        if (normalizedSearch.isEmpty() || normalizedResult.isEmpty()) {
+            return false;
+        }
+
+        // "Genius"で始まるアーティストは公式アカウント（歌詞提供者）なので常に不一致
+        if (normalizedResult.startsWith("genius")) {
+            return false;
+        }
+
+        // 完全一致
+        if (normalizedSearch.equals(normalizedResult)) {
+            return true;
+        }
+
+        // 部分一致
+        return normalizedSearch.contains(normalizedResult) ||
+               normalizedResult.contains(normalizedSearch);
+    }
+
+    /**
+     * 比較用に文字列を正規化
+     * - 小文字化
+     * - 空白を正規化（全角含む）
+     * - 記号を除去
+     */
+    private String normalizeForComparison(String str) {
+        if (str == null) {
+            return "";
+        }
+        return str.toLowerCase()
+                  .replaceAll("[\\s　]+", " ")  // 空白正規化（全角含む）
+                  .replaceAll("[^\\p{L}\\p{N}\\s]", "")  // 記号除去（Unicode文字・数字・空白以外）
+                  .trim();
     }
 }

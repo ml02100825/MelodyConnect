@@ -119,6 +119,7 @@ public class QuestionGeneratorService {
           
             newQuestion.setLanguage(targetLanguage);  // ユーザーの学習言語を設定
             newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
+            newQuestion.setSourceFragment(claudeQuestion.getSourceFragment());
 
             // audioUrl: リスニング問題の場合のみTTSで音声を生成
             if ("listening".equals(questionFormat)) {
@@ -145,6 +146,7 @@ public class QuestionGeneratorService {
             newQuestion.setDifficultyLevel(claudeQuestion.getDifficultyLevel());
             newQuestion.setLanguage(targetLanguage);
             newQuestion.setTranslationJa(claudeQuestion.getTranslationJa());
+            newQuestion.setSourceFragment(claudeQuestion.getSourceFragment());
 
             if ("listening".equals(questionFormat)) {
                 String audioUrl = textToSpeechClient.generateSpeech(claudeQuestion.getCompleteSentence(), targetLanguage);
@@ -245,7 +247,7 @@ public class QuestionGeneratorService {
             // 2. 歌詞を取得
             String lyrics = fetchLyrics(selectedSong);
             if (lyrics == null || lyrics.isEmpty()) {
-                throw new IllegalStateException("歌詞の取得に失敗しました");
+                throw new IllegalStateException("歌詞が取得できませんでした。Geniusに歌詞が存在するかご確認ください。");
             }
 
             logger.info("歌詞取得完了: length={}", lyrics.length());
@@ -563,6 +565,7 @@ public class QuestionGeneratorService {
             .language(question.getLanguage())
             .translationJa(question.getTranslationJa())
             .audioUrl(question.getAudioUrl())
+            .sourceFragment(question.getSourceFragment())
             .build();
     }
 
