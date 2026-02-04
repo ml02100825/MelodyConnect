@@ -13,6 +13,8 @@ class MusicDetailPage extends StatefulWidget {
 
 class _MusicDetailPageState extends State<MusicDetailPage> {
   late String status;
+  bool _isUpdating = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -21,9 +23,86 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
   }
 
   void toggleStatus() {
+    _updateStatus();
+  }
+
+  int _resolveSongId() {
+    return int.tryParse(widget.music['id']?.toString() ?? '') ?? 0;
+  }
+
+  Future<void> _updateStatus() async {
+    if (_isUpdating) return;
+    final songId = _resolveSongId();
+    if (songId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('楽曲IDが不正です。')),
+      );
+      return;
+    }
+    final nextStatus = status == '有効' ? '無効' : '有効';
     setState(() {
-      status = (status == '有効') ? '無効' : '有効';
+      _isUpdating = true;
     });
+    try {
+      if (nextStatus == '有効') {
+        await AdminApiService.enableSongs([songId]);
+      } else {
+        await AdminApiService.disableSongs([songId]);
+      }
+      if (!mounted) return;
+      setState(() {
+        status = nextStatus;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('楽曲を$nextStatusに更新しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('楽曲の状態更新に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteSong() async {
+    if (_isDeleting) return;
+    final songId = _resolveSongId();
+    if (songId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('楽曲IDが不正です。')),
+      );
+      return;
+    }
+    setState(() {
+      _isDeleting = true;
+    });
+    try {
+      await AdminApiService.deleteSong(songId);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('楽曲を削除しました')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('削除に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
   }
 
   void _showDeleteDialog() {
@@ -33,25 +112,8 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
         return DeleteConfirmationDialog(
           music: widget.music,
           onDelete: () async {
-            try {
-              final songId = int.tryParse(widget.music['id']?.toString() ?? '');
-              if (songId != null) {
-                await AdminApiService.disableSongs([songId]);
-              }
-              if (context.mounted) {
-                Navigator.pop(context); // ダイアログを閉じる
-              }
-              if (this.context.mounted) {
-                Navigator.pop(this.context, true); // 詳細画面を閉じる（リロード通知）
-              }
-            } catch (e) {
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text('削除に失敗しました: $e')),
-                );
-              }
-            }
+            Navigator.pop(context);
+            await _deleteSong();
           },
         );
       },
@@ -152,18 +214,18 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
                 ),
                 const Spacer(),
                 ElevatedButton(
-                  onPressed: toggleStatus,
+                  onPressed: _isUpdating ? null : toggleStatus,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
+                    backgroundColor: status == '有効' ? Colors.orange : Colors.green,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                     elevation: 0,
                   ),
-                  child: const Text('楽曲無効化'),
+                  child: Text(status == '有効' ? '楽曲無効化' : '楽曲有効化'),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _showDeleteDialog,
+                  onPressed: _isDeleting ? null : _showDeleteDialog,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
@@ -206,7 +268,7 @@ class _MusicDetailPageState extends State<MusicDetailPage> {
 
 class DeleteConfirmationDialog extends StatefulWidget {
   final Map<String, dynamic> music;
-  final VoidCallback onDelete;
+  final Future<void> Function() onDelete;
 
   const DeleteConfirmationDialog({
     Key? key,
@@ -267,7 +329,7 @@ class _DeleteConfirmationDialogState extends State<DeleteConfirmationDialog> {
             }),
             const SizedBox(height: 32),
             ElevatedButton(
-              onPressed: canDelete ? widget.onDelete : null,
+              onPressed: canDelete ? () async => widget.onDelete() : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: canDelete ? Colors.red : Colors.grey[300],
                 foregroundColor: Colors.white,
