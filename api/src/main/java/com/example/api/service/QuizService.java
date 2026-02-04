@@ -542,6 +542,7 @@ public class QuizService {
             .answer(answerValue)
             .completeSentence(q.getCompleteSentence())  // ★ 追加
             .translationJa(q.getTranslationJa())        // ★ 追加
+            .sourceFragment(q.getSourceFragment())      // 元の歌詞（原文）
             .build();
     }
 

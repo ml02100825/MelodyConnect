@@ -63,6 +63,8 @@ public class QuestionGenerationResponse {
         private String language;
         private String translationJa;
         private String audioUrl;
+        /** 元の歌詞フラグメント（原文） */
+        private String sourceFragment;
     }
 
     /**
