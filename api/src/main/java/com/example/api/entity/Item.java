@@ -39,12 +39,23 @@ public class Item {
      */
     @Column(name = "heal_amount", nullable = false)
     private Integer healAmount;
- 
+
     /**
-     * 利用可否フラグ（管理者が停止する場合に使用）
+     * 購入価格（円）
      */
-    @Column(name = "is_active", nullable = false)
-    private Boolean isActive = true;
+    @Column(name = "price", nullable = false)
+    private Integer price;
+
+    /**
+     * ステータス（公開・停止・削除）
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "status",
+            nullable = false,
+            columnDefinition = "ENUM('ACTIVE','INACTIVE','DELETED') DEFAULT 'INACTIVE'"
+    )
+    private ItemStatus status = ItemStatus.INACTIVE;
  
     /**
      * 作成日時
@@ -73,7 +84,7 @@ public class Item {
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
-        if (isActive == null) isActive = true;
+        if (status == null) status = ItemStatus.INACTIVE;
     }
  
     /**

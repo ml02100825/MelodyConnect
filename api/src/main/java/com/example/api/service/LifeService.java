@@ -1,7 +1,14 @@
 package com.example.api.service;
 
 import com.example.api.dto.LifeStatusResponse;
+import com.example.api.dto.RecoveryItemResponse;
+import com.example.api.dto.UseItemResponse;
+import com.example.api.entity.Item;
+import com.example.api.entity.ItemStatus;
 import com.example.api.entity.User;
+import com.example.api.entity.UserItem;
+import com.example.api.repository.ItemRepository;
+import com.example.api.repository.UserItemRepository;
 import com.example.api.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +39,15 @@ public class LifeService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private ItemRepository itemRepository;
+
+    @Autowired
+    private UserItemRepository userItemRepository;
+
+    /** 回復アイテムのID（固定） */
+    private static final int RECOVERY_ITEM_ID = 1;
 
     /**
      * マッチング用のライフ消費例外
@@ -277,5 +293,88 @@ public class LifeService {
             user.setLife(maxLife);
             userRepository.save(user);
         }
+    }
+
+    /**
+     * 回復アイテム情報を取得
+     * @param userId ユーザーID
+     * @return 回復アイテム情報（所持数含む）
+     */
+    @Transactional(readOnly = true)
+    public RecoveryItemResponse getRecoveryItem(Long userId) {
+        // ユーザー存在確認
+        userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: " + userId));
+
+        // 回復アイテム（itemId=1）を取得
+        Item item = itemRepository.findByItemIdAndStatus(RECOVERY_ITEM_ID, ItemStatus.ACTIVE)
+                .orElseThrow(() -> new IllegalArgumentException("回復アイテムが見つかりません"));
+
+        // ユーザーの所持数を取得
+        int quantity = userItemRepository.findByUserIdAndItemItemId(userId, RECOVERY_ITEM_ID)
+                .map(UserItem::getQuantity)
+                .orElse(0);
+
+        logger.info("回復アイテム情報取得: userId={}, itemId={}, quantity={}", userId, RECOVERY_ITEM_ID, quantity);
+
+        return new RecoveryItemResponse(
+                item.getItemId(),
+                item.getName(),
+                item.getDescription(),
+                item.getHealAmount(),
+                quantity
+        );
+    }
+
+    /**
+     * 回復アイテムを使用してライフを回復
+     * @param userId ユーザーID
+     * @param itemId アイテムID
+     * @return 使用結果
+     */
+    @Transactional
+    public UseItemResponse useRecoveryItem(Long userId, Integer itemId) {
+        // ユーザー取得
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません: " + userId));
+
+        // 回復計算を適用
+        applyRecovery(user);
+        userRepository.save(user);
+
+        // ライフが0でない場合はエラー
+        if (user.getLife() > 0) {
+            logger.info("ライフ回復アイテム使用失敗（ライフ残有）: userId={}, life={}", userId, user.getLife());
+            return new UseItemResponse(false, "ライフが残っているため使用できません", user.getLife(), 0);
+        }
+
+        // アイテム取得
+        Item item = itemRepository.findByItemIdAndStatus(itemId, ItemStatus.ACTIVE)
+                .orElseThrow(() -> new IllegalArgumentException("アイテムが見つかりません: " + itemId));
+
+        // ユーザーの所持数を確認
+        UserItem userItem = userItemRepository.findByUserIdAndItemItemId(userId, itemId)
+                .orElse(null);
+
+        if (userItem == null || userItem.getQuantity() <= 0) {
+            logger.info("ライフ回復アイテム使用失敗（所持数不足）: userId={}, itemId={}", userId, itemId);
+            return new UseItemResponse(false, "アイテムを所持していません", user.getLife(), 0);
+        }
+
+        // アイテム消費
+        userItem.addQuantity(-1);
+        userItemRepository.save(userItem);
+
+        // ライフ回復（上限を超えない）
+        int maxLife = getMaxLife(user);
+        int newLife = Math.min(user.getLife() + item.getHealAmount(), maxLife);
+        user.setLife(newLife);
+        user.setLifeLastRecoveredAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        logger.info("ライフ回復アイテム使用成功: userId={}, itemId={}, healAmount={}, newLife={}, remainingQuantity={}",
+                userId, itemId, item.getHealAmount(), newLife, userItem.getQuantity());
+
+        return new UseItemResponse(true, "ライフを回復しました", newLife, userItem.getQuantity());
     }
 }

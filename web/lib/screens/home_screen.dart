@@ -41,9 +41,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _imageUrl;
 
   // ライフ関連
-  int _currentLife = 5;
-  int _maxLife = 5;
+  int _currentLife = 0;
+  int _maxLife = 0;
   int _nextRecoveryInSeconds = 0;
+  bool _isLifeLoading = true;
+  bool _hasLifeData = false;
   Timer? _recoveryTimer;
 
   // バッジ数
@@ -101,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
 
       // ライフ状態を取得
-      _fetchLifeStatus();
+      await _fetchLifeStatus();
 
       // バッジ数を取得
       _fetchBadgeCounts();
@@ -117,6 +119,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// ライフ状態を取得
   Future<void> _fetchLifeStatus() async {
+    if (mounted && !_hasLifeData) {
+      setState(() {
+        _isLifeLoading = true;
+      });
+    }
+
     try {
       final userId = await _tokenStorage.getUserId();
       final accessToken = await _tokenStorage.getAccessToken();
@@ -131,11 +139,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             _currentLife = lifeStatus.currentLife;
             _maxLife = lifeStatus.maxLife;
             _nextRecoveryInSeconds = lifeStatus.nextRecoveryInSeconds;
+            _hasLifeData = true;
+            _isLifeLoading = false;
           });
           _startRecoveryTimer();
         }
+      } else if (mounted) {
+        setState(() {
+          _isLifeLoading = false;
+        });
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLifeLoading = false;
+        });
+      }
       debugPrint('ライフ状態取得エラー: $e');
     }
   }
@@ -183,6 +202,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 回復タイマーを開始
   void _startRecoveryTimer() {
     _recoveryTimer?.cancel();
+    if (!_hasLifeData) return;
     if (_currentLife >= _maxLife || _nextRecoveryInSeconds <= 0) return;
 
     _recoveryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -277,6 +297,142 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// 回復アイテム使用ダイアログを表示
+  Future<void> _showRecoveryItemDialog() async {
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken == null || _userId == null) return;
+
+      // アイテム情報を取得
+      final recoveryItem = await _lifeApiService.getRecoveryItem(
+        userId: _userId!,
+        accessToken: accessToken,
+      );
+
+      if (!mounted) return;
+
+      // ダイアログ表示
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('ライフ回復'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                recoveryItem.name,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(recoveryItem.description),
+              const SizedBox(height: 16),
+              Text(
+                '所持数: ${recoveryItem.quantity}個',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: recoveryItem.quantity > 0 ? Colors.black87 : Colors.red,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (recoveryItem.quantity == 0) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'アイテムがありません',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ],
+              if (recoveryItem.quantity > 0) ...[
+                const SizedBox(height: 16),
+                const Text('使用しますか？'),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('いいえ'),
+            ),
+            if (recoveryItem.quantity > 0)
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                child: const Text('はい'),
+              ),
+          ],
+        ),
+      );
+
+      // 「はい」が選択された場合、アイテムを使用
+      if (confirmed == true) {
+        await _useRecoveryItem(recoveryItem.itemId);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('エラーが発生しました: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 回復アイテムを使用
+  Future<void> _useRecoveryItem(int itemId) async {
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken == null || _userId == null) return;
+
+      final result = await _lifeApiService.useRecoveryItem(
+        userId: _userId!,
+        itemId: itemId,
+        accessToken: accessToken,
+      );
+
+      if (result.success) {
+        // ライフ状態を更新
+        setState(() {
+          _currentLife = result.newLife;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ライフを回復しました'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+
+        // ライフ状態を再取得（回復タイマーの更新のため）
+        _fetchLifeStatus();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.message),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('アイテムの使用に失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -287,25 +443,58 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         automaticallyImplyLeading: false,
         title: Row(
           children: [
-            // ライフ表示
-            ...List.generate(_maxLife, (index) {
-              final isFilled = index < _currentLife;
-              return Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Icon(
-                  Icons.music_note,
-                  color: isFilled ? Colors.blue[600] : Colors.grey[300],
-                  size: 20,
+            if (_hasLifeData) ...[
+              // ライフ表示
+              ...List.generate(_maxLife, (index) {
+                final isFilled = index < _currentLife;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.music_note,
+                    color: isFilled ? Colors.blue[600] : Colors.grey[300],
+                    size: 20,
+                  ),
+                );
+              }),
+              // ライフが0の場合のみ+ボタンを表示
+              if (_currentLife == 0) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: _showRecoveryItemDialog,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
                 ),
-              );
-            }),
-            const SizedBox(width: 8),
-            // 次回回復までの時間
-            if (_currentLife < _maxLife)
+              ],
+              const SizedBox(width: 8),
+              // 次回回復までの時間
+              if (_currentLife < _maxLife)
+                Text(
+                  _formatRecoveryTime(_nextRecoveryInSeconds),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+            ] else if (_isLifeLoading) ...[
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 8),
               Text(
-                _formatRecoveryTime(_nextRecoveryInSeconds),
+                'ライフ取得中',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
+            ],
           ],
         ),
         actions: [

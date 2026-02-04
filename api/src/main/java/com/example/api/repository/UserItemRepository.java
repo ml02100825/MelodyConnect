@@ -9,4 +9,7 @@ import java.util.Optional;
 public interface UserItemRepository extends JpaRepository<UserItem, Integer> {
     // ユーザーとアイテムで検索（フィールド名 user, item に対応）
     Optional<UserItem> findByUserAndItem(User user, Item item);
+
+    // ユーザーIDとアイテムIDで検索
+    Optional<UserItem> findByUserIdAndItemItemId(Long userId, Integer itemId);
 }
