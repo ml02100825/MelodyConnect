@@ -3,6 +3,7 @@ package com.example.api.service;
 import com.example.api.dto.ShopPurchaseRequest;
 import com.example.api.dto.ShopPurchaseResponse;
 import com.example.api.entity.Item;
+import com.example.api.entity.ItemStatus;
 import com.example.api.entity.User;
 import com.example.api.entity.UserItem;
 import com.example.api.entity.UserPaymentMethod;
@@ -40,11 +41,9 @@ public class ShopService {
             throw new IllegalArgumentException("quantity must be positive.");
         }
 
-        Item item = itemRepository.findById(request.getItemId())
-                .orElseThrow(() -> new IllegalArgumentException("item not found: " + request.getItemId()));
-        if (!Boolean.TRUE.equals(item.getIsActive())) {
-            throw new IllegalArgumentException("item is inactive: " + request.getItemId());
-        }
+        Item item = itemRepository.findByItemIdAndStatus(request.getItemId(), ItemStatus.ACTIVE)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "item not found or inactive: " + request.getItemId()));
 
         UserPaymentMethod paymentMethod = paymentMethodRepository.findById(request.getPaymentMethodId())
                 .orElseThrow(() -> new IllegalArgumentException("payment method not found: " + request.getPaymentMethodId()));

@@ -47,10 +47,15 @@ public class Item {
     private Integer price;
 
     /**
-     * 利用可否フラグ（管理者が停止する場合に使用）
+     * ステータス（公開・停止・削除）
      */
-    @Column(name = "is_active", nullable = false)
-    private Boolean isActive = true;
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "status",
+            nullable = false,
+            columnDefinition = "ENUM('ACTIVE','INACTIVE','DELETED') DEFAULT 'INACTIVE'"
+    )
+    private ItemStatus status = ItemStatus.INACTIVE;
  
     /**
      * 作成日時
@@ -79,7 +84,7 @@ public class Item {
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
-        if (isActive == null) isActive = true;
+        if (status == null) status = ItemStatus.INACTIVE;
     }
  
     /**
