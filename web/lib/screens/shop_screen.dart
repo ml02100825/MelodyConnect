@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_webapp/config/app_config.dart';
 import '../bottom_nav.dart';
+import '../services/token_storage_service.dart';
 import 'payment_management_screen.dart';
 import 'subscription_screen.dart';
 
@@ -42,6 +47,7 @@ class ShopScreen extends StatelessWidget {
                           subLabel: '×1',
                           price: '¥120',
                           itemId: 1,
+                          quantity: 1,
                         ),
                       )),
                       child: _buildItemCard(icon: Icons.music_note, label: 'ライフ回復アイテム', subLabel: '×1', price: '¥120'),
@@ -56,7 +62,8 @@ class ShopScreen extends StatelessWidget {
                           label: 'ライフ回復アイテム',
                           subLabel: '×5',
                           price: '¥450',
-                          itemId: 2,
+                          itemId: 1,
+                          quantity: 5,
                         ),
                       )),
                       child: _buildItemCard(icon: Icons.shopping_bag, label: 'ライフ回復アイテム', subLabel: '×5', price: '¥450'),
@@ -153,6 +160,7 @@ class ItemDetailScreen extends StatefulWidget {
   final String subLabel;
   final String price;
   final int itemId;
+  final int quantity;
 
   const ItemDetailScreen({
     Key? key,
@@ -161,6 +169,7 @@ class ItemDetailScreen extends StatefulWidget {
     required this.subLabel,
     required this.price,
     required this.itemId,
+    required this.quantity,
   }) : super(key: key);
 
   @override
@@ -172,6 +181,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   List<dynamic> _paymentMethods = [];
   Map<String, dynamic>? _selectedPaymentMethod;
   bool _isLoading = true;
+
+  String get _baseUrl => AppConfig.apiBaseUrl;
   
   @override
   void initState() {
@@ -298,23 +309,104 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   }
 
   void _handlePurchase() async {
-    if (_hasPaymentMethod) {
-      _showPurchaseConfirmDialog();
+    await _loadPaymentMethods();
+    if (_paymentMethods.isEmpty) {
+      _showCardRegisterDialog();
     } else {
-      final result = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(builder: (context) => const AddPaymentMethodScreen()),
-      );
-      if (result == true) {
-        await _loadPaymentMethods(); // リロード
-        if (mounted && _paymentMethods.isNotEmpty) {
-          setState(() {
-            _selectedPaymentMethod = _paymentMethods.last;
-          });
-          _showPurchaseConfirmDialog();
-        }
-      }
+      _showCardSelectionDialog();
     }
+  }
+
+  void _showCardRegisterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('カード未登録'),
+        content: const Text('購入するにはクレジットカードの登録が必要です。\n登録画面へ移動しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AddPaymentMethodScreen()),
+              ).then((_) => _loadPaymentMethods());
+            },
+            child: const Text('登録画面へ'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCardSelectionDialog() {
+    if (_paymentMethods.isEmpty) return;
+
+    int? selectedPaymentMethodId = _paymentMethods.first['id'];
+    String groupValue = selectedPaymentMethodId.toString();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('支払いカードの選択'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _paymentMethods.length,
+                itemBuilder: (context, index) {
+                  final card = _paymentMethods[index];
+                  final brand = card['brand'] ?? 'Unknown';
+                  final last4 = card['last4'] ?? '????';
+                  final id = card['id'];
+                  final idStr = id.toString();
+
+                  return RadioListTile<String>(
+                    title: Text('$brand •••• $last4'),
+                    value: idStr,
+                    groupValue: groupValue,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() {
+                          groupValue = value;
+                          selectedPaymentMethodId = id;
+                        });
+                      }
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('キャンセル'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (selectedPaymentMethodId == null) return;
+                  setState(() {
+                    _selectedPaymentMethod = _paymentMethods.firstWhere(
+                      (method) => method['id'] == selectedPaymentMethodId,
+                      orElse: () => _paymentMethods.first,
+                    );
+                  });
+                  Navigator.pop(context);
+                  _showPurchaseConfirmDialog();
+                },
+                child: const Text('選択する'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
   
   void _showPaymentMethodSelector() {
@@ -394,9 +486,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('購入が完了しました'), backgroundColor: Colors.blue),
-              );
+              _processPurchase();
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             child: const Text('購入する'),
@@ -404,5 +494,51 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _processPurchase() async {
+    if (_selectedPaymentMethod == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('支払い方法を選択してください'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    try {
+      final token = await TokenStorageService().getAccessToken();
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ログイン情報が取得できませんでした'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/shop/purchase'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'itemId': widget.itemId,
+          'quantity': widget.quantity,
+          'paymentMethodId': _selectedPaymentMethod!['id'],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('購入が完了しました'), backgroundColor: Colors.blue),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('購入に失敗しました'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('購入に失敗しました'), backgroundColor: Colors.red),
+      );
+    }
   }
 }
