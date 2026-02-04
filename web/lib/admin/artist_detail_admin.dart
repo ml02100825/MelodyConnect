@@ -44,6 +44,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
   late String selectedStatus;
   bool _isUpdatingStatus = false;
   bool _isDeleting = false;
+  bool _shouldRefresh = false;
 
   // ジャンルオプション（APIから取得）
   List<String> genreOptions = [];
@@ -403,7 +404,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
         // 一覧へ戻るボタン
         OutlinedButton(
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pop(context, _shouldRefresh ? true : null);
           },
           style: OutlinedButton.styleFrom(
             backgroundColor: Colors.grey,
@@ -510,6 +511,7 @@ class _ArtistDetailAdminState extends State<ArtistDetailAdmin> {
       if (!mounted) return;
       setState(() {
         selectedStatus = nextStatus;
+        _shouldRefresh = true;
       });
       if (widget.onStatusChanged != null) {
         final updatedArtist = Artist(

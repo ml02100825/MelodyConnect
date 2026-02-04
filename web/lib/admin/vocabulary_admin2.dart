@@ -17,6 +17,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
   late String status;
   bool _isUpdating = false;
   bool _isDeleting = false;
+  bool _shouldRefresh = false;
 
   @override
   void initState() {
@@ -65,6 +66,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
         status = nextStatus;
         _vocab['isActive'] = nextStatus == '有効';
         _vocab['status'] = nextStatus;
+        _shouldRefresh = true;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('単語を$nextStatusに更新しました')),
@@ -143,6 +145,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
     if (updated != null && mounted) {
       setState(() {
         _vocab = Map<String, dynamic>.from(updated as Map);
+        _shouldRefresh = true;
       });
     }
   }
@@ -214,7 +217,7 @@ class _VocabularyDetailPageState extends State<VocabularyDetailPage> {
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _shouldRefresh ? true : null),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey,
                     foregroundColor: Colors.white,
