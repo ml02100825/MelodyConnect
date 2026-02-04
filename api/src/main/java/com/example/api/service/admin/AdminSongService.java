@@ -6,24 +6,21 @@ import com.example.api.entity.Artist;
 import com.example.api.entity.Song;
 import com.example.api.repository.ArtistRepository;
 import com.example.api.repository.SongRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,62 +34,67 @@ public class AdminSongService {
     @Autowired
     private ArtistRepository artistRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     public AdminSongResponse.ListResponse getSongs(
             int page, int size, String idSearch, String songname, String artistName, Boolean isActive,
             LocalDateTime createdFrom, LocalDateTime createdTo, String sortDirection) {
         Sort.Direction direction = parseSortDirection(sortDirection);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "songId"));
 
-        Specification<Song> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("isDeleted"), false));
+        StringBuilder fromClause = new StringBuilder(
+                " FROM song s LEFT JOIN artist a ON s.aritst_id = a.artist_id WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
 
-            if (songname != null && !songname.isEmpty()) {
-                predicates.add(cb.like(root.get("songname"), "%" + songname + "%"));
-            }
-            if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.equal(root.get("songId").as(String.class), idSearch));
-            }
-            if (artistName != null && !artistName.isEmpty()) {
-                List<Long> artistIds = artistRepository.findArtistIdsByArtistNameContaining(artistName);
-                if (artistIds.isEmpty()) {
-                    predicates.add(cb.disjunction());
-                } else {
-                    predicates.add(root.get("artistId").in(artistIds));
-                }
-            }
-            if (isActive != null) {
-                predicates.add(cb.equal(root.get("isActive"), isActive));
-            }
-            if (createdFrom != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("created_at"), createdFrom));
-            }
-            if (createdTo != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("created_at"), createdTo));
-            }
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
-
-        Page<Song> songPage = songRepository.findAll(spec, pageable);
-
-        Map<Long, String> artistNameMap = new HashMap<>();
-        List<Long> artistIds = songPage.getContent().stream()
-                .map(Song::getArtistId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        if (!artistIds.isEmpty()) {
-            artistNameMap = artistRepository.findAllById(artistIds).stream()
-                    .collect(Collectors.toMap(Artist::getArtistId, Artist::getArtistName));
+        if (songname != null && !songname.isEmpty()) {
+            fromClause.append(" AND s.songname LIKE :songname");
+            params.put("songname", "%" + songname + "%");
+        }
+        if (idSearch != null && !idSearch.isEmpty()) {
+            fromClause.append(" AND CAST(s.song_id AS CHAR) = :songId");
+            params.put("songId", idSearch);
+        }
+        if (artistName != null && !artistName.isEmpty()) {
+            fromClause.append(" AND a.artist_name LIKE :artistName");
+            params.put("artistName", "%" + artistName + "%");
+        }
+        if (isActive != null) {
+            fromClause.append(" AND s.is_active = :isActive");
+            params.put("isActive", isActive);
+        }
+        if (createdFrom != null) {
+            fromClause.append(" AND s.created_at >= :createdFrom");
+            params.put("createdFrom", createdFrom);
+        }
+        if (createdTo != null) {
+            fromClause.append(" AND s.created_at <= :createdTo");
+            params.put("createdTo", createdTo);
         }
 
-        Map<Long, String> finalArtistNameMap = artistNameMap;
-        List<AdminSongResponse> songs = songPage.getContent().stream()
-                .map(song -> toResponse(song, finalArtistNameMap.get(song.getArtistId())))
+        String orderBy = " ORDER BY s.song_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
+        String selectSql = "SELECT s.song_id, s.aritst_id, s.songname, s.spotify_track_id, " +
+                "s.genius_song_id, s.language, s.is_active, s.created_at, a.artist_name" +
+                fromClause + orderBy;
+        String countSql = "SELECT COUNT(*)" + fromClause;
+
+        Query dataQuery = entityManager.createNativeQuery(selectSql);
+        Query countQuery = entityManager.createNativeQuery(countSql);
+        params.forEach((key, value) -> {
+            dataQuery.setParameter(key, value);
+            countQuery.setParameter(key, value);
+        });
+        dataQuery.setFirstResult(page * size);
+        dataQuery.setMaxResults(size);
+
+        List<Object[]> rows = dataQuery.getResultList();
+        List<AdminSongResponse> songs = rows.stream()
+                .map(this::toResponse)
                 .collect(Collectors.toList());
 
-        return new AdminSongResponse.ListResponse(songs, page, size, songPage.getTotalElements(), songPage.getTotalPages());
+        long totalElements = ((Number) countQuery.getSingleResult()).longValue();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        return new AdminSongResponse.ListResponse(songs, page, size, totalElements, totalPages);
     }
 
     public AdminSongResponse getSong(Long songId) {
@@ -182,6 +184,36 @@ public class AdminSongService {
         response.setIsActive(song.getIsActive());
         response.setCreatedAt(song.getCreated_at());
         return response;
+    }
+
+    private AdminSongResponse toResponse(Object[] row) {
+        AdminSongResponse response = new AdminSongResponse();
+        response.setSongId(row[0] != null ? ((Number) row[0]).longValue() : null);
+        response.setArtistId(row[1] != null ? ((Number) row[1]).longValue() : null);
+        response.setSongname((String) row[2]);
+        response.setSpotifyTrackId((String) row[3]);
+        response.setGeniusSongId(row[4] != null ? ((Number) row[4]).longValue() : null);
+        response.setLanguage((String) row[5]);
+        response.setIsActive(row[6] != null ? (Boolean) row[6] : null);
+        response.setCreatedAt(toLocalDateTime(row[7]));
+        response.setArtistName((String) row[8]);
+        return response;
+    }
+
+    private LocalDateTime toLocalDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime) {
+            return (LocalDateTime) value;
+        }
+        if (value instanceof java.sql.Timestamp) {
+            return ((java.sql.Timestamp) value).toLocalDateTime();
+        }
+        if (value instanceof java.util.Date) {
+            return ((java.util.Date) value).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        }
+        throw new IllegalArgumentException("Unsupported date type: " + value.getClass());
     }
 
     private Sort.Direction parseSortDirection(String sortDirection) {

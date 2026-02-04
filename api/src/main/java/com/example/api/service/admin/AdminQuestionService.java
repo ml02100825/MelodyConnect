@@ -9,21 +9,21 @@ import com.example.api.enums.QuestionFormat;
 import com.example.api.repository.ArtistRepository;
 import com.example.api.repository.QuestionRepository;
 import com.example.api.repository.SongRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -43,6 +43,9 @@ public class AdminQuestionService {
     @Autowired
     private ArtistRepository artistRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Transactional(readOnly = true)
     public AdminQuestionResponse.ListResponse getQuestions(
             int page, int size, String idSearch, Long artistId, String questionFormat, String language,
@@ -50,60 +53,90 @@ public class AdminQuestionService {
             String songName, String artistName, LocalDateTime addedFrom, LocalDateTime addedTo, String sortDirection) {
 
         Sort.Direction direction = parseSortDirection(sortDirection);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, "questionId"));
 
-        Specification<Question> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("isDeleted"), false));
+        StringBuilder fromClause = new StringBuilder(
+                " FROM question q " +
+                        "LEFT JOIN song s ON q.song_id = s.song_id " +
+                        "LEFT JOIN artist a ON q.artist_id = a.artist_id " +
+                        "WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
 
-            if (idSearch != null && !idSearch.isEmpty()) {
-                predicates.add(cb.equal(root.get("questionId").as(String.class), idSearch));
-            }
-            if (artistId != null) {
-                predicates.add(cb.equal(root.get("artist").get("artistId"), artistId));
-            }
-            if (questionFormat != null && !questionFormat.isEmpty()) {
-                predicates.add(cb.equal(root.get("questionFormat"), parseQuestionFormat(questionFormat)));
-            }
-            if (language != null && !language.isEmpty()) {
-                predicates.add(cb.equal(root.get("language"), language));
-            }
-            if (questionText != null && !questionText.isEmpty()) {
-                predicates.add(cb.like(root.get("text"), "%" + questionText + "%"));
-            }
-            if (answer != null && !answer.isEmpty()) {
-                predicates.add(cb.like(root.get("answer"), "%" + answer + "%"));
-            }
-            if (songName != null && !songName.isEmpty()) {
-                predicates.add(cb.like(root.get("song").get("songname"), "%" + songName + "%"));
-            }
-            if (artistName != null && !artistName.isEmpty()) {
-                predicates.add(cb.like(root.get("artist").get("artistName"), "%" + artistName + "%"));
-            }
-            if (difficultyLevel != null) {
-                predicates.add(cb.equal(root.get("difficultyLevel"), difficultyLevel));
-            }
-            if (isActive != null) {
-                predicates.add(cb.equal(root.get("isActive"), isActive));
-            }
-            if (addedFrom != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("addingAt"), addedFrom));
-            }
-            if (addedTo != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("addingAt"), addedTo));
-            }
+        if (idSearch != null && !idSearch.isEmpty()) {
+            fromClause.append(" AND CAST(q.question_id AS CHAR) = :questionId");
+            params.put("questionId", idSearch);
+        }
+        if (artistId != null) {
+            fromClause.append(" AND q.artist_id = :artistId");
+            params.put("artistId", artistId);
+        }
+        if (questionFormat != null && !questionFormat.isEmpty()) {
+            QuestionFormat parsedFormat = parseQuestionFormat(questionFormat);
+            fromClause.append(" AND q.question_format = :questionFormat");
+            params.put("questionFormat", parsedFormat.name());
+        }
+        if (language != null && !language.isEmpty()) {
+            fromClause.append(" AND q.language = :language");
+            params.put("language", language);
+        }
+        if (questionText != null && !questionText.isEmpty()) {
+            fromClause.append(" AND q.text LIKE :questionText");
+            params.put("questionText", "%" + questionText + "%");
+        }
+        if (answer != null && !answer.isEmpty()) {
+            fromClause.append(" AND q.answer LIKE :answer");
+            params.put("answer", "%" + answer + "%");
+        }
+        if (songName != null && !songName.isEmpty()) {
+            fromClause.append(" AND s.songname LIKE :songName");
+            params.put("songName", "%" + songName + "%");
+        }
+        if (artistName != null && !artistName.isEmpty()) {
+            fromClause.append(" AND a.artist_name LIKE :artistName");
+            params.put("artistName", "%" + artistName + "%");
+        }
+        if (difficultyLevel != null) {
+            fromClause.append(" AND q.difficulty_level = :difficultyLevel");
+            params.put("difficultyLevel", difficultyLevel);
+        }
+        if (isActive != null) {
+            fromClause.append(" AND q.is_active = :isActive");
+            params.put("isActive", isActive);
+        }
+        if (addedFrom != null) {
+            fromClause.append(" AND q.adding_at >= :addedFrom");
+            params.put("addedFrom", addedFrom);
+        }
+        if (addedTo != null) {
+            fromClause.append(" AND q.adding_at <= :addedTo");
+            params.put("addedTo", addedTo);
+        }
 
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        String orderBy = " ORDER BY q.question_id " + (direction == Sort.Direction.ASC ? "ASC" : "DESC");
+        String selectSql = "SELECT q.question_id, q.song_id, q.artist_id, q.text, q.answer, " +
+                "q.complete_sentence, q.question_format, q.difficulty_level, q.language, q.translation_ja, " +
+                "q.audio_url, q.is_active, q.adding_at, s.songname, a.artist_name" +
+                fromClause + orderBy;
+        String countSql = "SELECT COUNT(*)" + fromClause;
 
-        Page<Question> questionPage = questionRepository.findAll(spec, pageable);
+        Query dataQuery = entityManager.createNativeQuery(selectSql);
+        Query countQuery = entityManager.createNativeQuery(countSql);
+        params.forEach((key, value) -> {
+            dataQuery.setParameter(key, value);
+            countQuery.setParameter(key, value);
+        });
+        dataQuery.setFirstResult(page * size);
+        dataQuery.setMaxResults(size);
 
-        List<AdminQuestionResponse> questions = questionPage.getContent().stream()
+        List<Object[]> rows = dataQuery.getResultList();
+        List<AdminQuestionResponse> questions = rows.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
 
+        long totalElements = ((Number) countQuery.getSingleResult()).longValue();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
         return new AdminQuestionResponse.ListResponse(
-                questions, page, size, questionPage.getTotalElements(), questionPage.getTotalPages());
+                questions, page, size, totalElements, totalPages);
     }
     @Transactional(readOnly = true)
     public AdminQuestionResponse getQuestion(Integer questionId) {
@@ -210,6 +243,44 @@ public class AdminQuestionService {
         response.setIsActive(question.getIsActive());
         response.setAddingAt(question.getAddingAt());
         return response;
+    }
+
+    private AdminQuestionResponse toResponse(Object[] row) {
+        AdminQuestionResponse response = new AdminQuestionResponse();
+        response.setQuestionId(row[0] != null ? ((Number) row[0]).intValue() : null);
+        response.setSongId(row[1] != null ? ((Number) row[1]).longValue() : null);
+        response.setArtistId(row[2] != null ? ((Number) row[2]).longValue() : null);
+        response.setText((String) row[3]);
+        response.setAnswer((String) row[4]);
+        response.setCompleteSentence((String) row[5]);
+        if (row[6] != null) {
+            response.setQuestionFormat(formatQuestionFormat(QuestionFormat.valueOf(row[6].toString())));
+        }
+        response.setDifficultyLevel(row[7] != null ? ((Number) row[7]).intValue() : null);
+        response.setLanguage((String) row[8]);
+        response.setTranslationJa((String) row[9]);
+        response.setAudioUrl((String) row[10]);
+        response.setIsActive(row[11] != null ? (Boolean) row[11] : null);
+        response.setAddingAt(toLocalDateTime(row[12]));
+        response.setSongName((String) row[13]);
+        response.setArtistName((String) row[14]);
+        return response;
+    }
+
+    private LocalDateTime toLocalDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime) {
+            return (LocalDateTime) value;
+        }
+        if (value instanceof java.sql.Timestamp) {
+            return ((java.sql.Timestamp) value).toLocalDateTime();
+        }
+        if (value instanceof java.util.Date) {
+            return ((java.util.Date) value).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        }
+        throw new IllegalArgumentException("Unsupported date type: " + value.getClass());
     }
 
     private QuestionFormat parseQuestionFormat(String questionFormat) {

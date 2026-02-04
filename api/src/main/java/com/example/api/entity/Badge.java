@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import org.hibernate.annotations.Where;
 import java.time.LocalDateTime;
 
 @Data
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
         @Index(name = "idx_badge_name", columnList = "badge_name")
     }
 )
+@Where(clause = "is_active = true AND is_deleted = false")
 @NoArgsConstructor
 @AllArgsConstructor
 public class Badge {
