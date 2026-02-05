@@ -199,7 +199,7 @@ class _RankingScreenState extends State<RankingScreen>
         'season': season,
         'limit': '50',
         'userId': _currentUserId!.toString(),
-        'friendsOnly': 'false',
+        'friendsOnly': _showFriendsOnly.toString(),
       };
 
       final uri = Uri.parse('$_baseUrl/api/v1/rankings/season')
@@ -263,7 +263,7 @@ class _RankingScreenState extends State<RankingScreen>
       final params = <String, String>{
         'limit': '50',
         'userId': _currentUserId!.toString(),
-        'friendsOnly': 'false'
+        'friendsOnly': _showFriendsOnlyWeekly.toString(),
       };
       // ※バックエンドの仕様変更により weekStart は無視されますが、送信しても問題ありません
       if (weekStart != null) {
@@ -337,10 +337,6 @@ class _RankingScreenState extends State<RankingScreen>
     });
   }
 
-  String get _currentUserName {
-    return 'Kanata';
-  }
-
   String _formatUpdateTime(DateTime time) {
     final now = DateTime.now();
     final difference = now.difference(time);
@@ -412,15 +408,7 @@ class _RankingScreenState extends State<RankingScreen>
         List.from(_rankings[_selectedSeason] ?? []);
     rankings.sort((a, b) => (b['rate'] as int).compareTo(a['rate'] as int));
 
-    List<Map<String, dynamic>> displayRankings = rankings;
-    if (_showFriendsOnly) {
-      displayRankings = rankings
-          .where((r) => (r['isFriend'] == true) || (r['isMe'] == true))
-          .toList();
-    }
-
-    final myRankIndex = displayRankings.indexWhere((r) => r['isMe'] == true);
-    final myRank = myRankIndex >= 0 ? myRankIndex + 1 : -1;
+    final myRankIndex = rankings.indexWhere((r) => r['isMe'] == true);
     final isSeasonActive = _seasonStatus[_selectedSeason] ?? false;
 
     return Column(
@@ -506,6 +494,7 @@ class _RankingScreenState extends State<RankingScreen>
                           setState(() {
                             _showFriendsOnly = value;
                           });
+                          _fetchSeasonRanking(_selectedSeason);
                         },
                         activeColor: Colors.amber[700],
                       ),
@@ -532,7 +521,7 @@ class _RankingScreenState extends State<RankingScreen>
           ),
         ),
         Expanded(
-          child: displayRankings.isEmpty
+          child: rankings.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -549,11 +538,12 @@ class _RankingScreenState extends State<RankingScreen>
                 )
               : ListView.builder(
                   itemCount:
-                      displayRankings.length > 30 ? 30 : displayRankings.length,
+                      rankings.length > 30 ? 30 : rankings.length,
                   itemBuilder: (context, index) {
-                    final item = displayRankings[index];
+                    final item = rankings[index];
                     final isMe = item['isMe'] == true;
                     final isFriend = item['isFriend'] == true;
+                    final int serverRank = item['rank'] ?? index + 1;
 
                     return Container(
                       color: isMe ? Colors.amber[100] : null,
@@ -565,27 +555,27 @@ class _RankingScreenState extends State<RankingScreen>
                               width: 40,
                               alignment: Alignment.center,
                               child: Text(
-                                '#${item['rank'] ?? index + 1}',
+                                '#$serverRank',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
-                                  color: index == 0
+                                  color: serverRank == 1
                                       ? Colors.amber[700]
-                                      : index == 1
+                                      : serverRank == 2
                                           ? Colors.grey[600]
-                                          : index == 2
+                                          : serverRank == 3
                                               ? Colors.brown[400]
                                               : Colors.black,
                                 ),
                               ),
                             ),
-                            if ((item['rank'] ?? index + 1) <= 3)
+                            if (serverRank <= 3)
                               Icon(
                                 Icons.emoji_events,
                                 size: 20,
-                                color: (item['rank'] ?? index + 1) == 1
+                                color: serverRank == 1
                                     ? Colors.amber[700]
-                                    : (item['rank'] ?? index + 1) == 2
+                                    : serverRank == 2
                                         ? Colors.grey[600]
                                         : Colors.brown[400],
                               ),
@@ -621,7 +611,8 @@ class _RankingScreenState extends State<RankingScreen>
                   },
                 ),
         ),
-        if (myRank > 30)
+        if (myRankIndex >= 0) ...[
+          const Divider(height: 1, color: Colors.grey),
           Container(
             color: Colors.amber[100],
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -633,7 +624,7 @@ class _RankingScreenState extends State<RankingScreen>
                     width: 40,
                     alignment: Alignment.center,
                     child: Text(
-                      '#$myRank',
+                      '#${rankings[myRankIndex]['rank']}',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
@@ -642,11 +633,11 @@ class _RankingScreenState extends State<RankingScreen>
                 ],
               ),
               title: Text(
-                _currentUserName,
+                rankings[myRankIndex]['name'],
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               trailing: Text(
-                '${displayRankings[myRankIndex]['rate']}',
+                '${rankings[myRankIndex]['rate']}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.amber[700],
@@ -654,6 +645,7 @@ class _RankingScreenState extends State<RankingScreen>
               ),
             ),
           ),
+        ],
       ],
     );
   }
@@ -662,15 +654,7 @@ class _RankingScreenState extends State<RankingScreen>
     final List<Map<String, dynamic>> rankings = List.from(_weeklyRankings);
     rankings.sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
 
-    List<Map<String, dynamic>> displayRankings = rankings;
-    if (_showFriendsOnlyWeekly) {
-      displayRankings = rankings
-          .where((r) => (r['isFriend'] == true) || (r['isMe'] == true))
-          .toList();
-    }
-
-    final myRankIndex = displayRankings.indexWhere((r) => r['isMe'] == true);
-    final myRank = myRankIndex >= 0 ? myRankIndex + 1 : -1;
+    final myRankIndex = rankings.indexWhere((r) => r['isMe'] == true);
 
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday % 7));
@@ -716,6 +700,7 @@ class _RankingScreenState extends State<RankingScreen>
                   setState(() {
                     _showFriendsOnlyWeekly = value;
                   });
+                  _fetchWeeklyRanking();
                 },
                 activeColor: Colors.blue[700],
               ),
@@ -723,7 +708,7 @@ class _RankingScreenState extends State<RankingScreen>
           ),
         ),
         Expanded(
-          child: displayRankings.isEmpty
+          child: rankings.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -740,11 +725,12 @@ class _RankingScreenState extends State<RankingScreen>
                 )
               : ListView.builder(
                   itemCount:
-                      displayRankings.length > 30 ? 30 : displayRankings.length,
+                      rankings.length > 30 ? 30 : rankings.length,
                   itemBuilder: (context, index) {
-                    final item = displayRankings[index];
+                    final item = rankings[index];
                     final isMe = item['isMe'] == true;
                     final isFriend = item['isFriend'] == true;
+                    final int serverRank = item['rank'] ?? index + 1;
 
                     return Container(
                       color: isMe ? Colors.blue[50] : null,
@@ -756,27 +742,27 @@ class _RankingScreenState extends State<RankingScreen>
                               width: 40,
                               alignment: Alignment.center,
                               child: Text(
-                                '#${item['rank'] ?? index + 1}',
+                                '#$serverRank',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
-                                  color: index == 0
+                                  color: serverRank == 1
                                       ? Colors.amber[700]
-                                      : index == 1
+                                      : serverRank == 2
                                           ? Colors.grey[600]
-                                          : index == 2
+                                          : serverRank == 3
                                               ? Colors.brown[400]
                                               : Colors.black,
                                 ),
                               ),
                             ),
-                            if ((item['rank'] ?? index + 1) <= 3)
+                            if (serverRank <= 3)
                               Icon(
                                 Icons.emoji_events,
                                 size: 20,
-                                color: (item['rank'] ?? index + 1) == 1
+                                color: serverRank == 1
                                     ? Colors.amber[700]
-                                    : (item['rank'] ?? index + 1) == 2
+                                    : serverRank == 2
                                         ? Colors.grey[600]
                                         : Colors.brown[400],
                               ),
@@ -840,7 +826,8 @@ class _RankingScreenState extends State<RankingScreen>
                   },
                 ),
         ),
-        if (myRank > 30)
+        if (myRankIndex >= 0) ...[
+          const Divider(height: 1, color: Colors.grey),
           Container(
             color: Colors.blue[50],
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -852,7 +839,7 @@ class _RankingScreenState extends State<RankingScreen>
                     width: 40,
                     alignment: Alignment.center,
                     child: Text(
-                      '#$myRank',
+                      '#${rankings[myRankIndex]['rank']}',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
@@ -861,14 +848,14 @@ class _RankingScreenState extends State<RankingScreen>
                 ],
               ),
               title: Text(
-                _currentUserName,
+                rankings[myRankIndex]['name'],
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '${displayRankings[myRankIndex]['count'] ?? 0}回',
+                    '${rankings[myRankIndex]['count'] ?? 0}回',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -887,6 +874,7 @@ class _RankingScreenState extends State<RankingScreen>
               ),
             ),
           ),
+        ],
       ],
     );
   }
