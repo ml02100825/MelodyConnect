@@ -199,7 +199,7 @@ class _RankingScreenState extends State<RankingScreen>
         'season': season,
         'limit': '50',
         'userId': _currentUserId!.toString(),
-        'friendsOnly': 'false',
+        'friendsOnly': _showFriendsOnly.toString(),
       };
 
       final uri = Uri.parse('$_baseUrl/api/v1/rankings/season')
@@ -263,7 +263,7 @@ class _RankingScreenState extends State<RankingScreen>
       final params = <String, String>{
         'limit': '50',
         'userId': _currentUserId!.toString(),
-        'friendsOnly': 'false'
+        'friendsOnly': _showFriendsOnlyWeekly.toString(),
       };
       // ※バックエンドの仕様変更により weekStart は無視されますが、送信しても問題ありません
       if (weekStart != null) {
@@ -408,14 +408,7 @@ class _RankingScreenState extends State<RankingScreen>
         List.from(_rankings[_selectedSeason] ?? []);
     rankings.sort((a, b) => (b['rate'] as int).compareTo(a['rate'] as int));
 
-    List<Map<String, dynamic>> displayRankings = rankings;
-    if (_showFriendsOnly) {
-      displayRankings = rankings
-          .where((r) => (r['isFriend'] == true) || (r['isMe'] == true))
-          .toList();
-    }
-
-    final myRankIndex = displayRankings.indexWhere((r) => r['isMe'] == true);
+    final myRankIndex = rankings.indexWhere((r) => r['isMe'] == true);
     final isSeasonActive = _seasonStatus[_selectedSeason] ?? false;
 
     return Column(
@@ -501,6 +494,7 @@ class _RankingScreenState extends State<RankingScreen>
                           setState(() {
                             _showFriendsOnly = value;
                           });
+                          _fetchSeasonRanking(_selectedSeason);
                         },
                         activeColor: Colors.amber[700],
                       ),
@@ -527,7 +521,7 @@ class _RankingScreenState extends State<RankingScreen>
           ),
         ),
         Expanded(
-          child: displayRankings.isEmpty
+          child: rankings.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -544,9 +538,9 @@ class _RankingScreenState extends State<RankingScreen>
                 )
               : ListView.builder(
                   itemCount:
-                      displayRankings.length > 30 ? 30 : displayRankings.length,
+                      rankings.length > 30 ? 30 : rankings.length,
                   itemBuilder: (context, index) {
-                    final item = displayRankings[index];
+                    final item = rankings[index];
                     final isMe = item['isMe'] == true;
                     final isFriend = item['isFriend'] == true;
                     final int serverRank = item['rank'] ?? index + 1;
@@ -630,7 +624,7 @@ class _RankingScreenState extends State<RankingScreen>
                     width: 40,
                     alignment: Alignment.center,
                     child: Text(
-                      '#${displayRankings[myRankIndex]['rank']}',
+                      '#${rankings[myRankIndex]['rank']}',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
@@ -639,11 +633,11 @@ class _RankingScreenState extends State<RankingScreen>
                 ],
               ),
               title: Text(
-                displayRankings[myRankIndex]['name'],
+                rankings[myRankIndex]['name'],
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               trailing: Text(
-                '${displayRankings[myRankIndex]['rate']}',
+                '${rankings[myRankIndex]['rate']}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.amber[700],
@@ -660,14 +654,7 @@ class _RankingScreenState extends State<RankingScreen>
     final List<Map<String, dynamic>> rankings = List.from(_weeklyRankings);
     rankings.sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
 
-    List<Map<String, dynamic>> displayRankings = rankings;
-    if (_showFriendsOnlyWeekly) {
-      displayRankings = rankings
-          .where((r) => (r['isFriend'] == true) || (r['isMe'] == true))
-          .toList();
-    }
-
-    final myRankIndex = displayRankings.indexWhere((r) => r['isMe'] == true);
+    final myRankIndex = rankings.indexWhere((r) => r['isMe'] == true);
 
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday % 7));
@@ -713,6 +700,7 @@ class _RankingScreenState extends State<RankingScreen>
                   setState(() {
                     _showFriendsOnlyWeekly = value;
                   });
+                  _fetchWeeklyRanking();
                 },
                 activeColor: Colors.blue[700],
               ),
@@ -720,7 +708,7 @@ class _RankingScreenState extends State<RankingScreen>
           ),
         ),
         Expanded(
-          child: displayRankings.isEmpty
+          child: rankings.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -737,9 +725,9 @@ class _RankingScreenState extends State<RankingScreen>
                 )
               : ListView.builder(
                   itemCount:
-                      displayRankings.length > 30 ? 30 : displayRankings.length,
+                      rankings.length > 30 ? 30 : rankings.length,
                   itemBuilder: (context, index) {
-                    final item = displayRankings[index];
+                    final item = rankings[index];
                     final isMe = item['isMe'] == true;
                     final isFriend = item['isFriend'] == true;
                     final int serverRank = item['rank'] ?? index + 1;
@@ -851,7 +839,7 @@ class _RankingScreenState extends State<RankingScreen>
                     width: 40,
                     alignment: Alignment.center,
                     child: Text(
-                      '#${displayRankings[myRankIndex]['rank']}',
+                      '#${rankings[myRankIndex]['rank']}',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
@@ -860,14 +848,14 @@ class _RankingScreenState extends State<RankingScreen>
                 ],
               ),
               title: Text(
-                displayRankings[myRankIndex]['name'],
+                rankings[myRankIndex]['name'],
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '${displayRankings[myRankIndex]['count'] ?? 0}回',
+                    '${rankings[myRankIndex]['count'] ?? 0}回',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
