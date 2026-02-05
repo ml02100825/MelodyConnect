@@ -384,6 +384,48 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 元の歌詞（原文）を表示
+            if (_currentQuestion.sourceFragment != null &&
+                _currentQuestion.sourceFragment!.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.purple.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.format_quote, size: 16, color: Colors.purple.shade600),
+                        const SizedBox(width: 4),
+                        Text(
+                          '元の歌詞',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _currentQuestion.sourceFragment!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.purple.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             // 問題文
             Text(
               _currentQuestion.text,
@@ -393,8 +435,8 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-            // ★ 追加: 日本語訳を表示
-            if (_currentQuestion.translationJa != null && 
+            // 日本語訳を表示
+            if (_currentQuestion.translationJa != null &&
                 _currentQuestion.translationJa!.isNotEmpty) ...[
               const SizedBox(height: 16),
               Container(

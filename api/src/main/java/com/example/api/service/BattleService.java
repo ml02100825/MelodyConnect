@@ -1095,12 +1095,15 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
                 userVocabularyService.registerFillInBlankAnswerAsync(userId, question.getAnswer());
                 return true;
             } else if (QuestionFormat.LISTENING.equals(format) && !playerAnswer.isCorrect()) {
-                // LISTENING: 不正解の場合のみ、間違えた単語を登録（非同期）
+                // LISTENING: 不正解の場合、間違えた単語を登録（非同期）
+                // 空回答でも正解の単語を登録（学習モードと同じ挙動）
                 String userAnswer = playerAnswer.getAnswer();
-                if (userAnswer != null && !userAnswer.isEmpty()) {
-                    userVocabularyService.registerListeningMistakesAsync(userId, userAnswer, correctAnswer);
-                    return true;
-                }
+                userVocabularyService.registerListeningMistakesAsync(
+                    userId,
+                    userAnswer != null ? userAnswer : "",
+                    correctAnswer
+                );
+                return true;
             }
         } catch (Exception e) {
             logger.debug("単語帳登録スキップ: userId={}, error={}", userId, e.getMessage());

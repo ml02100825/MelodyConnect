@@ -74,6 +74,7 @@ class QuizQuestion {
   final String? answer;  // 正解（リスニングの場合はcompleteSentence）
   final String? completeSentence;  // ★ 追加: 完全な文
   final String? translationJa;     // ★ 追加: 日本語訳
+  final String? sourceFragment;    // 元の歌詞（原文）
 
   QuizQuestion({
     required this.questionId,
@@ -88,6 +89,7 @@ class QuizQuestion {
     this.answer,
     this.completeSentence,  // ★ 追加
     this.translationJa,     // ★ 追加
+    this.sourceFragment,
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
@@ -104,6 +106,7 @@ class QuizQuestion {
       answer: json['answer'],
       completeSentence: json['completeSentence'],  // ★ 追加
       translationJa: json['translationJa'],        // ★ 追加
+      sourceFragment: json['sourceFragment'],
     );
   }
 }

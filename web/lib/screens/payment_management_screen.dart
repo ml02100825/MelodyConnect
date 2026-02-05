@@ -1,8 +1,64 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_webapp/config/app_config.dart';
 import '../services/token_storage_service.dart';
+
+const Map<String, String> _brandPrefixes = {
+  'VISA': '4111',
+  'MasterCard': '5555',
+  'JCB': '3530',
+  'American Express': '3782',
+};
+
+int _cvvLengthForBrand(String brand) => brand == 'American Express' ? 4 : 3;
+
+String _normalizeDigits(String input) => input.replaceAll(RegExp(r'\D'), '');
+
+String _applyBrandPrefix(String current, String brand) {
+  final prefix = _brandPrefixes[brand] ?? '';
+  if (prefix.isEmpty) return _normalizeDigits(current);
+  final digits = _normalizeDigits(current);
+  final rest = digits.length > 4 ? digits.substring(4) : '';
+  return '$prefix$rest';
+}
+
+String? _validateExpiryValue(String? value) {
+  if (value == null || value.isEmpty) return '有効期限を入力してください';
+  if (!RegExp(r'^\d{2}/\d{2}$').hasMatch(value)) return 'MM/YY形式で入力してください';
+  final month = int.tryParse(value.substring(0, 2)) ?? 0;
+  if (month < 1 || month > 12) return '月は01-12で入力してください';
+  return null;
+}
+
+String? _validateCvvValue(String? value, String brand) {
+  if (value == null || value.isEmpty) return 'PWDを入力してください';
+  final expected = _cvvLengthForBrand(brand);
+  if (value.length != expected) return 'PWDは$expected桁で入力してください';
+  return null;
+}
+
+class ExpiryTextInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = _normalizeDigits(newValue.text);
+    final limited = digits.length > 4 ? digits.substring(0, 4) : digits;
+    final buffer = StringBuffer();
+    for (var i = 0; i < limited.length; i++) {
+      if (i == 2) buffer.write('/');
+      buffer.write(limited[i]);
+    }
+    final text = buffer.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
 
 // APIサービス（DBと通信するクラス）
 class PaymentApiService {
@@ -328,6 +384,34 @@ class _AddPaymentMethodScreenState extends State<AddPaymentMethodScreen> {
   ];
   final List<String> _countries = ['日本', 'アメリカ', 'イギリス', 'カナダ', 'オーストラリア'];
 
+  @override
+  void initState() {
+    super.initState();
+    _applyBrandPrefixToCardNumber();
+  }
+
+  void _applyBrandPrefixToCardNumber() {
+    final updated = _applyBrandPrefix(_cardNumberController.text, _selectedCardBrand);
+    _cardNumberController.text = updated;
+    _cardNumberController.selection = TextSelection.collapsed(offset: updated.length);
+  }
+
+  void _trimCvvToBrand() {
+    final maxLen = _cvvLengthForBrand(_selectedCardBrand);
+    if (_cvvController.text.length > maxLen) {
+      _cvvController.text = _cvvController.text.substring(0, maxLen);
+      _cvvController.selection = TextSelection.collapsed(offset: _cvvController.text.length);
+    }
+  }
+
+  void _onBrandSelected(String brand) {
+    setState(() {
+      _selectedCardBrand = brand;
+      _applyBrandPrefixToCardNumber();
+      _trimCvvToBrand();
+    });
+  }
+
   Future<void> _savePaymentMethod() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
@@ -358,11 +442,9 @@ class _AddPaymentMethodScreenState extends State<AddPaymentMethodScreen> {
     return null;
   }
   String? _validateExpiry(String? value) {
-    if (value == null || value.isEmpty) return '有効期限を入力してください';
-    if (!RegExp(r'^\d{2}/\d{2}$').hasMatch(value)) return 'MM/YY形式で入力してください';
-    return null;
+    return _validateExpiryValue(value);
   }
-  String? _validateCVV(String? value) => (value == null || value.isEmpty) ? 'CVVを入力してください' : null;
+  String? _validateCVV(String? value) => _validateCvvValue(value, _selectedCardBrand);
 
   @override
   Widget build(BuildContext context) {
@@ -381,13 +463,13 @@ class _AddPaymentMethodScreenState extends State<AddPaymentMethodScreen> {
         SizedBox(height: 60, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _cardBrands.length, itemBuilder: (context, index) {
           final brand = _cardBrands[index];
           final isSelected = _selectedCardBrand == brand['name'];
-          return GestureDetector(onTap: () => setState(() => _selectedCardBrand = brand['name']), child: Container(margin: const EdgeInsets.only(right: 12), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: isSelected ? brand['color'] : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? brand['color'] : Colors.grey[300]!, width: 2)), child: Row(children: [Icon(brand['icon'], color: isSelected ? Colors.white : brand['color'], size: 20), const SizedBox(width: 8), Text(brand['name'], style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold))])));
+          return GestureDetector(onTap: () => _onBrandSelected(brand['name']), child: Container(margin: const EdgeInsets.only(right: 12), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: isSelected ? brand['color'] : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? brand['color'] : Colors.grey[300]!, width: 2)), child: Row(children: [Icon(brand['icon'], color: isSelected ? Colors.white : brand['color'], size: 20), const SizedBox(width: 8), Text(brand['name'], style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold))])));
         })),
         const SizedBox(height: 24),
         Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))]), child: Column(children: [
-          TextFormField(controller: _cardNumberController, decoration: const InputDecoration(labelText: 'カード番号', border: OutlineInputBorder(), prefixIcon: Icon(Icons.credit_card)), keyboardType: TextInputType.number, validator: _validateCardNumber),
+          TextFormField(controller: _cardNumberController, decoration: const InputDecoration(labelText: 'カード番号', border: OutlineInputBorder(), prefixIcon: Icon(Icons.credit_card)), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], validator: _validateCardNumber),
           const SizedBox(height: 16),
-          Row(children: [Expanded(child: TextFormField(controller: _expiryController, decoration: const InputDecoration(labelText: '有効期限', hintText: 'MM/YY', border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today)), validator: _validateExpiry)), const SizedBox(width: 16), Expanded(child: TextFormField(controller: _cvvController, decoration: const InputDecoration(labelText: 'PWD', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)), obscureText: true, validator: _validateCVV))]),
+          Row(children: [Expanded(child: TextFormField(controller: _expiryController, decoration: const InputDecoration(labelText: '有効期限', hintText: 'MM/YY', border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today)), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4), ExpiryTextInputFormatter()], validator: _validateExpiry)), const SizedBox(width: 16), Expanded(child: TextFormField(controller: _cvvController, decoration: InputDecoration(labelText: 'PWD', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.lock), counterText: ''), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(_cvvLengthForBrand(_selectedCardBrand))], maxLength: _cvvLengthForBrand(_selectedCardBrand), obscureText: true, validator: _validateCVV))]),
           const SizedBox(height: 16),
           TextFormField(controller: _cardHolderController, decoration: const InputDecoration(labelText: 'カード名義人', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)), validator: (v) => (v == null || v.isEmpty) ? '入力してください' : null),
           const SizedBox(height: 16),
@@ -431,6 +513,41 @@ class _EditPaymentMethodScreenState extends State<EditPaymentMethodScreen> {
     _selectedCountry = m['country'] ?? '日本';
   }
 
+  void _applyBrandPrefixToCardNumber() {
+    final updated = _applyBrandPrefix(_cardNumberController.text, _selectedCardBrand);
+    _cardNumberController.text = updated;
+    _cardNumberController.selection = TextSelection.collapsed(offset: updated.length);
+  }
+
+  void _trimCvvToBrand() {
+    final maxLen = _cvvLengthForBrand(_selectedCardBrand);
+    if (_cvvController.text.length > maxLen) {
+      _cvvController.text = _cvvController.text.substring(0, maxLen);
+      _cvvController.selection = TextSelection.collapsed(offset: _cvvController.text.length);
+    }
+  }
+
+  void _onBrandSelected(String brand) {
+    setState(() {
+      _selectedCardBrand = brand;
+      _applyBrandPrefixToCardNumber();
+      _trimCvvToBrand();
+    });
+  }
+
+  String? _validateCardNumber(String? value) {
+    if (value == null || value.isEmpty) return '入力してください';
+    final cleaned = value.replaceAll(' ', '');
+    if (cleaned.length < 4) return '入力してください';
+    return null;
+  }
+
+  String? _validateExpiry(String? value) {
+    return _validateExpiryValue(value);
+  }
+
+  String? _validateCVV(String? value) => _validateCvvValue(value, _selectedCardBrand);
+
   Future<void> _updatePaymentMethod() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
@@ -466,13 +583,13 @@ class _EditPaymentMethodScreenState extends State<EditPaymentMethodScreen> {
         SizedBox(height: 60, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _cardBrands.length, itemBuilder: (context, index) {
           final brand = _cardBrands[index];
           final isSelected = _selectedCardBrand == brand['name'];
-          return GestureDetector(onTap: () => setState(() => _selectedCardBrand = brand['name']), child: Container(margin: const EdgeInsets.only(right: 12), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: isSelected ? brand['color'] : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? brand['color'] : Colors.grey[300]!, width: 2)), child: Row(children: [Icon(brand['icon'], color: isSelected ? Colors.white : brand['color'], size: 20), const SizedBox(width: 8), Text(brand['name'], style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold))])));
+          return GestureDetector(onTap: () => _onBrandSelected(brand['name']), child: Container(margin: const EdgeInsets.only(right: 12), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: isSelected ? brand['color'] : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? brand['color'] : Colors.grey[300]!, width: 2)), child: Row(children: [Icon(brand['icon'], color: isSelected ? Colors.white : brand['color'], size: 20), const SizedBox(width: 8), Text(brand['name'], style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold))])));
         })),
         const SizedBox(height: 24),
         Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))]), child: Column(children: [
-          TextFormField(controller: _cardNumberController, decoration: const InputDecoration(labelText: 'カード番号', border: OutlineInputBorder(), prefixIcon: Icon(Icons.credit_card)), keyboardType: TextInputType.number, validator: (v) => (v != null && v.replaceAll(' ', '').length >= 4) ? null : '入力してください'),
+          TextFormField(controller: _cardNumberController, decoration: const InputDecoration(labelText: 'カード番号', border: OutlineInputBorder(), prefixIcon: Icon(Icons.credit_card)), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], validator: _validateCardNumber),
           const SizedBox(height: 16),
-          Row(children: [Expanded(child: TextFormField(controller: _expiryController, decoration: const InputDecoration(labelText: '有効期限', hintText: 'MM/YY', border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today)), validator: (v) => v!.isEmpty ? '入力してください' : null)), const SizedBox(width: 16), Expanded(child: TextFormField(controller: _cvvController, decoration: const InputDecoration(labelText: 'PWD', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)), obscureText: true, validator: (v) => v!.isEmpty ? '入力してください' : null))]),
+          Row(children: [Expanded(child: TextFormField(controller: _expiryController, decoration: const InputDecoration(labelText: '有効期限', hintText: 'MM/YY', border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today)), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4), ExpiryTextInputFormatter()], validator: _validateExpiry)), const SizedBox(width: 16), Expanded(child: TextFormField(controller: _cvvController, decoration: InputDecoration(labelText: 'PWD', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.lock), counterText: ''), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(_cvvLengthForBrand(_selectedCardBrand))], maxLength: _cvvLengthForBrand(_selectedCardBrand), obscureText: true, validator: _validateCVV))]),
           const SizedBox(height: 16),
           TextFormField(controller: _cardHolderController, decoration: const InputDecoration(labelText: 'カード名義人', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)), validator: (v) => v!.isEmpty ? '入力してください' : null),
           const SizedBox(height: 16),

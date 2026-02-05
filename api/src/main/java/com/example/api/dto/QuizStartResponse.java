@@ -61,6 +61,7 @@ public class QuizStartResponse {
         private String answer;  // 正解（リスニングの場合はcompleteSentence）
         private String completeSentence;  // ★ 追加: 完全な文
         private String translationJa;     // ★ 追加: 日本語訳
+        private String sourceFragment;    // 元の歌詞（原文）
     }
 
     /**

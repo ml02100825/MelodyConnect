@@ -16,7 +16,17 @@ class QuizApiService {
     );
 
     if (response.statusCode != 200) {
-      throw Exception("クイズの開始に失敗しました: ${response.statusCode}");
+      // エラーレスポンスからメッセージを取得
+      String errorMessage = 'クイズの開始に失敗しました';
+      try {
+        final errorBody = json.decode(response.body);
+        if (errorBody['message'] != null) {
+          errorMessage = errorBody['message'];
+        }
+      } catch (_) {
+        // JSONパースに失敗した場合はデフォルトメッセージを使用
+      }
+      throw Exception(errorMessage);
     }
 
     return QuizStartResponse.fromJson(json.decode(response.body));

@@ -95,6 +95,13 @@ public class Question {
     private String translationJa;
 
     /**
+     * 元の歌詞フラグメント（原文）
+     * FILL_IN_BLANK問題で使用された歌詞の原文を保存
+     */
+    @Column(name = "source_fragment", length = 500)
+    private String sourceFragment;
+
+    /**
      * 音声URL (S3想定)
      */
     @Column(name = "audio_url", length = 500)
