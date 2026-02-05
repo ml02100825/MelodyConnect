@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/profile_api_service.dart';
 import '../services/token_storage_service.dart';
+import '../services/s3_image_upload_service.dart';
 import 'home_screen.dart';
 
 /// プロフィール設定画面（ステップ2: ユーザー名とアイコン設定）
@@ -59,13 +60,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       return 'ユーザーIDは4文字以上である必要があります';
     }
 
-    if (value.length > 36) {
-      return 'ユーザーIDは36文字以下である必要があります';
+    if (value.length > 20) {
+      return 'ユーザーIDは20文字以下である必要があります';
     }
 
-    // 英数字とアンダースコア、ハイフンのみ許可
-    if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(value)) {
-      return 'ユーザーIDは英数字、_、-のみ使用できます';
+    // 英数字とアンダースコアのみ許可
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+      return 'ユーザーIDは英数字と_のみ使用できます';
     }
 
     return null;
@@ -129,15 +130,22 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         throw Exception('認証情報が見つかりません');
       }
 
-      // プロフィール更新API呼び出し
-     final response = await _profileApiService.updateProfileMultipart(
-      userId: userId,
-      username: _usernameController.text.trim(),
-      userUuid: _userUuidController.text.trim(),
-      imageBytes: _imageBytes,
-      filename: _selectedImageFile?.name,
-      accessToken: accessToken,
-    );
+      String? imageUrl;
+      if (_imageBytes != null && _selectedImageFile != null) {
+        imageUrl = await S3ImageUploadService().uploadImage(
+          imageBytes: _imageBytes!,
+          filename: _selectedImageFile!.name,
+        );
+      }
+
+      // プロフィール更新API呼び出し（JSONリクエスト）
+      final response = await _profileApiService.updateProfile(
+        userId: userId,
+        username: _usernameController.text.trim(),
+        userUuid: _userUuidController.text.trim(),
+        imageUrl: imageUrl,
+        accessToken: accessToken,
+      );
 
 
       // ユーザー名を保存
@@ -234,7 +242,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     controller: _userUuidController,
                     decoration: const InputDecoration(
                       labelText: 'ユーザーID（フレンド申請用）',
-                      hintText: '4〜36文字で入力（英数字、_、-）',
+                      hintText: '4〜20文字で入力（英数字、_）',
                       prefixIcon: Icon(Icons.badge),
                       border: OutlineInputBorder(),
                     ),
