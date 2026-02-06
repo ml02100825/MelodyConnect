@@ -11,6 +11,10 @@ import '../screens/home_screen.dart';
 import '../screens/report_screen.dart';
 import '../models/battle_models.dart';
 
+const double _resultScaleBaseHeight = 800.0;
+const double _resultScaleMin = 0.8;
+const double _resultScaleMax = 1.0;
+
 /// バトル画面
 /// ランクマッチ/ルームマッチの対戦進行を行います
 class BattleScreen extends StatefulWidget {
@@ -39,6 +43,9 @@ class _BattleScreenState extends State<BattleScreen>
   double _playbackSpeed = 1.0;
   static const double _normalSpeed = 1.0;
   static const double _slowSpeed = 0.75;
+  static const double _scaleHeightThreshold = 700;
+  static const double _compactScaleFactor = 0.8;
+  static const double _defaultScaleFactor = 1.0;
 
 
 
@@ -392,8 +399,21 @@ class _BattleScreenState extends State<BattleScreen>
     if (!mounted) return;
 
     final questionData = data['question'];
-    if (questionData == null) return;
-   
+    if (questionData is! Map<String, dynamic>) {
+      // 異常系: 問題データ欠落時のみラウンド制限時間フォールバックを使用
+      setState(() {
+        _currentQuestion = null;
+        _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
+      });
+
+      if (_remainingSeconds <= 0) {
+        _onTimeout();
+        return;
+      }
+
+      _startRoundTimer();
+      return;
+    }
 
 
     setState(() {
@@ -414,11 +434,14 @@ class _BattleScreenState extends State<BattleScreen>
       _waitingForOpponentNext = false;  // リセット
       _status = BattleStatus.answering;
       _answerController.clear();
-      // サーバー時刻に基づいて残り時間を計算（画面更新時もリセットされない）
-      _remainingSeconds = _currentQuestion?.calculateRemainingSeconds()
-          ?? _battleInfo?.roundTimeLimitSeconds
-          ?? 90;
+      // 問題表示時にフルの制限時間から開始
+      _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
     });
+
+    if (_remainingSeconds <= 0) {
+      _onTimeout();
+      return;
+    }
 
     // タイマー開始
     _startRoundTimer();
@@ -538,6 +561,7 @@ class _BattleScreenState extends State<BattleScreen>
 
   /// タイムアウト処理
   void _onTimeout() {
+    _roundTimer?.cancel();
     setState(() {
       _isTimedOut = true;
     });
@@ -578,6 +602,8 @@ class _BattleScreenState extends State<BattleScreen>
     setState(() {
       _status = BattleStatus.submitting;
     });
+
+    _roundTimer?.cancel();
 
     _stompClient?.send(
       destination: '/app/battle/answer',
@@ -800,8 +826,9 @@ class _BattleScreenState extends State<BattleScreen>
         // ヘッダー（プレイヤー情報とスコア）
         _buildHeader(),
 
-        // タイマー
-        _buildTimer(),
+        // タイマー（問題表示中のみ表示）
+        if (_status != BattleStatus.roundResult && _status != BattleStatus.matchFinished)
+          _buildTimer(),
 
         // メインコンテンツ
         Expanded(
@@ -1367,6 +1394,13 @@ class _BattleScreenState extends State<BattleScreen>
     );
   }
 
+  double _computeScaleFactor(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    return screenHeight < _scaleHeightThreshold
+        ? _compactScaleFactor
+        : _defaultScaleFactor;
+  }
+
   /// ラウンド結果コンテンツ
   Widget _buildRoundResultContent() {
     if (_lastRoundResult == null) {
@@ -1376,164 +1410,180 @@ class _BattleScreenState extends State<BattleScreen>
     final result = _lastRoundResult!;
     final isMyWin = result.roundWinnerId == _myUserId;
     final isNoCount = result.isNoCount;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final scaleFactor =
+        (screenHeight / _resultScaleBaseHeight).clamp(_resultScaleMin, _resultScaleMax);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 結果アイコン
-            Icon(
-              isNoCount
-                  ? Icons.remove_circle_outline
-                  : isMyWin
-                      ? Icons.check_circle
-                      : Icons.cancel,
-              size: 80,
-              color: isNoCount
-                  ? Colors.grey
-                  : isMyWin
-                      ? Colors.green
-                      : Colors.red,
-            ),
-
-            const SizedBox(height: 16),
-
-            // 結果テキスト
-            Text(
-              isNoCount
-                  ? result.noCountReasonText
-                  : isMyWin
-                      ? 'あなたの勝ち！'
-                      : '相手の勝ち',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: isNoCount
-                    ? Colors.grey
-                    : isMyWin
-                        ? Colors.green
-                        : Colors.red,
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 正解
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  const Text('正解', style: TextStyle(fontSize: 14)),
-                  const SizedBox(height: 8),
-                  Text(
-                    result.correctAnswer,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 現在のスコア（○→✓形式）
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildScoreIndicator(_myWins, true),
-                const SizedBox(width: 16),
-                Text(
-                  '$_myWins - $_opponentWins',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  24, 24, 24,
+                  24 + MediaQuery.of(context).padding.bottom,
                 ),
-                const SizedBox(width: 16),
-                _buildScoreIndicator(_opponentWins, false),
-              ],
-            ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 結果アイコン
+                    Icon(
+                      isNoCount
+                          ? Icons.remove_circle_outline
+                          : isMyWin
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                      size: 80 * scaleFactor,
+                      color: isNoCount
+                          ? Colors.grey
+                          : isMyWin
+                              ? Colors.green
+                              : Colors.red,
+                    ),
 
-            const SizedBox(height: 32),
+                    const SizedBox(height: 16),
 
-            // 次へボタン（試合継続の場合のみ）
-            if (result.matchContinues)
-              _waitingForOpponentNext
-                  ? Column(
+                    // 結果テキスト
+                    Text(
+                      isNoCount
+                          ? result.noCountReasonText
+                          : isMyWin
+                              ? 'あなたの勝ち！'
+                              : '相手の勝ち',
+                      style: TextStyle(
+                        fontSize: 28 * scaleFactor,
+                        fontWeight: FontWeight.bold,
+                        color: isNoCount
+                            ? Colors.grey
+                            : isMyWin
+                                ? Colors.green
+                                : Colors.red,
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // 正解
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text('正解', style: TextStyle(fontSize: 14)),
+                          const SizedBox(height: 8),
+                          Text(
+                            result.correctAnswer,
+                            style: TextStyle(
+                              fontSize: 22 * scaleFactor,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // 現在のスコア（○→✓形式）
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        const SizedBox(height: 12),
+                        _buildScoreIndicator(_myWins, true),
+                        const SizedBox(width: 16),
                         Text(
-                          '相手の準備を待っています...',
+                          '$_myWins - $_opponentWins',
                           style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
+                            fontSize: 24 * scaleFactor,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ],
-                    )
-                  : ElevatedButton.icon(
-                      onPressed: _goToNextRound,
-                      icon: const Icon(Icons.arrow_forward),
-                      label: const Text('次の問題へ'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    )
-            else
-              // 試合終了時：結果が受信済みなら「結果を見る」、まだなら待機表示
-              _battleResult != null
-                  ? ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _status = BattleStatus.matchFinished;
-                        });
-                      },
-                      icon: const Icon(Icons.emoji_events),
-                      label: const Text('結果を見る'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    )
-                  : Column(
-                      children: [
-                        const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          '結果を取得中...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
+                        const SizedBox(width: 16),
+                        _buildScoreIndicator(_opponentWins, false),
                       ],
                     ),
-          ],
-        ),
-      ),
+
+                    const SizedBox(height: 32),
+
+                    // 次へボタン（試合継続の場合のみ）
+                    if (result.matchContinues)
+                      _waitingForOpponentNext
+                          ? Column(
+                              children: [
+                                const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '相手の準備を待っています...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            )
+                          : ElevatedButton.icon(
+                              onPressed: _goToNextRound,
+                              icon: const Icon(Icons.arrow_forward),
+                              label: const Text('次の問題へ'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            )
+                    else
+                      // 試合終了時：結果が受信済みなら「結果を見る」、まだなら待機表示
+                      _battleResult != null
+                          ? ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _status = BattleStatus.matchFinished;
+                                });
+                              },
+                              icon: const Icon(Icons.emoji_events),
+                              label: const Text('結果を見る'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.amber,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            )
+                          : Column(
+                              children: [
+                                const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '結果を取得中...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1544,203 +1594,219 @@ class _BattleScreenState extends State<BattleScreen>
     }
 
     final result = _battleResult!;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final scaleFactor =
+        (screenHeight / _resultScaleBaseHeight).clamp(_resultScaleMin, _resultScaleMax);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 結果アイコン
-            Icon(
-              result.isWin
-                  ? Icons.emoji_events
-                  : result.isDraw
-                      ? Icons.handshake
-                      : Icons.sentiment_dissatisfied,
-              size: 100,
-              color: result.isWin
-                  ? Colors.amber
-                  : result.isDraw
-                      ? Colors.grey
-                      : Colors.blue,
-            ),
-
-            const SizedBox(height: 24),
-
-            // 結果テキスト
-            Text(
-              result.resultText,
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: result.isWin
-                    ? Colors.amber[700]
-                    : result.isDraw
-                        ? Colors.grey
-                        : Colors.blue,
-              ),
-            ),
-
-            Text(
-              result.outcomeReasonText,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
-            // スコア（○→✓形式）
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildScoreIndicator(result.myScore, true),
-                const SizedBox(width: 16),
-                Text(
-                  '${result.myScore} - ${result.opponentScore}',
-                  style: const TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                _buildScoreIndicator(result.opponentScore, false),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // レート変動
-            if (!widget.isRoomMatch)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: result.rateChange >= 0 ? Colors.green[50] : Colors.red[50],
-                  borderRadius: BorderRadius.circular(12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  24, 24, 24,
+                  24 + MediaQuery.of(context).padding.bottom,
                 ),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    // 結果アイコン
+                    Icon(
+                      result.isWin
+                          ? Icons.emoji_events
+                          : result.isDraw
+                              ? Icons.handshake
+                              : Icons.sentiment_dissatisfied,
+                      size: 100 * scaleFactor,
+                      color: result.isWin
+                          ? Colors.amber
+                          : result.isDraw
+                              ? Colors.grey
+                              : Colors.blue,
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // 結果テキスト
                     Text(
-                      result.rateChange >= 0
-                          ? '+${result.rateChange}'
-                          : '${result.rateChange}',
+                      result.resultText,
                       style: TextStyle(
-                        fontSize: 28,
+                        fontSize: 36 * scaleFactor,
                         fontWeight: FontWeight.bold,
-                        color: result.rateChange >= 0 ? Colors.green : Colors.red,
+                        color: result.isWin
+                            ? Colors.amber[700]
+                            : result.isDraw
+                                ? Colors.grey
+                                : Colors.blue,
                       ),
                     ),
+
                     Text(
-                      '新しいレート: ${result.newRate}',
+                      result.outcomeReasonText,
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.grey[700],
+                        color: Colors.grey[600],
                       ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // スコア（○→✓形式）
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildScoreIndicator(result.myScore, true),
+                        const SizedBox(width: 16),
+                        Text(
+                          '${result.myScore} - ${result.opponentScore}',
+                          style: TextStyle(
+                            fontSize: 40 * scaleFactor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        _buildScoreIndicator(result.opponentScore, false),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // レート変動
+                    if (!widget.isRoomMatch)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: result.rateChange >= 0 ? Colors.green[50] : Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              result.rateChange >= 0
+                                  ? '+${result.rateChange}'
+                                  : '${result.rateChange}',
+                              style: TextStyle(
+                                fontSize: 28 * scaleFactor,
+                                fontWeight: FontWeight.bold,
+                                color: result.rateChange >= 0 ? Colors.green : Colors.red,
+                              ),
+                            ),
+                            Text(
+                              '新しいレート: ${result.newRate}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                    // 問題一覧ボタン
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: result.rounds.isNotEmpty
+                            ? () => _showBattleQuestionDetails(context, result)
+                            : null,
+                        icon: const Icon(Icons.list_alt),
+                        label: const Text('問題一覧を見る'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                      const SizedBox(height: 24),
+
+                    // ボタン群（3つ横並び、または縦並び）
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 16,
+                      runSpacing: 12,
+                      children: [
+                        // ルームマッチの場合は「ルームに戻る」、ランクマッチの場合は「再キュー」
+                        if (widget.isRoomMatch && widget.roomId != null)
+                          ElevatedButton.icon(
+                            onPressed: _goBackToRoom,
+                            icon: const Icon(Icons.meeting_room),
+                            label: const Text('ルームに戻る'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.purple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          )
+                        else
+                          ElevatedButton.icon(
+                            onPressed: _goToRematch,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('再キュー'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+
+                        // 単語帳ボタン
+                        ElevatedButton.icon(
+                          onPressed: _goToVocabulary,
+                          icon: const Icon(Icons.book),
+                          label: const Text('単語帳'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+
+                        // ホームに戻るボタン
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            _prepareForLeaving();
+                            if (widget.isRoomMatch &&
+                                widget.roomId != null &&
+                                _myUserId != null &&
+                                _hostId == _myUserId) {
+                              final token = await _tokenStorage.getAccessToken();
+                              if (token != null) {
+                                await _roomApiService.leaveRoom(
+                                  roomId: widget.roomId!,
+                                  userId: _myUserId!,
+                                  accessToken: token,
+                                );
+                              }
+                            }
+                            Navigator.popUntil(context, (route) => route.isFirst);
+                          },
+                          icon: const Icon(Icons.home),
+                          label: const Text('ホーム'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            textStyle: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 32),
-
-            // 問題一覧ボタン
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: result.rounds.isNotEmpty
-                    ? () => _showBattleQuestionDetails(context, result)
-                    : null,
-                icon: const Icon(Icons.list_alt),
-                label: const Text('問題一覧を見る'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
             ),
-
-              const SizedBox(height: 24),
-
-            // ボタン群（3つ横並び、または縦並び）
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 16,
-              runSpacing: 12,
-              children: [
-                // ルームマッチの場合は「ルームに戻る」、ランクマッチの場合は「再キュー」
-                if (widget.isRoomMatch && widget.roomId != null)
-                  ElevatedButton.icon(
-                    onPressed: _goBackToRoom,
-                    icon: const Icon(Icons.meeting_room),
-                    label: const Text('ルームに戻る'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  )
-                else
-                  ElevatedButton.icon(
-                    onPressed: _goToRematch,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('再キュー'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-
-                // 単語帳ボタン
-                ElevatedButton.icon(
-                  onPressed: _goToVocabulary,
-                  icon: const Icon(Icons.book),
-                  label: const Text('単語帳'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-
-                // ホームに戻るボタン
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    _prepareForLeaving();
-                    if (widget.isRoomMatch &&
-                        widget.roomId != null &&
-                        _myUserId != null &&
-                        _hostId == _myUserId) {
-                      final token = await _tokenStorage.getAccessToken();
-                      if (token != null) {
-                        await _roomApiService.leaveRoom(
-                          roomId: widget.roomId!,
-                          userId: _myUserId!,
-                          accessToken: token,
-                        );
-                      }
-                    }
-                    Navigator.popUntil(context, (route) => route.isFirst);
-                  },
-                  icon: const Icon(Icons.home),
-                  label: const Text('ホーム'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    textStyle: const TextStyle(fontSize: 16),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
