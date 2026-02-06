@@ -39,6 +39,9 @@ class _BattleScreenState extends State<BattleScreen>
   double _playbackSpeed = 1.0;
   static const double _normalSpeed = 1.0;
   static const double _slowSpeed = 0.75;
+  static const double _scaleHeightThreshold = 700;
+  static const double _compactScaleFactor = 0.8;
+  static const double _defaultScaleFactor = 1.0;
 
 
 
@@ -1369,6 +1372,13 @@ class _BattleScreenState extends State<BattleScreen>
     );
   }
 
+  double _computeScaleFactor(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    return screenHeight < _scaleHeightThreshold
+        ? _compactScaleFactor
+        : _defaultScaleFactor;
+  }
+
   /// ラウンド結果コンテンツ
   Widget _buildRoundResultContent() {
     if (_lastRoundResult == null) {
@@ -1378,8 +1388,7 @@ class _BattleScreenState extends State<BattleScreen>
     final result = _lastRoundResult!;
     final isMyWin = result.roundWinnerId == _myUserId;
     final isNoCount = result.isNoCount;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final scaleFactor = screenHeight < 700 ? 0.8 : 1.0;
+    final scaleFactor = _computeScaleFactor(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1561,8 +1570,7 @@ class _BattleScreenState extends State<BattleScreen>
     }
 
     final result = _battleResult!;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final scaleFactor = screenHeight < 700 ? 0.8 : 1.0;
+    final scaleFactor = _computeScaleFactor(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
