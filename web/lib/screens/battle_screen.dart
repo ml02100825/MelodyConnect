@@ -43,6 +43,9 @@ class _BattleScreenState extends State<BattleScreen>
   double _playbackSpeed = 1.0;
   static const double _normalSpeed = 1.0;
   static const double _slowSpeed = 0.75;
+  static const double _scaleHeightThreshold = 700;
+  static const double _compactScaleFactor = 0.8;
+  static const double _defaultScaleFactor = 1.0;
 
 
 
@@ -1389,6 +1392,13 @@ class _BattleScreenState extends State<BattleScreen>
         ],
       ),
     );
+  }
+
+  double _computeScaleFactor(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    return screenHeight < _scaleHeightThreshold
+        ? _compactScaleFactor
+        : _defaultScaleFactor;
   }
 
   /// ラウンド結果コンテンツ
