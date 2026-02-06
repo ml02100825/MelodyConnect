@@ -434,8 +434,8 @@ class _BattleScreenState extends State<BattleScreen>
       _waitingForOpponentNext = false;  // リセット
       _status = BattleStatus.answering;
       _answerController.clear();
-      // サーバー送信時刻ベースで残り時間を計算（再接続時の逆転表示を防ぐ）
-      _remainingSeconds = _currentQuestion!.calculateRemainingSeconds();
+      // 問題表示時にフルの制限時間から開始
+      _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
     });
 
     if (_remainingSeconds <= 0) {
