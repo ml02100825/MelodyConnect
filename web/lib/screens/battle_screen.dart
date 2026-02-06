@@ -11,6 +11,10 @@ import '../screens/home_screen.dart';
 import '../screens/report_screen.dart';
 import '../models/battle_models.dart';
 
+const double _resultScaleBaseHeight = 800.0;
+const double _resultScaleMin = 0.8;
+const double _resultScaleMax = 1.0;
+
 /// バトル画面
 /// ランクマッチ/ルームマッチの対戦進行を行います
 class BattleScreen extends StatefulWidget {
@@ -1379,7 +1383,8 @@ class _BattleScreenState extends State<BattleScreen>
     final isMyWin = result.roundWinnerId == _myUserId;
     final isNoCount = result.isNoCount;
     final screenHeight = MediaQuery.of(context).size.height;
-    final scaleFactor = screenHeight < 700 ? 0.8 : 1.0;
+    final scaleFactor =
+        (screenHeight / _resultScaleBaseHeight).clamp(_resultScaleMin, _resultScaleMax);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1562,7 +1567,8 @@ class _BattleScreenState extends State<BattleScreen>
 
     final result = _battleResult!;
     final screenHeight = MediaQuery.of(context).size.height;
-    final scaleFactor = screenHeight < 700 ? 0.8 : 1.0;
+    final scaleFactor =
+        (screenHeight / _resultScaleBaseHeight).clamp(_resultScaleMin, _resultScaleMax);
 
     return LayoutBuilder(
       builder: (context, constraints) {
