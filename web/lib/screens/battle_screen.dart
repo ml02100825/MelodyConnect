@@ -11,6 +11,10 @@ import '../screens/home_screen.dart';
 import '../screens/report_screen.dart';
 import '../models/battle_models.dart';
 
+const double _resultScaleBaseHeight = 800.0;
+const double _resultScaleMin = 0.8;
+const double _resultScaleMax = 1.0;
+
 /// バトル画面
 /// ランクマッチ/ルームマッチの対戦進行を行います
 class BattleScreen extends StatefulWidget {
@@ -395,8 +399,21 @@ class _BattleScreenState extends State<BattleScreen>
     if (!mounted) return;
 
     final questionData = data['question'];
-    if (questionData == null) return;
-   
+    if (questionData is! Map<String, dynamic>) {
+      // 異常系: 問題データ欠落時のみラウンド制限時間フォールバックを使用
+      setState(() {
+        _currentQuestion = null;
+        _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
+      });
+
+      if (_remainingSeconds <= 0) {
+        _onTimeout();
+        return;
+      }
+
+      _startRoundTimer();
+      return;
+    }
 
 
     setState(() {
@@ -417,9 +434,14 @@ class _BattleScreenState extends State<BattleScreen>
       _waitingForOpponentNext = false;  // リセット
       _status = BattleStatus.answering;
       _answerController.clear();
-      // 問題表示時にフルの制限時間からタイマー開始
-      _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
+      // サーバー送信時刻ベースで残り時間を計算（再接続時の逆転表示を防ぐ）
+      _remainingSeconds = _currentQuestion!.calculateRemainingSeconds();
     });
+
+    if (_remainingSeconds <= 0) {
+      _onTimeout();
+      return;
+    }
 
     // タイマー開始
     _startRoundTimer();
@@ -1388,7 +1410,9 @@ class _BattleScreenState extends State<BattleScreen>
     final result = _lastRoundResult!;
     final isMyWin = result.roundWinnerId == _myUserId;
     final isNoCount = result.isNoCount;
-    final scaleFactor = _computeScaleFactor(context);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final scaleFactor =
+        (screenHeight / _resultScaleBaseHeight).clamp(_resultScaleMin, _resultScaleMax);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1570,7 +1594,9 @@ class _BattleScreenState extends State<BattleScreen>
     }
 
     final result = _battleResult!;
-    final scaleFactor = _computeScaleFactor(context);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final scaleFactor =
+        (screenHeight / _resultScaleBaseHeight).clamp(_resultScaleMin, _resultScaleMax);
 
     return LayoutBuilder(
       builder: (context, constraints) {
