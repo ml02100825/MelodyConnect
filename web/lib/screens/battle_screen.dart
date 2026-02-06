@@ -392,8 +392,21 @@ class _BattleScreenState extends State<BattleScreen>
     if (!mounted) return;
 
     final questionData = data['question'];
-    if (questionData == null) return;
-   
+    if (questionData is! Map<String, dynamic>) {
+      // 異常系: 問題データ欠落時のみラウンド制限時間フォールバックを使用
+      setState(() {
+        _currentQuestion = null;
+        _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
+      });
+
+      if (_remainingSeconds <= 0) {
+        _onTimeout();
+        return;
+      }
+
+      _startRoundTimer();
+      return;
+    }
 
 
     setState(() {
@@ -414,9 +427,14 @@ class _BattleScreenState extends State<BattleScreen>
       _waitingForOpponentNext = false;  // リセット
       _status = BattleStatus.answering;
       _answerController.clear();
-      // 問題表示時にフルの制限時間からタイマー開始
-      _remainingSeconds = _battleInfo?.roundTimeLimitSeconds ?? 90;
+      // サーバー送信時刻ベースで残り時間を計算（再接続時の逆転表示を防ぐ）
+      _remainingSeconds = _currentQuestion!.calculateRemainingSeconds();
     });
+
+    if (_remainingSeconds <= 0) {
+      _onTimeout();
+      return;
+    }
 
     // タイマー開始
     _startRoundTimer();

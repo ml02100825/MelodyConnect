@@ -81,6 +81,12 @@ class BattleQuestion {
   });
 
   factory BattleQuestion.fromJson(Map<String, dynamic> json) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final rawRoundStartTimestamp = json['roundStartTimestamp'];
+    final roundStartTimestamp = rawRoundStartTimestamp is num
+        ? rawRoundStartTimestamp.toInt()
+        : null;
+
     return BattleQuestion(
       questionId: json['questionId'] ?? 0,
       text: json['text'] ?? '',
@@ -92,7 +98,8 @@ class BattleQuestion {
       roundNumber: json['roundNumber'] ?? 1,
       totalRounds: json['totalRounds'] ?? 10,
       roundTimeLimitMs: json['roundTimeLimitMs'] ?? 90000,
-      roundStartTimestamp: json['roundStartTimestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+      // サーバー値欠落時は受信時刻を採用（= 実質フルタイム開始）
+      roundStartTimestamp: roundStartTimestamp ?? now,
     );
   }
 
