@@ -678,7 +678,8 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
 
     List<RoundResultResponse> responses = new ArrayList<>();
 
-    // 既存ラウンドがある場合は通常通り
+    // 既存ラウンドがある場合は通常通り（+ questionText追加）
+    Set<Integer> playedQuestionIds = new HashSet<>();
     if (!state.getRoundResults().isEmpty()) {
         for (BattleStateService.RoundResult rr : state.getRoundResults()) {
             Question q = questionMap.get(rr.getQuestionId());
@@ -688,6 +689,7 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
             r.setRoundNumber(rr.getRoundNumber());
             r.setQuestionId(rr.getQuestionId());
             r.setCorrectAnswer(correctAnswer);
+            r.setQuestionText(q != null ? q.getText() : null);
             r.setRoundWinnerId(rr.getWinnerId());
             r.setNoCount(rr.isNoCount());
             r.setNoCountReason(rr.getNoCountReason());
@@ -709,12 +711,51 @@ public BattleStartResponseDto startBattleWithUserInfo(String matchId) {
             r.setPlayer1Wins(state.getPlayer1Wins());
             r.setPlayer2Wins(state.getPlayer2Wins());
             r.setMatchContinues(false);
+            playedQuestionIds.add(rr.getQuestionId());
             responses.add(r);
         }
+
+        // 降参/切断の場合、未プレイの問題も追加
+        if (outcomeReason == Result.OutcomeReason.surrender ||
+            outcomeReason == Result.OutcomeReason.disconnect) {
+
+            String p1Msg = buildFallbackAnswer(outcomeReason, state.getPlayer1Id(), loserId);
+            String p2Msg = buildFallbackAnswer(outcomeReason, state.getPlayer2Id(), loserId);
+            int round = responses.size() + 1;
+
+            for (Question q : state.getQuestions()) {
+                if (playedQuestionIds.contains(q.getQuestionId())) continue;
+
+                RoundResultResponse r = new RoundResultResponse();
+                r.setQuestionText(q.getText());
+                r.setRoundNumber(round++);
+                r.setQuestionId(q.getQuestionId());
+                r.setCorrectAnswer(BattleStateService.getCorrectAnswer(q));
+                r.setRoundWinnerId(null);
+                r.setNoCount(true);
+                r.setNoCountReason(outcomeReason.name());
+
+                r.setPlayer1Id(state.getPlayer1Id());
+                r.setPlayer1Answer(p1Msg);
+                r.setPlayer1Correct(false);
+                r.setPlayer1ResponseTimeMs(0);
+
+                r.setPlayer2Id(state.getPlayer2Id());
+                r.setPlayer2Answer(p2Msg);
+                r.setPlayer2Correct(false);
+                r.setPlayer2ResponseTimeMs(0);
+
+                r.setPlayer1Wins(state.getPlayer1Wins());
+                r.setPlayer2Wins(state.getPlayer2Wins());
+                r.setMatchContinues(false);
+                responses.add(r);
+            }
+        }
+
         return responses;
     }
 
-    // ここから降参/切断用のフォールバック
+    // ここから降参/切断用のフォールバック（プレイ済みラウンドが無い場合）
     if (outcomeReason == Result.OutcomeReason.surrender ||
     outcomeReason == Result.OutcomeReason.disconnect) {
 
