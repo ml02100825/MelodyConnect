@@ -23,7 +23,7 @@ public class Vocabulary {
     /**
      * 単語（そのままの形: memories, running等）
      */
-    @Column(name = "word", nullable = false, length = 50)
+    @Column(name = "word", nullable = false, length = 50, unique = true)
     private String word;
 
     /**

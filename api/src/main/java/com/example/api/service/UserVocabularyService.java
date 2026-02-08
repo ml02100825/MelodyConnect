@@ -320,7 +320,7 @@ public class UserVocabularyService {
      */
     @Cacheable(value = "vocabularyCache", key = "#word", unless = "#result == null")
     public Vocabulary findVocabularyByWordCached(String word) {
-        return vocabularyRepository.findByWord(word).orElse(null);
+        return vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word).orElse(null);
     }
 
     /**
@@ -328,8 +328,15 @@ public class UserVocabularyService {
      */
     private Vocabulary createVocabularyFromWordnik(String word) {
         try {
+            // 保存直前に再チェック（非同期の別スレッドが先に作成した可能性）
+            Vocabulary existing = vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word).orElse(null);
+            if (existing != null) {
+                logger.debug("Vocabulary作成前の再チェックで既存レコードを発見: word={}", word);
+                return existing;
+            }
+
             WordnikWordInfo wordInfo = wordnikApiClient.getWordInfo(word);
-            
+
             if (wordInfo == null || wordInfo.getMeaningJa() == null) {
                 logger.warn("Wordnik APIから情報を取得できませんでした: word={}", word);
                 return null;
@@ -359,10 +366,14 @@ public class UserVocabularyService {
                 .build();
 
             Vocabulary savedVocab = vocabularyRepository.save(vocab);
-            logger.info("Vocabularyを新規作成: word={}, baseForm={}, translationJa={}", 
+            logger.info("Vocabularyを新規作成: word={}, baseForm={}, translationJa={}",
                 word, vocab.getBase_form(), vocab.getTranslation_ja());
             return savedVocab;
 
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // UNIQUE制約違反の場合、別スレッドが先に作成したレコードを取得
+            logger.info("Vocabulary作成時にUNIQUE制約違反（別スレッドが先に作成）: word={}", word);
+            return vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word).orElse(null);
         } catch (Exception e) {
             logger.error("Vocabulary作成中にエラー: word={}", word, e);
             return null;

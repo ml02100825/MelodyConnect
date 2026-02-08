@@ -94,6 +94,8 @@ public class VocabularyService {
             vocabularyRepository.save(vocab);
             logger.info("単語を保存しました: word={}", normalizedWord);
 
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            logger.info("単語の保存時にUNIQUE制約違反（別スレッドが先に作成）: word={}", normalizedWord);
         } catch (Exception e) {
             logger.error("単語の保存に失敗しました: word={}", normalizedWord, e);
         }
@@ -103,7 +105,7 @@ public class VocabularyService {
      * 単語情報を取得
      */
     public Optional<Vocabulary> getVocabulary(String word) {
-        return vocabularyRepository.findByWord(word.toLowerCase().trim());
+        return vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word.toLowerCase().trim());
     }
 
     /**
