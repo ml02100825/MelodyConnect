@@ -119,6 +119,7 @@ public class BattleStateService {
         private int player1Wins;
         private int player2Wins;
         private Instant roundStartTime;
+        private final Instant createdAt;    // バトル状態の作成時刻
 
         // 現在のラウンドの回答（暫定）
         private PlayerAnswer currentPlayer1Answer;
@@ -157,6 +158,7 @@ public class BattleStateService {
             this.currentRound = 0;
             this.player1Wins = 0;
             this.player2Wins = 0;
+            this.createdAt = Instant.now();
         }
 
         // Getters
@@ -177,6 +179,7 @@ public class BattleStateService {
         public int getMaxRounds() { return maxRounds; }
         public boolean isRoomMatch() { return isRoomMatch; }
         public Long getRoomId() { return roomId; }
+        public Instant getCreatedAt() { return createdAt; }
 
         // Setters（パッケージプライベート）
         void setStatus(Status status) { this.status = status; }
@@ -335,12 +338,6 @@ public class BattleStateService {
         if (userId == null) {
             return false;
         }
-         for (BattleState state : this.activeBattles.values()) {
-            if (state.isParticipant(userId)) {
-                logger.info("in_battle check: matchUuid={}, isRoomMatch={}, status={}",
-                    state.getMatchUuid(), state.isRoomMatch(), state.getStatus());
-            }
-        }
         for (BattleState state : activeBattles.values()) {
             if (state.isParticipant(userId) && !state.isRoomMatch()
                     && state.getStatus() != Status.FINISHED) {
@@ -348,6 +345,24 @@ public class BattleStateService {
             }
         }
         return false;
+    }
+
+    /**
+     * ユーザーIDからランクマッチのマッチUUIDを取得
+     * @param userId ユーザーID
+     * @return マッチUUID（見つからなければnull）
+     */
+    public String getMatchUuidByUserId(Long userId) {
+        if (userId == null) return null;
+
+        for (Map.Entry<String, BattleState> entry : activeBattles.entrySet()) {
+            BattleState state = entry.getValue();
+            if (state.isParticipant(userId) && !state.isRoomMatch()
+                    && state.getStatus() != Status.FINISHED) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     /**
@@ -685,6 +700,29 @@ public class BattleStateService {
         }
         long elapsedMs = Instant.now().toEpochMilli() - state.getRoundStartTime().toEpochMilli();
         return elapsedMs > ROUND_TIME_LIMIT_SECONDS * 1000L;
+    }
+
+    /**
+     * WAITING_FOR_PLAYERSのまま一定時間経過したバトル状態を削除する
+     * @param maxWaitSeconds 最大待機時間（秒）
+     * @return 削除されたバトルのmatchUuidリスト
+     */
+    public List<String> removeStaleWaitingBattles(long maxWaitSeconds) {
+        List<String> removed = new ArrayList<>();
+        Instant now = Instant.now();
+        for (Map.Entry<String, BattleState> entry : activeBattles.entrySet()) {
+            BattleState state = entry.getValue();
+            if (state.getStatus() == Status.WAITING_FOR_PLAYERS) {
+                long elapsedSeconds = java.time.Duration.between(state.getCreatedAt(), now).getSeconds();
+                if (elapsedSeconds > maxWaitSeconds) {
+                    activeBattles.remove(entry.getKey());
+                    removed.add(entry.getKey());
+                    logger.info("古いWAITING_FOR_PLAYERSバトル状態を削除: matchUuid={}, elapsed={}s",
+                            entry.getKey(), elapsedSeconds);
+                }
+            }
+        }
+        return removed;
     }
 
     /**
