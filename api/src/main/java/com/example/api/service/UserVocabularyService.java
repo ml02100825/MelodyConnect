@@ -42,6 +42,9 @@ public class UserVocabularyService {
     @Autowired
     private WordnikApiClient wordnikApiClient;
 
+    @Autowired
+    private VocabularyService vocabularyService;
+
     /**
      * 除外する一般的な単語（学習価値が低い）
      * 冠詞、代名詞、前置詞、助動詞、接続詞、基本動詞など
@@ -350,30 +353,9 @@ public class UserVocabularyService {
                 return null;
             }
 
-            Vocabulary vocab = Vocabulary.builder()
-                .word(word)
-                .base_form(wordInfo.getBaseForm())           // ★追加: 原形
-                .translation_ja(wordInfo.getTranslationJa()) // ★追加: 簡潔訳
-                .meaning_ja(wordInfo.getMeaningJa())
-                .pronunciation(wordInfo.getPronunciation())
-                .part_of_speech(wordInfo.getPartOfSpeech())
-                .example_sentence(wordInfo.getExampleSentence())
-                .example_translate(wordInfo.getExampleTranslate())
-                .audio_url(wordInfo.getAudioUrl())
-                .language("en")  // デフォルトは英語
-                .isActive(true)
-                .isDeleted(false)
-                .build();
+            // VocabularyServiceの独立トランザクションで保存（制約違反が起きても当トランザクションは汚染されない）
+            return vocabularyService.saveVocabularyFromWordInfo(word, wordInfo);
 
-            Vocabulary savedVocab = vocabularyRepository.save(vocab);
-            logger.info("Vocabularyを新規作成: word={}, baseForm={}, translationJa={}",
-                word, vocab.getBase_form(), vocab.getTranslation_ja());
-            return savedVocab;
-
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            // UNIQUE制約違反の場合、別スレッドが先に作成したレコードを取得
-            logger.info("Vocabulary作成時にUNIQUE制約違反（別スレッドが先に作成）: word={}", word);
-            return vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word).orElse(null);
         } catch (Exception e) {
             logger.error("Vocabulary作成中にエラー: word={}", word, e);
             return null;

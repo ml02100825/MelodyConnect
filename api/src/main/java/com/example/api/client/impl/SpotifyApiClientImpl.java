@@ -11,6 +11,7 @@ import com.example.api.repository.ArtistGenreRepository;
 import com.example.api.repository.ArtistRepository;
 import com.example.api.repository.GenreRepository;
 import com.example.api.repository.SongRepository;
+import com.example.api.service.ArtistService;
 import com.example.api.service.ArtistSyncService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,7 +21,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -58,6 +58,15 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
     @Lazy
     public void setArtistSyncService(ArtistSyncService artistSyncService) {
         this.artistSyncService = artistSyncService;
+    }
+
+    // ArtistServiceを遅延注入（循環依存を回避: SpotifyApiClientImpl ↔ ArtistService）
+    private ArtistService artistService;
+
+    @Autowired
+    @Lazy
+    public void setArtistService(ArtistService artistService) {
+        this.artistService = artistService;
     }
 
     private static final Logger logger = LoggerFactory.getLogger(SpotifyApiClientImpl.class);
@@ -1110,8 +1119,8 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
         }
 
         if (artistApiId != null && !artistApiId.isEmpty()) {
-            // ★ 修正: 競合状態を考慮したArtist取得・作成
-            Artist artist = getOrCreateArtist(artistApiId, artistName != null ? artistName : "Unknown Artist");
+            // ★ 修正: ArtistServiceの独立トランザクションで取得・作成（制約違反が起きても外側トランザクションを汚染しない）
+            Artist artist = artistService.getOrCreateArtist(artistApiId, artistName != null ? artistName : "Unknown Artist");
 
             // artistIdがLong型に変更されたため、直接設定
             song.setArtistId(artist.getArtistId());
@@ -1126,53 +1135,6 @@ public class SpotifyApiClientImpl implements SpotifyApiClient {
 
         logger.debug("Spotify楽曲をパース: {} (ID: {})", song.getSongname(), song.getSpotifyTrackId());
         return song;
-    }
-
-    /**
-     * ★ 追加: アーティストを取得または作成（競合状態に対応）
-     * 
-     * 複数のリクエストが同時に同じアーティストを作成しようとした場合、
-     * 一意制約違反が発生する可能性があります。その場合は再検索して取得します。
-     * 
-     * @param artistApiId Spotify Artist ID
-     * @param artistName アーティスト名
-     * @return Artist エンティティ（既存または新規作成）
-     */
-    private Artist getOrCreateArtist(String artistApiId, String artistName) {
-        // まず検索
-        Optional<Artist> existing = artistRepository.findByArtistApiId(artistApiId);
-        if (existing.isPresent()) {
-            return existing.get();
-        }
-
-        // 新規作成を試みる
-        try {
-            Artist newArtist = new Artist();
-            newArtist.setArtistName(artistName);
-            newArtist.setArtistApiId(artistApiId);
-            logger.info("新規アーティストを作成: name={}, apiId={}", artistName, artistApiId);
-            return artistRepository.saveAndFlush(newArtist);
-        } catch (DataIntegrityViolationException e) {
-            // 競合状態: 他のリクエストが先に保存した場合
-            logger.warn("アーティスト作成で競合が発生。再検索します: apiId={}", artistApiId);
-            return artistRepository.findByArtistApiId(artistApiId)
-                .orElseThrow(() -> {
-                    logger.error("アーティストの取得に失敗しました: apiId={}", artistApiId);
-                    return new RuntimeException("アーティストの取得・作成に失敗しました: " + artistApiId, e);
-                });
-        } catch (Exception e) {
-            // その他の例外（Hibernateセッションが汚染されている可能性）
-            logger.error("アーティスト作成中に予期せぬエラー: apiId={}, error={}", artistApiId, e.getMessage());
-            // フォールバック: デフォルトアーティストを返す
-            return artistRepository.findById(1L)
-                .orElseGet(() -> {
-                    Artist defaultArtist = new Artist();
-                    defaultArtist.setArtistId(1L);
-                    defaultArtist.setArtistName("Unknown Artist");
-                    defaultArtist.setArtistApiId("unknown");
-                    return defaultArtist;
-                });
-        }
     }
 
     private Song createMockSong(String genre) {

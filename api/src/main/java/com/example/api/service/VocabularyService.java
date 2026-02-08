@@ -7,7 +7,10 @@ import com.example.api.repository.VocabularyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -27,6 +30,10 @@ public class VocabularyService {
 
     @Autowired
     private VocabularyRepository vocabularyRepository;
+
+    @Autowired
+    @Lazy
+    private VocabularyService self;
 
     /**
      * リスニング問題で間違えた単語を保存
@@ -54,7 +61,7 @@ public class VocabularyService {
             boolean isIncorrect = i >= userWords.length || !userWords[i].equalsIgnoreCase(correctWord);
 
             if (isIncorrect && !isCommonWord(correctWord)) {
-                saveVocabulary(correctWord);
+                self.saveVocabulary(correctWord);
                 incorrectWords.add(correctWord);
             }
         }
@@ -66,7 +73,7 @@ public class VocabularyService {
     /**
      * 単語を保存（既に存在する場合はスキップ）
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveVocabulary(String word) {
         // 正規化
         String normalizedWord = word.toLowerCase().trim();
@@ -98,6 +105,43 @@ public class VocabularyService {
             logger.info("単語の保存時にUNIQUE制約違反（別スレッドが先に作成）: word={}", normalizedWord);
         } catch (Exception e) {
             logger.error("単語の保存に失敗しました: word={}", normalizedWord, e);
+        }
+    }
+
+    /**
+     * Wordnik APIの情報からVocabularyを保存（REQUIRES_NEW: 制約違反時に呼び出し元のトランザクションを汚染しない）
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Vocabulary saveVocabularyFromWordInfo(String word, WordnikWordInfo wordInfo) {
+        Optional<Vocabulary> existing = vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        try {
+            Vocabulary vocab = Vocabulary.builder()
+                .word(word)
+                .base_form(wordInfo.getBaseForm())
+                .translation_ja(wordInfo.getTranslationJa())
+                .meaning_ja(wordInfo.getMeaningJa())
+                .pronunciation(wordInfo.getPronunciation())
+                .part_of_speech(wordInfo.getPartOfSpeech())
+                .example_sentence(wordInfo.getExampleSentence())
+                .example_translate(wordInfo.getExampleTranslate())
+                .audio_url(wordInfo.getAudioUrl())
+                .language("en")
+                .isActive(true)
+                .isDeleted(false)
+                .build();
+
+            Vocabulary savedVocab = vocabularyRepository.save(vocab);
+            logger.info("Vocabularyを新規作成: word={}, baseForm={}, translationJa={}",
+                word, vocab.getBase_form(), vocab.getTranslation_ja());
+            return savedVocab;
+
+        } catch (DataIntegrityViolationException e) {
+            logger.info("Vocabulary作成時にUNIQUE制約違反（別スレッドが先に作成）: word={}", word);
+            return vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word).orElse(null);
         }
     }
 
