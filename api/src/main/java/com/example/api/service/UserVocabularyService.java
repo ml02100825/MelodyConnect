@@ -42,6 +42,9 @@ public class UserVocabularyService {
     @Autowired
     private WordnikApiClient wordnikApiClient;
 
+    @Autowired
+    private VocabularyService vocabularyService;
+
     /**
      * 除外する一般的な単語（学習価値が低い）
      * 冠詞、代名詞、前置詞、助動詞、接続詞、基本動詞など
@@ -320,7 +323,7 @@ public class UserVocabularyService {
      */
     @Cacheable(value = "vocabularyCache", key = "#word", unless = "#result == null")
     public Vocabulary findVocabularyByWordCached(String word) {
-        return vocabularyRepository.findByWord(word).orElse(null);
+        return vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word).orElse(null);
     }
 
     /**
@@ -328,8 +331,15 @@ public class UserVocabularyService {
      */
     private Vocabulary createVocabularyFromWordnik(String word) {
         try {
+            // 保存直前に再チェック（非同期の別スレッドが先に作成した可能性）
+            Vocabulary existing = vocabularyRepository.findFirstByWordOrderByVocabIdAsc(word).orElse(null);
+            if (existing != null) {
+                logger.debug("Vocabulary作成前の再チェックで既存レコードを発見: word={}", word);
+                return existing;
+            }
+
             WordnikWordInfo wordInfo = wordnikApiClient.getWordInfo(word);
-            
+
             if (wordInfo == null || wordInfo.getMeaningJa() == null) {
                 logger.warn("Wordnik APIから情報を取得できませんでした: word={}", word);
                 return null;
@@ -343,25 +353,8 @@ public class UserVocabularyService {
                 return null;
             }
 
-            Vocabulary vocab = Vocabulary.builder()
-                .word(word)
-                .base_form(wordInfo.getBaseForm())           // ★追加: 原形
-                .translation_ja(wordInfo.getTranslationJa()) // ★追加: 簡潔訳
-                .meaning_ja(wordInfo.getMeaningJa())
-                .pronunciation(wordInfo.getPronunciation())
-                .part_of_speech(wordInfo.getPartOfSpeech())
-                .example_sentence(wordInfo.getExampleSentence())
-                .example_translate(wordInfo.getExampleTranslate())
-                .audio_url(wordInfo.getAudioUrl())
-                .language("en")  // デフォルトは英語
-                .isActive(true)
-                .isDeleted(false)
-                .build();
-
-            Vocabulary savedVocab = vocabularyRepository.save(vocab);
-            logger.info("Vocabularyを新規作成: word={}, baseForm={}, translationJa={}", 
-                word, vocab.getBase_form(), vocab.getTranslation_ja());
-            return savedVocab;
+            // VocabularyServiceの独立トランザクションで保存（制約違反が起きても当トランザクションは汚染されない）
+            return vocabularyService.saveVocabularyFromWordInfo(word, wordInfo);
 
         } catch (Exception e) {
             logger.error("Vocabulary作成中にエラー: word={}", word, e);

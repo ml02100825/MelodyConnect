@@ -17,9 +17,9 @@ import java.util.Optional;
 public interface VocabularyRepository extends JpaRepository<Vocabulary, Integer>, JpaSpecificationExecutor<Vocabulary> {
 
     /**
-     * 単語で検索
+     * 単語で検索（重複がある場合でも1件のみ返す）
      */
-    Optional<Vocabulary> findByWord(String word);
+    Optional<Vocabulary> findFirstByWordOrderByVocabIdAsc(String word);
 
     /**
      * 単語が既に存在するか確認

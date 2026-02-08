@@ -17,7 +17,9 @@ import com.example.api.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -25,6 +27,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class ArtistService {
@@ -271,5 +274,33 @@ public class ArtistService {
         return userRepository.findById(userId)
             .map(User::isInitialSetupCompleted)
             .orElse(false);
+    }
+
+    /**
+     * アーティストを取得または作成（REQUIRES_NEW: 制約違反時に呼び出し元のトランザクションを汚染しない）
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Artist getOrCreateArtist(String artistApiId, String artistName) {
+        Optional<Artist> existing = artistRepository.findByArtistApiId(artistApiId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        try {
+            Artist newArtist = new Artist();
+            newArtist.setArtistName(artistName);
+            newArtist.setArtistApiId(artistApiId);
+            newArtist.setIsActive(true);
+            newArtist.setIsDeleted(false);
+            logger.info("新規アーティストを作成: name={}, apiId={}", artistName, artistApiId);
+            return artistRepository.saveAndFlush(newArtist);
+        } catch (DataIntegrityViolationException e) {
+            logger.warn("アーティスト作成で競合が発生。再検索します: apiId={}", artistApiId);
+            return artistRepository.findByArtistApiId(artistApiId)
+                .orElseThrow(() -> {
+                    logger.error("アーティストの取得に失敗しました: apiId={}", artistApiId);
+                    return new RuntimeException("アーティストの取得・作成に失敗しました: " + artistApiId, e);
+                });
+        }
     }
 }
