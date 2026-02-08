@@ -712,7 +712,7 @@ public class BattleStateService {
         Instant now = Instant.now();
         for (Map.Entry<String, BattleState> entry : activeBattles.entrySet()) {
             BattleState state = entry.getValue();
-            if (state.getStatus() == Status.WAITING_FOR_PLAYERS) {
+            if (state.getStatus() == Status.WAITING_FOR_PLAYERS && !state.isRoomMatch()) {
                 long elapsedSeconds = java.time.Duration.between(state.getCreatedAt(), now).getSeconds();
                 if (elapsedSeconds > maxWaitSeconds) {
                     activeBattles.remove(entry.getKey());
