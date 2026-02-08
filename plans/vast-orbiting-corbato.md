@@ -1,115 +1,66 @@
-# バトル終了後も「バトル中」と表示される不具合 - 原因特定と修正計画
+# バトル画面でFILL_IN_BLANK問題に歌詞の原文を表示する
 
 ## Context
 
-ルームマッチの招待画面（フレンド一覧）で、バトルが終了しているユーザーが「バトル中」と表示され続ける不具合。
+学習モード（`quiz_question_screen.dart`）ではFILL_IN_BLANK問題で「元の歌詞」（`sourceFragment`）が表示されるが、バトル画面（`battle_screen.dart`）では表示されていない。バトル画面にも同様の表示を追加する。
 
-## 原因特定
+## 現状の問題
 
-### 根本原因: WebSocket切断ハンドラーがランクマッチのバトル状態をクリーンアップしない
+`sourceFragment`がバトルのデータフローに含まれていない:
 
-[RoomWebSocketEventListener.java:232-239](api/src/main/java/com/example/api/listener/RoomWebSocketEventListener.java#L232-L239) の切断処理:
-
-```java
-Optional<Room> activeRoom = roomService.getActiveRoom(userId);
-if (activeRoom.isEmpty()) {
-    logger.debug("切断ユーザーにはアクティブな部屋がありません: userId={}", userId);
-    return;  // ← ランクマッチの場合、Roomが存在しないためここで早期リターン！
-}
-```
-
-**ランクマッチはRoom（部屋）エンティティを使わない。** そのため、ランクマッチ中のユーザーがWebSocket切断した場合:
-1. `getActiveRoom(userId)` が空を返す
-2. 切断ハンドラーが早期リターン
-3. `BattleStateService.activeBattles` マップ内のバトル状態がクリーンアップされない
-4. ステータスが `IN_PROGRESS` または `WAITING_FOR_PLAYERS` のまま残る
-
-### ステータス判定の流れ
-
-[RoomController.java:343-367](api/src/main/java/com/example/api/controller/RoomController.java#L343-L367) の `getUserStatus()`:
-1. オフラインチェック → パス（再接続済み）
-2. `getActiveRoom()` → 空（ランクマッチにRoomはない）
-3. `matchingQueueService.isInQueue()` → false
-4. **`battleService.isUserInRankBattle()` → `true`** ← ここで「バトル中」と判定
-
-[BattleStateService.java:334-351](api/src/main/java/com/example/api/service/BattleStateService.java#L334-L351):
-```java
-// status != FINISHED のバトル状態が残っていれば true を返す
-if (state.isParticipant(userId) && !state.isRoomMatch()
-        && state.getStatus() != Status.FINISHED) {
-    return true;
-}
-```
-
-### 発生シナリオ
-
-**シナリオ1: ランクマッチ中にWebSocket切断**
-1. ユーザーA・Bがランクマッチ中（`activeBattles` にバトル状態あり、status=`IN_PROGRESS`）
-2. ユーザーAが切断（アプリ閉じる、ネットワーク不安定等）
-3. 切断ハンドラーが発火 → `getActiveRoom(A)` が空 → 早期リターン（**バトル状態未クリーンアップ**）
-4. ユーザーAから見ればバトルは終了（アプリを閉じた/再起動した）
-5. 残ったユーザーBは回答タイムアウトにより試合が進行（各ラウンド90秒 × 最大10ラウンド = 最大15分+）
-6. その間、ユーザーAはフレンドの招待画面で「バトル中」と表示される
-7. 全ラウンドがタイムアウト処理された後ようやく`finalizeBattle()`→`removeBattle()`でクリーンアップされる
-
-**シナリオ2: バトル開始前の両者切断（永久リーク）**
-1. マッチング成立 → バトル画面遷移 → `/api/battle/start/{matchId}` 呼出で`initializeBattle()` → status=`WAITING_FOR_PLAYERS`
-2. 両ユーザーが`/app/battle/ready`を送信する前に切断
-3. バトル状態が`WAITING_FOR_PLAYERS`のまま`activeBattles`に永久に残る
-4. **タイムアウト機構は`IN_PROGRESS`のみ対象** → `WAITING_FOR_PLAYERS`は掃除されない
-5. 対象ユーザーは永久に「バトル中」と表示される
+1. **Question entity** は `sourceFragment` を持っている ([Question.java:101-102](api/src/main/java/com/example/api/entity/Question.java#L101-L102))
+2. **QuizStartResponse DTO** (学習用) は `sourceFragment` を含む ([QuizStartResponse.java:64](api/src/main/java/com/example/api/dto/QuizStartResponse.java#L64))
+3. **QuestionResponse DTO** (バトル用) には `sourceFragment` が**存在しない** ([QuestionResponse.java](api/src/main/java/com/example/api/dto/battle/QuestionResponse.java))
+4. **BattleQuestion** (Flutter) にも `sourceFragment` が**存在しない** ([battle_models.dart:56-119](web/lib/models/battle_models.dart#L56-L119))
 
 ## 修正計画
 
-### 1. WebSocket切断ハンドラーにランクマッチのクリーンアップを追加
-**ファイル:** [RoomWebSocketEventListener.java](api/src/main/java/com/example/api/listener/RoomWebSocketEventListener.java)
+### Step 1: バックエンド - QuestionResponse DTOに`sourceFragment`を追加
 
-`handleWebSocketDisconnectListener()` 内で、`getActiveRoom()` が空の場合でもランクマッチのバトル状態をチェック・クリーンアップする。
+**ファイル:** [QuestionResponse.java](api/src/main/java/com/example/api/dto/battle/QuestionResponse.java)
 
-```java
-// 既存コードの早期リターン前に追加:
-// ランクマッチ中のバトル状態をクリーンアップ
-handleRankBattleDisconnect(userId);
+- `sourceFragment` フィールド + getter/setter を追加
+- コンストラクタに `sourceFragment` パラメータを追加
+
+### Step 2: バックエンド - BattleControllerで`sourceFragment`を渡す
+
+**ファイル:** [BattleController.java:442-483](api/src/main/java/com/example/api/controller/BattleController.java#L442-L483)
+
+`sendQuestionToPlayers()` 内の `QuestionResponse` 生成時に `question.getSourceFragment()` を渡す。
+
+### Step 3: フロントエンド - BattleQuestionモデルに`sourceFragment`を追加
+
+**ファイル:** [battle_models.dart:56-119](web/lib/models/battle_models.dart#L56-L119)
+
+- `sourceFragment` フィールドを追加
+- `fromJson` でパース
+
+### Step 4: フロントエンド - バトル画面の虫食い問題に歌詞原文を表示
+
+**ファイル:** [battle_screen.dart:1348-1395](web/lib/screens/battle_screen.dart#L1348-L1395)
+
+`_buildFillInBlankQuestion()` に、`quiz_question_screen.dart:388-428` と同様の「元の歌詞」表示を追加。問題文（`text`）の前に表示する。
+
+参考実装（[quiz_question_screen.dart:388-428](web/lib/screens/quiz_question_screen.dart#L388-L428)):
+```dart
+if (_currentQuestion.sourceFragment != null &&
+    _currentQuestion.sourceFragment!.isNotEmpty) ...[
+  Container(
+    // 紫色背景のカード内に「元の歌詞」ラベル + sourceFragment テキスト
+  ),
+  const SizedBox(height: 16),
+],
 ```
-
-### 2. ランクマッチ用の切断処理メソッドを追加
-**ファイル:** [RoomWebSocketEventListener.java](api/src/main/java/com/example/api/listener/RoomWebSocketEventListener.java)
-
-```java
-private void handleRankBattleDisconnect(Long userId) {
-    // activeBattlesからユーザーが参加中のランクマッチを検索
-    // 見つかったらhandleDisconnection()で切断処理
-}
-```
-
-### 3. BattleStateServiceにユーザーIDからバトルを検索するメソッドを追加
-**ファイル:** [BattleStateService.java](api/src/main/java/com/example/api/service/BattleStateService.java)
-
-```java
-public String getMatchUuidByUserId(Long userId) {
-    // activeBattlesから、参加者にuserIdを含むバトルのmatchUuidを返す
-    // (ランクマッチのみ、FINISHED以外)
-}
-```
-
-### 4. 古いバトル状態のクリーンアップ用スケジュールタスクを追加
-**ファイル:** [BattleStateService.java](api/src/main/java/com/example/api/service/BattleStateService.java) または [BattleController.java](api/src/main/java/com/example/api/controller/BattleController.java)
-
-`WAITING_FOR_PLAYERS` のまま一定時間（例: 5分）経過したバトル状態を自動削除する安全策。
-
-### 5. デバッグログの削除
-**ファイル:** [BattleStateService.java:338-343](api/src/main/java/com/example/api/service/BattleStateService.java#L338-L343)
-
-調査用に追加されたデバッグログを削除する。
 
 ## 修正対象ファイル
 
-1. [RoomWebSocketEventListener.java](api/src/main/java/com/example/api/listener/RoomWebSocketEventListener.java) - 切断ハンドラーの修正
-2. [BattleStateService.java](api/src/main/java/com/example/api/service/BattleStateService.java) - ユーザーID検索メソッド追加 + デバッグログ削除
-3. [BattleController.java](api/src/main/java/com/example/api/controller/BattleController.java) - WAITING_FOR_PLAYERSクリーンアップタスク追加（任意）
+1. [QuestionResponse.java](api/src/main/java/com/example/api/dto/battle/QuestionResponse.java) - `sourceFragment` フィールド追加
+2. [BattleController.java](api/src/main/java/com/example/api/controller/BattleController.java) - `sourceFragment` を渡す
+3. [battle_models.dart](web/lib/models/battle_models.dart) - `sourceFragment` フィールド追加
+4. [battle_screen.dart](web/lib/screens/battle_screen.dart) - 歌詞原文の表示追加
 
 ## 検証方法
 
-1. ランクマッチ中にWebSocket切断を模擬 → バトル状態がクリーンアップされることを確認
-2. 切断後、フレンド招待画面で「バトル中」ではなく「オフライン」または「オンライン」と表示されることを確認
-3. 既存のルームマッチ切断処理が引き続き正常に動作することを確認
+1. バトル画面でFILL_IN_BLANK問題が表示された時、`sourceFragment`がある問題では「元の歌詞」セクションが表示される
+2. `sourceFragment`がnull/空の問題では「元の歌詞」セクションが表示されない
+3. LISTENING問題には影響しない

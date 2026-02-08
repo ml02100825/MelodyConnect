@@ -39,6 +39,9 @@ public class BattleController {
     private BattleService battleService;
 
     @Autowired
+    private BattleStateService battleStateService;
+
+    @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
     @Autowired
@@ -305,6 +308,21 @@ public class BattleController {
         }
     }
 
+    /**
+     * WAITING_FOR_PLAYERSのまま5分以上経過したバトル状態を定期的にクリーンアップ（60秒ごと）
+     */
+    @Scheduled(fixedRate = 60000)
+    public void cleanupStaleWaitingBattles() {
+        try {
+            List<String> removed = battleStateService.removeStaleWaitingBattles(300);
+            for (String matchId : removed) {
+                logger.info("古いWAITING_FOR_PLAYERSバトルを削除: matchId={}", matchId);
+            }
+        } catch (Exception e) {
+            logger.error("WAITING_FOR_PLAYERSクリーンアップエラー", e);
+        }
+    }
+
     // ==================== Private Methods ====================
 
     /**
@@ -463,7 +481,8 @@ public class BattleController {
                 state.getCurrentRound() + 1,
                 state.getQuestions().size(),
                 BattleStateService.ROUND_TIME_LIMIT_SECONDS * 1000L,
-                state.getRoundStartTime().toEpochMilli()
+                state.getRoundStartTime().toEpochMilli(),
+                question.getSourceFragment()
         );
 
         Map<String, Object> questionMessage = new HashMap<>();

@@ -235,6 +235,8 @@ public class RoomWebSocketEventListener {
 
             if (activeRoom.isEmpty()) {
                 logger.debug("切断ユーザーにはアクティブな部屋がありません: userId={}", userId);
+                // ランクマッチ中のバトル状態をクリーンアップ
+                handleRankBattleDisconnect(userId);
                 return;
             }
 
@@ -328,6 +330,40 @@ public class RoomWebSocketEventListener {
 
         } catch (Exception e) {
             logger.error("対戦中切断処理エラー: roomId={}", roomId, e);
+        }
+    }
+
+    /**
+     * ランクマッチ中の切断処理
+     * Roomエンティティを使わないランクマッチのバトル状態をクリーンアップする
+     */
+    private void handleRankBattleDisconnect(Long disconnectedUserId) {
+        String matchUuid = battleStateService.getMatchUuidByUserId(disconnectedUserId);
+        if (matchUuid == null) {
+            logger.debug("ランクマッチのバトル状態なし: userId={}", disconnectedUserId);
+            return;
+        }
+
+        logger.info("ランクマッチ切断処理開始: userId={}, matchUuid={}", disconnectedUserId, matchUuid);
+
+        try {
+            BattleService.BattleResultDto result =
+                    battleService.handleDisconnection(matchUuid, disconnectedUserId, null);
+            if (result != null) {
+                Map<String, Object> winnerView = result.toPlayerView(result.getWinnerId());
+                winnerView.put("type", "battle_result");
+
+                Map<String, Object> loserView = result.toPlayerView(result.getLoserId());
+                loserView.put("type", "battle_result");
+
+                messagingTemplate.convertAndSend("/topic/battle/" + result.getWinnerId(), winnerView);
+                messagingTemplate.convertAndSend("/topic/battle/" + result.getLoserId(), loserView);
+
+                logger.info("ランクマッチ切断処理完了: matchUuid={}, winnerId={}, loserId={}",
+                        matchUuid, result.getWinnerId(), result.getLoserId());
+            }
+        } catch (Exception e) {
+            logger.error("ランクマッチ切断処理エラー: userId={}, matchUuid={}", disconnectedUserId, matchUuid, e);
         }
     }
 

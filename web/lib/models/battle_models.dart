@@ -61,6 +61,7 @@ class BattleQuestion {
   final String? translationJa;
   final String? songName;
   final String? artistName;
+  final String? sourceFragment;
   final int roundNumber;
   final int totalRounds;
   final int roundTimeLimitMs;
@@ -74,6 +75,7 @@ class BattleQuestion {
     this.translationJa,
     this.songName,
     this.artistName,
+    this.sourceFragment,
     required this.roundNumber,
     required this.totalRounds,
     required this.roundTimeLimitMs,
@@ -95,6 +97,7 @@ class BattleQuestion {
       translationJa: json['translationJa'],
       songName: json['songName'],
       artistName: json['artistName'],
+      sourceFragment: json['sourceFragment'],
       roundNumber: json['roundNumber'] ?? 1,
       totalRounds: json['totalRounds'] ?? 10,
       roundTimeLimitMs: json['roundTimeLimitMs'] ?? 90000,
