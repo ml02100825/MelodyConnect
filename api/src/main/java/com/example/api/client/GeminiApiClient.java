@@ -12,14 +12,16 @@ public interface GeminiApiClient {
      * 歌詞から言語学習問題を生成
      *
      * @param lyrics 歌詞
-     * @param language 対象言語
+     * @param sourceLanguage 歌詞の原語コード（"ja", "en" 等。null の場合は targetLanguage と同一とみなす）
+     * @param targetLanguage ユーザーの学習言語コード（"en", "ko" 等）
      * @param fillInBlankCount 穴埋め問題の数
      * @param listeningCount リスニング問題の数
      * @return 生成された問題
      */
     ClaudeQuestionResponse generateQuestions(
         String lyrics,
-        String language,
+        String sourceLanguage,
+        String targetLanguage,
         Integer fillInBlankCount,
         Integer listeningCount
     );

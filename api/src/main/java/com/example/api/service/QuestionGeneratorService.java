@@ -7,9 +7,7 @@ import com.example.api.client.TextToSpeechClient;
 import com.example.api.client.WordnikApiClient;
 import com.example.api.dto.*;
 import com.example.api.entity.*;
-import com.example.api.enums.LanguageCode;
 import com.example.api.repository.*;
-import com.example.api.util.LanguageDetectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,6 +66,9 @@ public class QuestionGeneratorService {
     // ★ ArtistSyncServiceを注入
     @Autowired
     private ArtistSyncService artistSyncService;
+
+    @Autowired
+    private LanguageDetectionService languageDetectionService;
 
     /**
      * 問題を保存
@@ -252,16 +253,17 @@ public class QuestionGeneratorService {
 
             logger.info("歌詞取得完了: length={}", lyrics.length());
 
-            // 3. ユーザーの学習言語を取得（問題生成とデータ保存に使用）
+            // 3. 言語を取得（sourceLanguage: 歌詞の原語、targetLanguage: ユーザーの学習言語）
             String targetLanguage = request.getTargetLanguage() != null ? request.getTargetLanguage() : "en";
-            logger.info("=== TARGET LANGUAGE CHECK ===");
-            logger.info("Request targetLanguage: {}", request.getTargetLanguage());
-            logger.info("Resolved targetLanguage: {}", targetLanguage);
-            logger.info("============================");
+            // fetchLyrics() 内で song.setLanguage(detectedLanguage) が設定されているため、
+            // fetchLyrics() 後に selectedSong.getLanguage() で原語を取得できる
+            String sourceLanguage = selectedSong.getLanguage();
+            logger.info("sourceLanguage={}, targetLanguage={}", sourceLanguage, targetLanguage);
 
-            // 4. Gemini APIで問題を生成（ユーザーの学習言語で生成）
+            // 4. Gemini APIで問題を生成（sourceLanguage/targetLanguageに応じてテンプレートを選択）
             ClaudeQuestionResponse claudeResponse = geminiApiClient.generateQuestions(
                 lyrics,
+                sourceLanguage,
                 targetLanguage,
                 request.getFillInBlankCount(),
                 request.getListeningCount()
@@ -464,23 +466,11 @@ public class QuestionGeneratorService {
     }
 
     /**
-     * 歌詞から言語を簡易検出
-     * LanguageDetectionUtilsを使用して判定を行う
+     * 歌詞から言語を検出
+     * lingua ライブラリを第一優先とし、検出不可の場合は Unicode ブロック判定にフォールバックする。
      */
     private String detectLanguageSimple(String lyrics) {
-        if (lyrics == null || lyrics.trim().isEmpty()) {
-            return null;
-        }
-
-        // LanguageDetectionUtilsを使用して言語を検出
-        LanguageCode detected = LanguageDetectionUtils.detectFromCharacters(lyrics);
-
-        if (detected != null && detected.isValid()) {
-            logger.debug("言語検出: {}", detected.getDisplayName());
-            return detected.getCode();
-        }
-
-        return null;
+        return languageDetectionService.detectLanguage(lyrics);
     }
 
     /**

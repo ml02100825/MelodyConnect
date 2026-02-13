@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./mvnw.cmd compile:*)"
+      "Bash(./mvnw.cmd compile:*)",
+      "WebFetch(domain:javadoc.io)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

@@ -1,6 +1,8 @@
 package com.example.api.client.impl;
 
 import com.example.api.client.GeniusApiClient;
+import com.example.api.service.GeniusLyricsFilterService;
+import com.example.api.service.LanguageDetectionService;
 import com.example.api.util.LanguageDetectionUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +17,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -31,12 +35,18 @@ public class GeniusApiClientImpl implements GeniusApiClient {
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
+    private final GeniusLyricsFilterService geniusLyricsFilterService;
+    private final LanguageDetectionService languageDetectionService;
 
     @Value("${genius.api.key:}")
     private String apiKey;
 
-    public GeniusApiClientImpl(ObjectMapper objectMapper) {
+    public GeniusApiClientImpl(ObjectMapper objectMapper,
+                               GeniusLyricsFilterService geniusLyricsFilterService,
+                               LanguageDetectionService languageDetectionService) {
         this.objectMapper = objectMapper;
+        this.geniusLyricsFilterService = geniusLyricsFilterService;
+        this.languageDetectionService = languageDetectionService;
         this.webClient = WebClient.builder()
             .baseUrl(GENIUS_API_BASE_URL)
             .build();
@@ -279,28 +289,13 @@ public class GeniusApiClientImpl implements GeniusApiClient {
 
     /**
      * 歌詞から言語を検出
-     * 歌詞の文字種から言語を判定する
-     *
-     * LanguageDetectionUtilsを使用して判定を行う
+     * lingua ライブラリを第一優先とし、検出不可の場合は Unicode ブロック判定にフォールバックする。
      *
      * @param lyrics 歌詞テキスト
      * @return 検出された言語コード（ja, ko, en等）、判定できない場合はnull
      */
     private String detectLanguage(String lyrics) {
-        if (lyrics == null || lyrics.trim().isEmpty()) {
-            return null;
-        }
-
-        // LanguageDetectionUtilsを使用して言語を検出
-        com.example.api.enums.LanguageCode detected = LanguageDetectionUtils.detectFromCharacters(lyrics);
-
-        if (detected != null && detected.isValid()) {
-            logger.debug("言語検出: {}", detected.getDisplayName());
-            return detected.getCode();
-        }
-
-        logger.debug("言語検出: 判定不可");
-        return null;
+        return languageDetectionService.detectLanguage(lyrics);
     }
 
     @Override
@@ -347,12 +342,23 @@ public class GeniusApiClientImpl implements GeniusApiClient {
             JsonNode hits = rootNode.path("response").path("hits");
 
             if (hits.isArray() && hits.size() > 0) {
+                // hits を List に変換してフィルタリング（翻訳版・ローマ字版を除外）
+                List<JsonNode> allHits = new ArrayList<>();
+                for (JsonNode hit : hits) {
+                    allHits.add(hit);
+                }
+                List<JsonNode> filteredHits = geniusLyricsFilterService.filterOriginalOnly(allHits);
+                if (filteredHits.isEmpty()) {
+                    logger.warn("フィルタ後に候補がゼロのため全件フォールバック: title={}, artist={}", songTitle, artistName);
+                    filteredHits = allHits;
+                }
+
                 // 日本語版が見つからなかった場合のフォールバック用
                 LyricsResult fallbackResult = null;
                 Set<Long> triedSongIds = new HashSet<>();
 
                 // 優先度順に各候補を試す（日本語版を優先）
-                for (JsonNode hit : hits) {
+                for (JsonNode hit : filteredHits) {
                     JsonNode result = hit.path("result");
 
                     String title = result.path("title").asText();
@@ -364,14 +370,6 @@ public class GeniusApiClientImpl implements GeniusApiClient {
                         continue;
                     }
                     triedSongIds.add(songId);
-
-                    // ローマ字版をスキップ
-                    String titleLower = title.toLowerCase();
-                    String artistLower = primaryArtistName.toLowerCase();
-                    if (titleLower.contains("romanized") || artistLower.contains("genius romanizations")) {
-                        logger.debug("ローマ字版をスキップ: title=\"{}\", artist=\"{}\"", title, primaryArtistName);
-                        continue;
-                    }
 
                     // 曲名とアーティスト名の一致チェック
                     if (!isTitleMatch(songTitle, title)) {

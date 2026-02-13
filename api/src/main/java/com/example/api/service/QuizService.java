@@ -417,6 +417,7 @@ public class QuizService {
             .songUrl(request.getSongUrl())
             .fillInBlankCount(fillInBlankCount)
             .listeningCount(listeningCount)
+            .targetLanguage(request.getLanguage())
             .build();
 
         // 問題を生成
