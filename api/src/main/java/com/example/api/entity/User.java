@@ -48,13 +48,12 @@ public class User {
     @Column(name = "privacy")
     private Integer privacy = 0;
 
-    // ▼▼▼ DBに合わせて2つのフラグを定義 ▼▼▼
     @Column(name = "subscribe_flag", nullable = false)
     private int subscribeFlag = 0; // 0:未契約, 1:契約中
 
     @Column(name = "cancellation_flag", nullable = false)
     private int cancellationFlag = 0; // 0:未解約, 1:解約済み
-    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
 
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
